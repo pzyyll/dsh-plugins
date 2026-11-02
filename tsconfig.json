@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "types": ["node"],
+    "paths": {
+      "@deepseek-ai/cordis": ["F:/workspace/source/deepseek-harness/vendor/cordis/src/index.ts"],
+      "@deepseek-ai/dsh-authorization": ["F:/workspace/source/deepseek-harness/packages/credentials/authorization/src/index.ts"],
+      "@deepseek-ai/dsh-commands": ["F:/workspace/source/deepseek-harness/packages/interaction/commands/src/index.ts"],
+      "@deepseek-ai/dsh-credentials": ["F:/workspace/source/deepseek-harness/packages/credentials/credentials/src/index.ts"],
+      "@deepseek-ai/dsh-home-paths": ["F:/workspace/source/deepseek-harness/packages/util/home-paths/src/index.ts"],
+      "@deepseek-ai/dsh-llm": ["F:/workspace/source/deepseek-harness/packages/llm/llm/src/index.ts"],
+      "@deepseek-ai/dsh-llm-pi-ai": ["F:/workspace/source/deepseek-harness/packages/llm/llm-pi-ai/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts"]
+}
