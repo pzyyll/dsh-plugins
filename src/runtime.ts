@@ -17,8 +17,6 @@ import {
   type CatalogModel,
 } from './catalog.ts'
 import {
-  CLIENT_MODE_VALUE,
-  GROK_CLIENT_VERSION,
   MAX_REQUEST_IMAGE_BYTES,
   PLUGIN_NAME,
   PROVIDER_ID,
@@ -26,7 +24,6 @@ import {
   REQUEST_IMAGE_MAX_BYTES,
   REQUEST_IMAGE_PIXEL_BUDGET,
   STREAM_IDLE_TIMEOUT_MS,
-  TOKEN_AUTH_VALUE,
   USAGE_CACHE_TTL_MS,
   oauthBaseUrl,
 } from './constants.ts'
@@ -45,7 +42,7 @@ import {
   requestDeviceCode,
 } from './oauth.ts'
 import { fetchGrokUsage, type GrokUsageView } from './grok-usage.ts'
-import { catalogToModel, createSuperGrokProvider } from './wire.ts'
+import { catalogHeaders, catalogToModel, createSuperGrokProvider } from './wire.ts'
 
 export const CREDENTIAL_KEY = credentialKey(PLUGIN_NAME, PROVIDER_ID)
 
@@ -139,17 +136,22 @@ export class SuperGrokRuntime {
     this.version += 1
     this.profiles = undefined
     if (previous === this.models.map(model => model.id).join('\n') && !announce) return
-    // dsh 0.2.1 refreshes the picker on adapter updates, not on models-updated.
+    // dsh 0.2.1 refreshes the picker on adapter updates.
     this.ctx.emit('llm/adapters-updated')
-    this.ctx.emit('llm/models-updated', PROVIDER_ID)
   }
 
   async resolveAccessToken(signal?: AbortSignal): Promise<string> {
+    const previousAccess = this.latest?.access
+    const ready = await this.resolveCredentials(signal)
+    if (ready.access !== previousAccess) void this.warmCatalog(ready)
+    return ready.access
+  }
+
+  private async resolveCredentials(signal?: AbortSignal): Promise<SuperGrokCredentials> {
     const credentials = this.ctx.get('credentials')
     if (credentials === undefined) {
       throw new LlmError('xAI SuperGrok needs the credentials service to store the subscription sign-in', 'NO_CREDENTIAL_STORE')
     }
-    const previousAccess = this.latest?.access
     const stored = await credentials.modifyRecord(CREDENTIAL_KEY, async (current) => {
       const existing = credentialsFromRecord(current)
       if (existing === undefined) return undefined
@@ -165,8 +167,7 @@ export class SuperGrokRuntime {
       )
     }
     this.latest = ready
-    if (ready.access !== previousAccess) void this.warmCatalog(ready)
-    return ready.access
+    return ready
   }
 
   async warmCatalog(credentials: SuperGrokCredentials, signal?: AbortSignal, announce = false): Promise<void> {
@@ -176,16 +177,7 @@ export class SuperGrokRuntime {
     try {
       const response = await globalThis.fetch(origin, {
         method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          Authorization: `Bearer ${credentials.access}`,
-          'X-XAI-Token-Auth': TOKEN_AUTH_VALUE,
-          'x-grok-client-version': GROK_CLIENT_VERSION,
-          'x-grok-client-mode': CLIENT_MODE_VALUE,
-          ...credentials.userId === undefined ? {} : { 'x-userid': credentials.userId },
-          ...credentials.email === undefined ? {} : { 'x-email': credentials.email },
-          ...announce || previous?.etag === undefined ? {} : { 'If-None-Match': previous.etag },
-        },
+        headers: catalogHeaders(credentials, announce ? undefined : previous?.etag),
         signal,
       })
       if (response.status === 304 && previous !== undefined) {
@@ -290,13 +282,7 @@ export class SuperGrokRuntime {
 
   /** Fetch the live catalog and tell the model picker to reload it. */
   async refreshModels(): Promise<{ models: string[] }> {
-    const credentials = this.ctx.get('credentials')
-    const stored = credentials === undefined
-      ? undefined
-      : credentialsFromRecord(await credentials.readRecord(CREDENTIAL_KEY))
-    const ready = this.latest ?? stored
-    if (ready === undefined) throw new Error('Sign in to xAI SuperGrok before refreshing the model catalog.')
-    this.latest = ready
+    const ready = await this.resolveCredentials()
     await this.warmCatalog(ready, undefined, true)
     return { models: this.models.map(model => model.id) }
   }

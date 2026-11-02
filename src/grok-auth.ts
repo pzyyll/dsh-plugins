@@ -133,6 +133,15 @@ export function describeGrokAuthSession(credentials: SuperGrokCredentials): stri
   return credentials.email || credentials.userId || 'existing session'
 }
 
+/** Use stored principal metadata only for its own token, then fall back to JWT attribution. */
+export function resolveGrokUserId(
+  accessToken: string | undefined,
+  credentials: SuperGrokCredentials | undefined,
+): string | undefined {
+  const storedUser = credentials !== undefined && credentials.access === accessToken ? credentials.userId : undefined
+  return storedUser || (accessToken ? peekJwtUserId(accessToken) : undefined)
+}
+
 function firstClaim(obj: Record<string, unknown>, ...keys: string[]): string | undefined {
   for (const key of keys) {
     const value = obj[key]
