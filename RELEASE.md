@@ -10,9 +10,9 @@ Ship targets:
 | `packages/dsh-ide-selection` | `dsh-ide-selection-vX.Y.Z` | npm package `@balaenis/dsh-ide-selection` |
 | `packages/dsh-ide-selection/ide-plugins/vscode` | `dsh-ide-selection-vscode-vX.Y.Z` | VSIX on that GitHub Release, then the Visual Studio Marketplace |
 
-`next` (npm dist-tag only) is published when a release PR opens or updates. The VS Code extension has no `next` publish: Marketplace releases are `latest` only.
+`next` (npm dist-tag only) is staged when a release PR opens or updates. The VS Code extension has no `next` publish: Marketplace releases are `latest` only.
 
-One release PR can list every package that changed. Merging it still tags, releases, and publishes each package on its own.
+One release PR can list every package that changed. Merging it still tags and releases each package on its own. npm packages are only staged; a maintainer approves each stage with 2FA before that version is installable.
 
 ## Repository layout
 
@@ -44,12 +44,12 @@ Tags include the component and a `v` prefix: `dsh-xai-auth-v0.1.0`, `dsh-ide-sel
 
 | Channel | Trigger | Result |
 | --- | --- | --- |
-| `latest` | release PR merged | release-please GitHub Release, then `publish.yml` |
-| `next` | release PR opened or updated | npm `<last-release>-next.<commits>` for plugin packages; VS Code extension skipped |
+| `latest` | release PR merged | release-please GitHub Release, then `publish.yml` stages the version |
+| `next` | release PR opened or updated | stage npm `<last-release>-next.<commits>` for plugin packages; VS Code extension skipped |
 
 `next` does not create a component tag. The count is commits since that package's last `component-v*` tag.
 
-Plugin `latest` publishes with `pnpm publish` so `catalog:` specifiers are replaced. In GitHub Actions the publish is OIDC trusted publishing with provenance. No `NPM_TOKEN`.
+Plugin packages are packed with `pnpm pack`, which replaces `catalog:` specifiers, then staged with `npm stage publish`. GitHub Actions uses OIDC trusted publishing and provenance. No `NPM_TOKEN`. Leave **Allow npm publish** unchecked: `npm stage publish` is always allowed, and direct publish is the path npm no longer recommends. The staged version stays private until a maintainer approves it with 2FA on the package's Staged Packages tab, or with `npm stage approve <id>`. **Allow npm dist-tag** stays unchecked; the stage command sets the channel itself.
 
 Extension `latest`, in order:
 
@@ -66,16 +66,18 @@ Do this once per package before automation can update it. Current manifest versi
 ### npm packages
 
 1. Confirm `version` is `0.1.0`, `repository.url` is `https://github.com/pzyyll/dsh-plugins.git`, and `files` / `exports` are the publish set.
-2. From the repo root, after `mise trust`, `mise install`, and `mise run install`:
+2. From the repo root, after `mise trust`, `mise install`, and `mise run install`, stage the package. npm must be 11.15.0 or newer. Staging does not make the version installable:
 
    ```sh
    mise run publish --package packages/dsh-xai-auth --tag latest --dry-run
    mise run publish --package packages/dsh-xai-auth --tag latest
+   npm stage list
+   npm stage approve <id>
    ```
 
-   Local publish uses the npm account from `pnpm login`. Add `--otp <code>` when the registry asks for a one-time password. OIDC is CI-only and cannot create the first missing package.
+   `--otp` is forwarded to `npm stage publish` but does not replace the approval. CI stages through `publish.yml`; approve that stage the same way. A package that does not exist yet gets a public `0.0.0-stage` placeholder, and the staged version itself stays hidden until approval.
 
-3. Tag the published commit and push the tag:
+3. Tag the commit that was approved and push the tag:
 
    ```sh
    git tag dsh-xai-auth-v0.1.0
@@ -87,6 +89,8 @@ Do this once per package before automation can update it. Current manifest versi
    - Repository: `dsh-plugins`
    - Workflow filename: `publish.yml`
    - Environment: empty, unless the job later uses a matching GitHub environment
+   - Allow npm publish: leave unchecked
+   - Allow npm dist-tag: leave unchecked
 
 Repeat for `packages/dsh-ide-selection` and tag `dsh-ide-selection-v0.1.0`.
 
@@ -102,8 +106,8 @@ Local `mise run publish` for the extension only builds the VSIX. Upload and Mark
 
 1. Push conventional commits to `main`.
 2. `release.yml` opens or updates one release PR with each package's version, `CHANGELOG.md`, and manifest bump.
-3. Opening that PR dispatches `next` npm publishes. Packages with no new commits since their component tag skip themselves.
-4. Merging the PR creates each package's GitHub Release and dispatches `latest` publish for each released path.
+3. Opening that PR dispatches `next` staging. Packages with no new commits since their component tag skip themselves. Approve each staged `next` version before that dist-tag can be installed.
+4. Merging the PR creates each package's GitHub Release and dispatches `latest` staging for each released path. Approve those stages to make the versions installable.
 
 Manual run: Actions → Publish Package → path such as `packages/dsh-ide-selection/ide-plugins/vscode`, channel `latest` or `next`.
 
@@ -120,5 +124,7 @@ git commit --allow-empty -m "chore: release dsh-xai-auth 1.0.0" -m "Release-As: 
 - Edit a release-please PR's version or changelog by hand.
 - Edit a package `version` on `main`. release-please owns `latest`. The publish task writes `next` only in the CI checkout.
 - Delete component tags. `next` uses them to decide whether an npm package changed.
+- Enable **Allow npm publish** for `publish.yml`. Plugin packages are staged, not published directly.
+- Publish a plugin package with `pnpm publish` or `npm publish`.
 - Publish the VS Code extension with `pnpm publish`, or attach its VSIX to a plugin npm package.
 - Publish a `next` VSIX to the Marketplace.

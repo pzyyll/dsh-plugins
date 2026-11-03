@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-#MISE description="Publish one package to npm, or a VSIX to its GitHub Release and the Marketplace"
+#MISE description="Stage one package on npm, or publish a VSIX to its GitHub Release and the Marketplace"
 #USAGE flag "-p --package <path>" "Package dir, e.g. packages/dsh-xai-auth" default=""
 #USAGE flag "-t --tag <tag>" "Channel: latest or next" default="latest"
-#USAGE flag "-d --dry-run" "Build and print the publish commands without publishing"
-#USAGE flag "--otp <otp>" "One-time password for npm two-factor authentication" default=""
+#USAGE flag "-d --dry-run" "Build and print the stage command without staging"
+#USAGE flag "--otp <otp>" "Optional OTP forwarded to npm stage publish. Approval still requires 2FA" default=""
 
 set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
@@ -136,24 +136,48 @@ if [ "$KIND" = "vsix" ]; then
 fi
 
 cd "$PKG"
-args=()
+node --input-type=commonjs -e '
+const [major, minor] = process.argv[1].split(".").map(Number);
+if (major < 11 || (major === 11 && minor < 15)) {
+  console.error("npm stage publish requires npm >= 11.15.0, found " + process.argv[1]);
+  process.exit(1);
+}
+' "$(npm --version)"
+
+PACK_DIR="$(mktemp -d)"
+cleanup_pack() { rm -rf "$PACK_DIR"; }
+trap cleanup_pack EXIT
+TARBALL="$PACK_DIR/package.tgz"
+echo " > packing with pnpm so catalog: specifiers are replaced"
+pnpm pack --silent --out "$TARBALL"
+node --input-type=commonjs -e '
+const {execFileSync} = require("child_process");
+const manifest = execFileSync("tar", ["-xOf", process.argv[1], "package/package.json"], {encoding: "utf8"});
+if (manifest.includes("catalog:")) {
+  console.error("packed manifest still contains catalog:");
+  process.exit(1);
+}
+' "$TARBALL"
+
+args=(--tag "$TAG")
 case "$NAME" in
-@*) args+=("--access" "public") ;;
+@*) args+=(--access public) ;;
 esac
 if [ -n "$OTP" ]; then
-	args+=("--otp" "$OTP")
-	echo " > using provided OTP for 2FA"
+	args+=(--otp "$OTP")
+	echo " > forwarding OTP; staged versions still need a separate 2FA approval"
 fi
 if [ -n "${GITHUB_ACTIONS:-}" ]; then
-	args+=("--provenance")
-	echo " > adding provenance for CI publish"
+	args+=(--provenance)
+	echo " > adding provenance for CI stage"
 fi
 
 if [ "$DRY" = "true" ]; then
-	echo "Dry run: pnpm publish --tag $TAG --no-git-checks ${args[*]}"
-	pnpm publish --dry-run --tag "$TAG" --no-git-checks "${args[@]}"
+	echo "Dry run: npm stage publish $TARBALL ${args[*]}"
+	npm stage publish "$TARBALL" --dry-run "${args[@]}"
 	exit 0
 fi
 
-pnpm publish --tag "$TAG" --no-git-checks "${args[@]}"
-echo "Publish process completed."
+npm stage publish "$TARBALL" "${args[@]}"
+echo "Staged $NAME@$VERSION on the $TAG channel."
+echo "It is not public yet. Approve it with 2FA on the npmjs.com Staged Packages tab, or run: npm stage list && npm stage approve <id>"
