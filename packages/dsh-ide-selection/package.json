@@ -1,5 +1,5 @@
 {
-  "name": "dsh-ide-selection",
+  "name": "@balaenis/dsh-ide-selection",
   "version": "0.1.0",
   "description": "Shows the current VS Code selection and adds it to accepted human turns.",
   "repository": {
