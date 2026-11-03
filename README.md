@@ -1,6 +1,6 @@
-[ENGLISH](README.md) | [中文](README.zh-CN.md)
-
 # dsh-xai-auth
+
+English | [中文](README.zh-CN.md)
 
 Use an xAI SuperGrok or X Premium subscription in dsh through [cli-chat-proxy](https://cli-chat-proxy.grok.com/v1). No `XAI_API_KEY` is needed. The built-in `xai` API route stays unchanged.
 
