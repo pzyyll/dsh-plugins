@@ -7,7 +7,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createLock, writeLock } from "./lock.js";
-import { readSelection } from "./client.js";
+import { listIdeTargets, readSelection } from "./client.js";
+import { ideLockId } from "./ide.js";
 import { IdeServer } from "./server.js";
 import type { EditorSelectionSnapshot } from "./protocol.js";
 const roots: string[] = [];
@@ -219,5 +220,54 @@ describe("readSelection", () => {
         signal: controller.signal,
       }),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("listIdeTargets", () => {
+  it("lists every reachable IDE and marks the workspace-matched automatic target", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "dsh-client-targets-"));
+    roots.push(dir);
+    const local = new IdeServer("5".repeat(64), () => undefined);
+    const remote = new IdeServer("6".repeat(64), () => undefined);
+    servers.push(local, remote);
+    const localPort = await local.start();
+    const remotePort = await remote.start();
+    const localLock = createLock(localPort, "5".repeat(64), ["/work/app"]);
+    const remoteLock = createLock(remotePort, "6".repeat(64), ["/other/project"]);
+    await writeLock(join(dir, "local.lock"), localLock);
+    await writeLock(join(dir, "remote.lock"), remoteLock);
+
+    const targets = await listIdeTargets({
+      cwd: "/work/app/src",
+      lockDir: dir,
+      timeoutMs: 1_000,
+      maxAgeMs: 60_000,
+      signal: new AbortController().signal,
+    });
+
+    expect(targets.ides.map((ide) => ide.id).sort()).toEqual(
+      [ideLockId(localLock), ideLockId(remoteLock)].sort(),
+    );
+    expect(targets.automaticId).toBe(ideLockId(localLock));
+  });
+
+  it("omits the automatic target when no reachable IDE contains the workspace", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "dsh-client-targets-none-"));
+    roots.push(dir);
+    const remote = new IdeServer("7".repeat(64), () => undefined);
+    servers.push(remote);
+    const port = await remote.start();
+    await writeLock(join(dir, "remote.lock"), createLock(port, "7".repeat(64), ["/other/project"]));
+
+    const targets = await listIdeTargets({
+      cwd: "/work/app",
+      lockDir: dir,
+      timeoutMs: 1_000,
+      maxAgeMs: 60_000,
+      signal: new AbortController().signal,
+    });
+
+    expect(targets.ides).toHaveLength(1);
+    expect(targets.automaticId).toBeUndefined();
   });
 });

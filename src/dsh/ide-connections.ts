@@ -1,7 +1,13 @@
 // ABOUTME: Keep manual IDE choices local to each live dsh session.
 // ABOUTME: Share the chosen target between fresh turn reads and live status watches.
 import type { SessionId } from "@deepseek-ai/dsh-session";
-import { listAvailableIde, readSelection, type ReadSelectionOptions } from "../shared/client.js";
+import {
+  listAvailableIde,
+  listIdeTargets,
+  readSelection,
+  type IdeTargetList,
+  type ReadSelectionOptions,
+} from "../shared/client.js";
 import type { AvailableIde } from "../shared/ide.js";
 import type { EditorSelectionSnapshot } from "../shared/protocol.js";
 
@@ -41,6 +47,11 @@ export class IdeConnections {
 
   list(cwd: string, signal: AbortSignal): Promise<AvailableIde[]> {
     return listAvailableIde(this.readOptions(cwd, signal));
+  }
+
+  /** List reachable IDEs together with the workspace-matched automatic target. */
+  listTargets(cwd: string, signal: AbortSignal): Promise<IdeTargetList> {
+    return listIdeTargets(this.readOptions(cwd, signal));
   }
 
   /** Revalidate before committing; an older pending selection cannot replace a newer choice. */

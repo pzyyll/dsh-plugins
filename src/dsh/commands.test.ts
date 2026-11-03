@@ -1,15 +1,14 @@
-// ABOUTME: Exercise the IDE selection slash command through real dsh command and question services.
+// ABOUTME: Exercise the IDE selection slash command through the real dsh command service.
 // ABOUTME: Use live local IDE servers and session-scoped choices rather than fake transports.
 
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { Context, type Fiber, type Plugin } from "@deepseek-ai/cordis";
 import { AgentRegistry, type Agent } from "@deepseek-ai/dsh-agent";
 import { CommandRuntime } from "@deepseek-ai/dsh-commands";
 import { SessionId, SessionStore } from "@deepseek-ai/dsh-session";
-import { UserQuestionService, type AskUserQuestionRequest } from "@deepseek-ai/dsh-user-questions";
 import { createLock, writeLock } from "../shared/lock.js";
 import { IdeServer } from "../shared/server.js";
 import { IdeConnections } from "./ide-connections.js";
@@ -35,14 +34,12 @@ interface Harness {
   ctx: Context;
   agent: Agent;
   connections: IdeConnections;
-  requests: AskUserQuestionRequest[];
-  disposeAgent(): void;
+  lockDir: string;
   commandFiber: Fiber;
 }
 
 async function createHarness(
-  answer?: (request: AskUserQuestionRequest) => string[] | Promise<string[]>,
-  options: { userQuestions?: boolean; ide?: boolean } = {},
+  options: { cwd?: string | undefined; ide?: boolean } = {},
 ): Promise<Harness> {
   const lockDir = await mkdtemp(join(tmpdir(), "dsh-select-ide-"));
   roots.push(lockDir);
@@ -60,22 +57,12 @@ async function createHarness(
   fibers.push(await ctx.plugin(SessionStore));
   fibers.push(await ctx.plugin(AgentRegistry));
   fibers.push(await ctx.plugin(CommandRuntime));
-  if (options.userQuestions !== false) fibers.push(await ctx.plugin(UserQuestionService));
-  const requests: AskUserQuestionRequest[] = [];
-  if (answer) {
-    ctx.on("user-questions/request", async (request) => {
-      requests.push(request);
-      return {
-        answers: await Promise.all(
-          request.questions.map(async (question) => ({
-            id: question.id,
-            selected: await answer(request),
-          })),
-        ),
-      };
-    });
-  }
-  const session = ctx.sessions.create(undefined, { meta: { cwd: "/work/one" } });
+  const meta = Object.hasOwn(options, "cwd")
+    ? options.cwd === undefined
+      ? {}
+      : { cwd: options.cwd }
+    : { cwd: "/work/one" };
+  const session = ctx.sessions.create(undefined, { meta });
   const agent = { id: session.id, session } as Agent;
   const disposeAgent = ctx.agents.enter(agent, undefined);
   const lifetime = new AbortController();
@@ -97,7 +84,7 @@ async function createHarness(
   };
   const commandFiber = await ctx.plugin(plugin);
   fibers.push(commandFiber);
-  return { ctx, agent, connections, requests, disposeAgent, commandFiber };
+  return { ctx, agent, connections, lockDir, commandFiber };
 }
 
 async function run(ctx: Context, agent: Agent, rawInput = "") {
@@ -112,97 +99,90 @@ async function run(ctx: Context, agent: Agent, rawInput = "") {
 }
 
 describe("/select-ide", () => {
-  it("offers available IDEs and changes only the invoking Session's target", async () => {
-    const harness = await createHarness((request) => {
-      const options = request.questions[0]?.options ?? [];
-      const chosen = options.find((option) => option.label.includes("127.0.0.1:"));
-      if (!chosen) throw new Error(`missing IDE option: ${JSON.stringify(options)}`);
-      return [chosen.label];
+  it("registers without an argument hint so the client picker owns the bare invocation", async () => {
+    const harness = await createHarness();
+
+    const command = harness.ctx.commands.find(harness.agent, "select-ide");
+    expect(command?.input).toBeUndefined();
+    expect(command?.description).toMatch(/IDE/);
+  });
+
+  it("lists every reachable IDE as text for a bare invocation", async () => {
+    const harness = await createHarness();
+
+    const result = await run(harness.ctx, harness.agent);
+
+    expect(result).toEqual({ kind: "success", text: expect.any(String) });
+    expect(result.text).toContain("Visual Studio Code");
+    expect(result.text).toContain("/work/one");
+    expect(result.text).toContain("127.0.0.1:");
+    expect(result.text).not.toContain("c".repeat(64));
+  });
+
+  it("switches explicit auto and off arguments for programmatic callers", async () => {
+    const harness = await createHarness();
+
+    expect(await run(harness.ctx, harness.agent, " off")).toEqual({
+      kind: "success",
+      text: expect.any(String),
     });
-    const otherSession = SessionId("session-select-ide-other");
-    const result = await run(harness.ctx, harness.agent);
-
-    expect(result).toEqual({ kind: "success", text: expect.any(String) });
-    expect(harness.requests).toHaveLength(1);
-    expect(harness.requests[0]?.questions).toHaveLength(1);
-    expect(harness.requests[0]?.questions[0]?.multiSelect).toBe(false);
-    expect(harness.requests[0]?.questions[0]?.options?.map((option) => option.label)).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining("Automatic workspace selection"),
-        expect.stringContaining("Disable IDE integration"),
-      ]),
-    );
-    expect(harness.connections.getTarget(harness.agent.id)).toMatchObject({ kind: "manual" });
-    expect(harness.connections.getTarget(otherSession)).toEqual({ kind: "auto" });
-  });
-
-  it("leaves the existing target unchanged when the picker is skipped", async () => {
-    const harness = await createHarness(() => []);
-    harness.connections.setMode(harness.agent.id, "off");
-    const before = harness.connections.getTarget(harness.agent.id);
-
-    const result = await run(harness.ctx, harness.agent);
-
-    expect(result).toEqual({ kind: "success", text: expect.any(String) });
-    expect(harness.connections.getTarget(harness.agent.id)).toBe(before);
-  });
-
-  it("rejects a no-argument picker when no question provider is available", async () => {
-    const harness = await createHarness();
-    const result = await run(harness.ctx, harness.agent);
-
-    expect(result.kind).toBe("error");
-    expect(result.text).toMatch(/question|picker|provider/i);
-    expect(harness.connections.getTarget(harness.agent.id)).toEqual({ kind: "auto" });
-  });
-
-  it("returns an actionable error when there are no local IDE connections", async () => {
-    const harness = await createHarness(undefined, { ide: false });
-    const result = await run(harness.ctx, harness.agent);
-
-    expect(result.kind).toBe("error");
-    expect(result.text).toMatch(/no local IDE connections/i);
-    expect(harness.connections.getTarget(harness.agent.id)).toEqual({ kind: "auto" });
-  });
-
-  it("registers list and mode actions without a user-question service", async () => {
-    const harness = await createHarness(undefined, { userQuestions: false });
-    expect((await run(harness.ctx, harness.agent, " off")).kind).toBe("success");
-    expect((await run(harness.ctx, harness.agent, " auto")).kind).toBe("success");
-    const picker = await run(harness.ctx, harness.agent);
-    expect(picker.kind).toBe("error");
-    expect(picker.text).toMatch(/user-question provider/i);
-    expect(harness.ctx.commands.find(harness.agent, "select-ide")).toBeDefined();
-  });
-
-  it("aborts a pending native picker when its registration scope unloads", async () => {
-    let release!: (labels: string[]) => void;
-    const harness = await createHarness(
-      () =>
-        new Promise((resolve) => {
-          release = resolve;
-        }),
-    );
-    const pending = run(harness.ctx, harness.agent);
-    await vi.waitFor(() => expect(harness.requests).toHaveLength(1));
-    await harness.commandFiber.dispose();
-    const result = await pending;
-    expect(result.kind).toBe("error");
-    expect(result.text).toMatch(/cancelled|picker/i);
-    release([]);
-  });
-
-  it("supports readable listing and explicit auto/off modes", async () => {
-    const harness = await createHarness();
-
-    const listing = await run(harness.ctx, harness.agent, " list");
-    expect(listing.kind).toBe("success");
-    expect(listing.text).toContain("Visual Studio Code");
-    expect(listing.text).not.toContain("c".repeat(64));
-
-    expect((await run(harness.ctx, harness.agent, " off")).kind).toBe("success");
     expect(harness.connections.getTarget(harness.agent.id)).toEqual({ kind: "off" });
     expect((await run(harness.ctx, harness.agent, " auto")).kind).toBe("success");
     expect(harness.connections.getTarget(harness.agent.id)).toEqual({ kind: "auto" });
+  });
+
+  it("selects one listed IDE for the invoking Session only", async () => {
+    const harness = await createHarness();
+    const [available] = await harness.connections.list("/work/one", new AbortController().signal);
+    if (!available) throw new Error("fixture IDE was not reachable");
+
+    const result = await run(harness.ctx, harness.agent, ` ${available.id}`);
+
+    expect(result).toEqual({
+      kind: "success",
+      text: expect.stringContaining("Visual Studio Code"),
+    });
+    expect(harness.connections.getTarget(harness.agent.id)).toEqual({
+      kind: "manual",
+      ideId: available.id,
+    });
+    expect(harness.connections.getTarget(SessionId("other-session"))).toEqual({ kind: "auto" });
+  });
+
+  it("keeps the previous choice when an IDE id is no longer reachable", async () => {
+    const harness = await createHarness();
+    harness.connections.setMode(harness.agent.id, "off");
+
+    const result = await run(harness.ctx, harness.agent, ` ${"0".repeat(64)}`);
+
+    expect(result.kind).toBe("error");
+    expect(result.text).toMatch(/no longer reachable/i);
+    expect(harness.connections.getTarget(harness.agent.id)).toEqual({ kind: "off" });
+  });
+
+  it("reports a Session without a workspace directory", async () => {
+    const harness = await createHarness({ cwd: undefined });
+
+    const result = await run(harness.ctx, harness.agent);
+
+    expect(result.kind).toBe("error");
+    expect(result.text).toMatch(/no workspace/i);
+  });
+
+  it("answers a bare invocation when no local IDE is reachable", async () => {
+    const harness = await createHarness({ ide: false });
+
+    const result = await run(harness.ctx, harness.agent);
+
+    expect(result).toEqual({ kind: "success", text: expect.stringMatching(/no local IDE/i) });
+  });
+
+  it("unregisters the command with its registration scope", async () => {
+    const harness = await createHarness();
+    expect(harness.ctx.commands.find(harness.agent, "select-ide")).toBeDefined();
+
+    await harness.commandFiber.dispose();
+
+    expect(harness.ctx.commands.find(harness.agent, "select-ide")).toBeUndefined();
   });
 });

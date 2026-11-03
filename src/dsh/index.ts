@@ -8,6 +8,7 @@ import { isAbsolute } from "node:path";
 import { formatEditorContext } from "../shared/format.js";
 import { defaultLockDir } from "../shared/lock.js";
 import { registerSelectionStatus } from "./status-stream.js";
+import { registerTargetApi } from "./target-api.js";
 import { IdeConnections } from "./ide-connections.js";
 import { registerSelectIdeCommand } from "./commands.js";
 
@@ -70,6 +71,7 @@ export function apply(ctx: Context, config: Config = {}): void {
   ctx.on("session/disposed", (session) => connections.forget(session.id), { global: true });
   registerSelectionStatus(ctx, { lockDir, maxAgeMs, signal: lifetime.signal, connections });
   registerSelectIdeCommand(ctx, connections, lifetime.signal);
+  registerTargetApi(ctx, { connections, signal: lifetime.signal });
   ctx.on(
     "agent/pre-step",
     async ({ agent, step, signal }, next): Promise<PreStepDecision> => {

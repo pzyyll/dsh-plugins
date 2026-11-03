@@ -21,7 +21,7 @@ If mise is active in your shell, omit `mise exec --`.
 The build creates:
 
 - `dist/index.js`: the dsh Cordis plugin.
-- `dist/client.js`: the composer status pill.
+- `dist/client.js`: the composer status pill and the `/select-ide` popup picker.
 - `ide-plugins/vscode/dist/extension.cjs`: the VS Code extension.
 
 ## Start the VS Code extension
@@ -64,18 +64,13 @@ When the Web UI is connected to VS Code, the composer status line shows `⧉`. A
 
 ## Select an IDE
 
-Run `/select-ide` in a dsh conversation. The native question panel lists reachable IDEs with their workspace paths and local ports. Select an IDE and submit the answer. Manual selection can connect to an IDE outside the conversation's workspace, as in pi-x-ide. This version lists VS Code instances only.
+Run `/select-ide` in a dsh conversation. The command opens the same searchable popup list `/model` uses. The list shows every reachable IDE with its workspace paths and local port, then two session rows: automatic selection by workspace and disabling IDE integration. Pick a row and it applies immediately.
 
-The selection applies only to the current session. Both the composer status and fresh turn reads use that IDE. If it disconnects, the plugin does not substitute another IDE. The choice resets when the session unloads or the plugin restarts. Closing or skipping the picker keeps the current choice.
+Manual selection can connect to an IDE outside the conversation's workspace, as in pi-x-ide. This version lists VS Code instances only.
 
-| Command            | Action                                                    |
-| ------------------ | --------------------------------------------------------- |
-| `/select-ide`      | Open the IDE picker.                                      |
-| `/select-ide list` | List reachable IDEs without changing the connection.      |
-| `/select-ide auto` | Restore automatic selection by workspace.                 |
-| `/select-ide off`  | Stop IDE status and selection injection for this session. |
+The selection applies only to the current session. Both the composer status and fresh turn reads use that IDE. If it disconnects, the plugin does not substitute another IDE. The choice resets when the session unloads or the plugin restarts. Closing the popup keeps the current choice; a failed pick reports the host's reason and keeps the previous one.
 
-The picker also offers automatic selection and disable options. It uses dsh's user-question UI, not a model turn. The list contains no authentication tokens or selected text. Automatic selection still requires a matching workspace.
+The list contains no authentication tokens or selected text. Automatic selection still requires a matching workspace. A bare host invocation without the Web picker (a non-Web surface or a programmatic call) answers with the same reachable IDEs as text, and programmatic callers may still pass `auto`, `off`, or one IDE id.
 
 ## Configuration
 

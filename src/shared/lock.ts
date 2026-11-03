@@ -121,7 +121,13 @@ function isLock(value: unknown): value is IdeLockFile {
   );
 }
 
-function workspaceDepth(lock: IdeLockFile, cwd: string): number {
+/**
+ * Rank how closely one IDE workspace contains the Session's workspace.
+ * @param lock - discovered IDE lock file.
+ * @param cwd - Session workspace directory.
+ * @returns the deepest containing workspace length, or -1 when none contains `cwd`.
+ */
+export function workspaceMatchDepth(lock: IdeLockFile, cwd: string): number {
   const target = process.platform === "win32" ? cwd.toLowerCase() : cwd;
   let deepest = -1;
   for (const folder of lock.workspaceFolders) {
@@ -201,7 +207,7 @@ export async function discoverLocks(
         const updated = Date.parse(parsed.updatedAt);
         const freshness = Math.min(updated, file.mtimeMs);
         if (now - freshness > maxAgeMs) continue;
-        const depth = workspaceDepth(parsed, cwd);
+        const depth = workspaceMatchDepth(parsed, cwd);
         if (depth < 0 && scope === "workspace") continue;
         found.push({ lock: parsed, depth, freshness });
       } catch {

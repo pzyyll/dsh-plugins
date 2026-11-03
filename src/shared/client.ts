@@ -4,7 +4,7 @@
 import { isAbsolute, relative, sep } from "node:path";
 import { performance } from "node:perf_hooks";
 import WebSocket from "ws";
-import { discoverLocks } from "./lock.js";
+import { discoverLocks, workspaceMatchDepth } from "./lock.js";
 import { ideLockId, type AvailableIde } from "./ide.js";
 import {
   AUTH_HEADER,
@@ -246,25 +246,34 @@ export async function readSelection(
   );
 }
 
-/** List authenticated, responsive IDEs, including IDEs in other workspaces. */
-export async function listAvailableIde(options: ReadSelectionOptions): Promise<AvailableIde[]> {
-  const available: Array<AvailableIde | undefined> = [];
-  const result = () => available.filter((ide): ide is AvailableIde => ide !== undefined);
-  return withDeadline<AvailableIde[]>(options, result, async (signal, deadline) => {
-    const locks = await discoverLocks(
-      options.lockDir,
-      options.cwd,
-      options.maxAgeMs,
-      signal,
-      "all",
+/** Authenticated IDEs plus the one automatic selection would read for this workspace. */
+export interface IdeTargetList {
+  readonly ides: readonly AvailableIde[];
+  /** Present when a reachable IDE contains the Session workspace. */
+  readonly automaticId?: string;
+}
+
+/** List authenticated, responsive IDEs together with the workspace-matched target. */
+export async function listIdeTargets(options: ReadSelectionOptions): Promise<IdeTargetList> {
+  const rows: Array<AvailableIde | undefined> = [];
+  let locks: IdeLockFile[] = [];
+  const collected = (): IdeTargetList => {
+    const ides = rows.filter((ide): ide is AvailableIde => ide !== undefined);
+    const automaticIndex = locks.findIndex(
+      (lock, index) => rows[index] !== undefined && workspaceMatchDepth(lock, options.cwd) >= 0,
     );
+    const automatic = automaticIndex < 0 ? undefined : rows[automaticIndex];
+    return { ides, ...(automatic === undefined ? {} : { automaticId: automatic.id }) };
+  };
+  return withDeadline<IdeTargetList>(options, collected, async (signal, deadline) => {
+    locks = await discoverLocks(options.lockDir, options.cwd, options.maxAgeMs, signal, "all");
     await Promise.all(
       locks.map(async (lock, index) => {
         const remainingMs = deadline - performance.now();
         if (signal.aborted || remainingMs <= 0) return;
         const response = await readCandidate(lock, options.cwd, remainingMs, signal);
         if (response.kind === "failed" || signal.aborted) return;
-        available[index] = {
+        rows[index] = {
           id: ideLockId(lock),
           name: lock.name,
           host: lock.host,
@@ -273,8 +282,13 @@ export async function listAvailableIde(options: ReadSelectionOptions): Promise<A
         };
       }),
     );
-    return result();
+    return collected();
   });
+}
+
+/** List authenticated, responsive IDEs, including IDEs in other workspaces. */
+export async function listAvailableIde(options: ReadSelectionOptions): Promise<AvailableIde[]> {
+  return [...(await listIdeTargets(options)).ides];
 }
 
 async function withDeadline<T>(

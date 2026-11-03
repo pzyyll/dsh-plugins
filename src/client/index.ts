@@ -1,20 +1,46 @@
 // ABOUTME: Show the live IDE connection in the dsh composer status dock.
-// ABOUTME: Render host-provided text and reveal the file and range only on hover.
-import { createElement, useEffect, useState, type CSSProperties, type ReactElement } from "react";
+// ABOUTME: Decorate /select-ide with the same popup picker /model uses.
+import { createElement, useEffect, useLayoutEffect, useState, type ReactElement } from "react";
 import { Tooltip } from "@deepseek-ai/dsh-client-ui-primitives";
+import type { CommandUiContract } from "./command-ui.js";
+import { LOCALE_NS, en, zh } from "./locales.js";
+import {
+  applyTargetChoice,
+  loadTargetOverview,
+  resolveTranslate,
+  targetOptions,
+  type Translate,
+} from "./targets.js";
 
 /** Same hover delay as the composer context meter. */
 const TOOLTIP_DELAY_MS = 200;
-const PILL_STYLE: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  maxWidth: "100%",
-  padding: "1px 8px",
-  color: "var(--dsw-alias-label-tertiary)",
-  font: "inherit",
-  fontVariantNumeric: "tabular-nums",
-  whiteSpace: "nowrap",
-};
+const STATUS_STYLE_ID = "dsh-ide-selection-status";
+const SELECT_IDE_COMMAND = "select-ide";
+
+/**
+ * Same statistics-button skin as the composer dock: transparent control, shared
+ * radius, and a hover fill. Injected once because this client bundle has no CSS loader.
+ */
+const STATUS_PILL_CSS = [
+  '[data-composer-stat="ide-selection"]{display:inline-flex;min-width:0;font-size:calc(var(--dsh-content-font-size-secondary, 13px) - 1px);line-height:calc(20px + var(--dsh-content-font-delta-secondary, 0px))}',
+  '[data-composer-stat="ide-selection"] button{display:inline-flex;align-items:center;box-sizing:border-box;max-width:100%;padding:1px 8px;border:none;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-variant-numeric:tabular-nums;line-height:inherit;white-space:nowrap;cursor:pointer}',
+  '@media (hover: hover){[data-composer-stat="ide-selection"] button:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-secondary)}}',
+].join("");
+
+interface StyleRoot {
+  getElementById(id: string): unknown;
+  createElement(tag: "style"): { id: string; textContent: string };
+  head: { appendChild(node: unknown): void };
+}
+
+function installStatusStyle(): void {
+  const root = (globalThis as { document?: StyleRoot }).document;
+  if (!root || root.getElementById(STATUS_STYLE_ID)) return;
+  const style = root.createElement("style");
+  style.id = STATUS_STYLE_ID;
+  style.textContent = STATUS_PILL_CSS;
+  root.head.appendChild(style);
+}
 
 interface SelectionStatusEvent {
   connected: boolean;
@@ -47,6 +73,9 @@ function isStatusEvent(value: unknown): value is SelectionStatusEvent {
 /** Composer pill for the session's current VS Code selection. */
 export function SelectionStatus({ sessionId }: { sessionId?: string }): ReactElement | null {
   const [event, setEvent] = useState<SelectionStatusEvent | undefined>(undefined);
+  useLayoutEffect(() => {
+    installStatusStyle();
+  }, []);
   useEffect(() => {
     if (!sessionId) return undefined;
     const stream = openStatusStream(sessionId);
@@ -61,17 +90,16 @@ export function SelectionStatus({ sessionId }: { sessionId?: string }): ReactEle
     return () => stream.close();
   }, [sessionId]);
   if (!event?.connected || !event.text) return null;
-  const pill = createElement(
-    "span",
-    { "data-composer-stat": "ide-selection", style: PILL_STYLE },
-    event.text,
-  );
-  if (event.detail === undefined) return pill;
-  return createElement(
-    Tooltip,
-    { label: event.detail, side: "top", delayMs: TOOLTIP_DELAY_MS, portal: true },
-    pill,
-  );
+  const button = createElement("button", { type: "button" }, event.text);
+  const control =
+    event.detail === undefined
+      ? button
+      : createElement(
+          Tooltip,
+          { label: event.detail, side: "top", delayMs: TOOLTIP_DELAY_MS, portal: true },
+          button,
+        );
+  return createElement("span", { "data-composer-stat": "ide-selection" }, control);
 }
 
 interface ClientSlots {
@@ -82,10 +110,26 @@ interface ClientSlots {
   ) => () => void;
 }
 
+/** The commands plugin's locale face, as this bundle uses it. */
+interface LocaleService {
+  register(namespace: string, locale: string, dictionary: Record<string, string>): () => void;
+  bind(namespace: string): Translate;
+}
+
+/** The client context members this bundle relies on. */
+interface ClientContext {
+  slots: ClientSlots;
+  commandUi?: CommandUiContract;
+  locale?: LocaleService;
+  get(name: string): unknown;
+  effect(callback: () => () => void): void;
+  inject(names: readonly string[], callback: (scope: ClientContext) => void): void;
+}
+
 export const inject = ["slots"];
 
-/** Register the IDE status pill after the built-in composer statistics. */
-export function apply(ctx: { slots: ClientSlots }): void {
+/** Register the IDE status pill and the `/select-ide` popup picker. */
+export function apply(ctx: ClientContext): void {
   ctx.slots.inject("conversation.composer.dock", () =>
     ctx.slots.register(
       {
@@ -96,4 +140,35 @@ export function apply(ctx: { slots: ClientSlots }): void {
       SelectionStatus,
     ),
   );
+  ctx.inject(["locale"], (scope) => {
+    const locale = scope.locale;
+    if (!locale) return;
+    scope.effect(() => {
+      const disposeEn = locale.register(LOCALE_NS, "en", en);
+      const disposeZh = locale.register(LOCALE_NS, "zh", zh);
+      return () => {
+        disposeZh();
+        disposeEn();
+      };
+    });
+  });
+  ctx.inject(["commandUi"], (scope) => {
+    const commandUi = scope.commandUi;
+    if (!commandUi) return;
+    scope.effect(() =>
+      commandUi.decorate({
+        name: SELECT_IDE_COMMAND,
+        available: () => true,
+        ui: {
+          kind: "popupSelect",
+          options: async (session, signal) => {
+            const overview = await loadTargetOverview(session.sessionId, signal);
+            const locale = ctx.get("locale") as LocaleService | undefined;
+            return targetOptions(overview, resolveTranslate(locale?.bind(LOCALE_NS)));
+          },
+          onSelect: (option, session) => applyTargetChoice(session.sessionId, option.id),
+        },
+      }),
+    );
+  });
 }
