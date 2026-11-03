@@ -5,6 +5,7 @@ import { isAbsolute, relative, sep } from "node:path";
 import { performance } from "node:perf_hooks";
 import WebSocket from "ws";
 import { discoverLocks } from "./lock.js";
+import { ideLockId, type AvailableIde } from "./ide.js";
 import {
   AUTH_HEADER,
   PROTOCOL_VERSION,
@@ -31,6 +32,7 @@ export interface ReadSelectionOptions {
   timeoutMs: number;
   maxAgeMs: number;
   signal: AbortSignal;
+  ideId?: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -215,43 +217,93 @@ function readCandidate(
   });
 }
 
+/** Read a fresh snapshot; an explicit target never falls back to another IDE. */
 export async function readSelection(
   options: ReadSelectionOptions,
 ): Promise<EditorSelectionSnapshot | undefined> {
+  return withDeadline<EditorSelectionSnapshot | undefined>(
+    options,
+    () => undefined,
+    async (signal, deadline) => {
+      const locks = await discoverLocks(
+        options.lockDir,
+        options.cwd,
+        options.maxAgeMs,
+        signal,
+        options.ideId === undefined ? "workspace" : "all",
+      );
+      for (const lock of locks) {
+        if (options.ideId !== undefined && ideLockId(lock) !== options.ideId) continue;
+        if (signal.aborted) return undefined;
+        const remainingMs = deadline - performance.now();
+        if (remainingMs <= 0) return undefined;
+        const result = await readCandidate(lock, options.cwd, remainingMs, signal);
+        if (result.kind === "selection") return result.snapshot;
+        if (result.kind === "cleared" || signal.aborted) return undefined;
+      }
+      return undefined;
+    },
+  );
+}
+
+/** List authenticated, responsive IDEs, including IDEs in other workspaces. */
+export async function listAvailableIde(options: ReadSelectionOptions): Promise<AvailableIde[]> {
+  const available: Array<AvailableIde | undefined> = [];
+  const result = () => available.filter((ide): ide is AvailableIde => ide !== undefined);
+  return withDeadline<AvailableIde[]>(options, result, async (signal, deadline) => {
+    const locks = await discoverLocks(
+      options.lockDir,
+      options.cwd,
+      options.maxAgeMs,
+      signal,
+      "all",
+    );
+    await Promise.all(
+      locks.map(async (lock, index) => {
+        const remainingMs = deadline - performance.now();
+        if (signal.aborted || remainingMs <= 0) return;
+        const response = await readCandidate(lock, options.cwd, remainingMs, signal);
+        if (response.kind === "failed" || signal.aborted) return;
+        available[index] = {
+          id: ideLockId(lock),
+          name: lock.name,
+          host: lock.host,
+          port: lock.port,
+          workspaceFolders: [...lock.workspaceFolders],
+        };
+      }),
+    );
+    return result();
+  });
+}
+
+async function withDeadline<T>(
+  options: ReadSelectionOptions,
+  fallback: () => T,
+  operation: (signal: AbortSignal, deadline: number) => Promise<T>,
+): Promise<T> {
   if (
     options.signal.aborted ||
     !Number.isSafeInteger(options.timeoutMs) ||
     options.timeoutMs <= 0 ||
     options.timeoutMs > MAX_TIMER_DELAY_MS
   )
-    return undefined;
+    return fallback();
   const deadline = performance.now() + options.timeoutMs;
   const lifetime = new AbortController();
   const timer = setTimeout(() => lifetime.abort(), options.timeoutMs);
   const signal = AbortSignal.any([options.signal, lifetime.signal]);
   let onAbort: (() => void) | undefined;
   try {
-    const canceled = new Promise<undefined>((resolve) => {
-      onAbort = () => resolve(undefined);
+    const canceled = new Promise<T>((resolve) => {
+      onAbort = () => resolve(fallback());
       signal.addEventListener("abort", onAbort, { once: true });
     });
-    if (signal.aborted) return undefined;
-    const locks = await Promise.race([
-      discoverLocks(options.lockDir, options.cwd, options.maxAgeMs, signal),
-      canceled,
-    ]);
-    if (!locks || signal.aborted) return undefined;
-    for (const lock of locks) {
-      if (signal.aborted) return undefined;
-      const remainingMs = deadline - performance.now();
-      if (remainingMs <= 0) return undefined;
-      const result = await readCandidate(lock, options.cwd, remainingMs, signal);
-      if (result.kind === "selection") return result.snapshot;
-      if (result.kind === "cleared" || signal.aborted) return undefined;
-    }
-    return undefined;
+    if (signal.aborted) return fallback();
+    return await Promise.race([operation(signal, deadline), canceled]);
   } finally {
     clearTimeout(timer);
     if (onAbort) signal.removeEventListener("abort", onAbort);
+    lifetime.abort();
   }
 }

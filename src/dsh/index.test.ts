@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { Context, type Fiber, type Plugin } from "@deepseek-ai/cordis";
 import { AgentRegistry, type Agent, type PreStepDecision } from "@deepseek-ai/dsh-agent";
 import { createUserMessage } from "@deepseek-ai/dsh-llm";
+import { CommandRuntime } from "@deepseek-ai/dsh-commands";
 import {
   deriveEventMessage,
   SessionId,
@@ -161,6 +162,19 @@ async function createHarness(
 }
 
 describe("IDE selection context plugin", () => {
+  it("uses the session command mode for durable turn injection", async () => {
+    const harness = await createHarness();
+    fibers.push(await harness.ctx.plugin(CommandRuntime));
+    const signal = new AbortController().signal;
+    const off = await harness.ctx.commands.execute(harness.agent, "/select-ide off", [], signal);
+    expect(off?.result.kind).toBe("success");
+    expect(((await harness.dispatch()) as { messages: unknown[] }).messages).toHaveLength(1);
+    expect(harness.getSelectionCalls()).toBe(0);
+    const auto = await harness.ctx.commands.execute(harness.agent, "/select-ide auto", [], signal);
+    expect(auto?.result.kind).toBe("success");
+    expect(((await harness.dispatch()) as { messages: unknown[] }).messages).toHaveLength(2);
+  });
+
   it("adds the current selection as an attributed snapshot user message on an eligible first step", async () => {
     const harness = await createHarness();
     const decision = await harness.dispatch();

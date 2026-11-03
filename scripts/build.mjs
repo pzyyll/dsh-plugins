@@ -29,4 +29,24 @@ await Promise.all([
     banner: { js: BUNDLE_HEADER },
     sourcemap: true,
   }),
+  build({
+    entryPoints: ["src/client/index.ts"],
+    outfile: "dist/client.js",
+    bundle: true,
+    platform: "browser",
+    format: "cjs",
+    target: "es2022",
+    jsx: "automatic",
+    external: [
+      "react",
+      "react/jsx-runtime",
+      "@deepseek-ai/cordis",
+      "@deepseek-ai/dsh-client-ui-primitives",
+    ],
+    banner: {
+      js: `${BUNDLE_HEADER}\nwindow.__ModuleLoader__.load({ id: "dsh-ide-selection", factory: (require) => {\nvar module = { exports: {} };`,
+    },
+    footer: { js: "return module.exports; } });" },
+    sourcemap: true,
+  }),
 ]);

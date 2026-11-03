@@ -5,9 +5,11 @@ import type { PreStepDecision } from "@deepseek-ai/dsh-agent";
 import { createUserMessage, type ContextFormed } from "@deepseek-ai/dsh-llm";
 import z from "@deepseek-ai/schemastery";
 import { isAbsolute } from "node:path";
-import { readSelection } from "../shared/client.js";
 import { formatEditorContext } from "../shared/format.js";
 import { defaultLockDir } from "../shared/lock.js";
+import { registerSelectionStatus } from "./status-stream.js";
+import { IdeConnections } from "./ide-connections.js";
+import { registerSelectIdeCommand } from "./commands.js";
 
 declare module "@deepseek-ai/dsh-llm" {
   interface MessageSourceMap {
@@ -64,6 +66,10 @@ export function apply(ctx: Context, config: Config = {}): void {
 
   const lifetime = new AbortController();
   ctx.effect(() => () => lifetime.abort());
+  const connections = new IdeConnections({ lockDir, timeoutMs, maxAgeMs, signal: lifetime.signal });
+  ctx.on("session/disposed", (session) => connections.forget(session.id), { global: true });
+  registerSelectionStatus(ctx, { lockDir, maxAgeMs, signal: lifetime.signal, connections });
+  registerSelectIdeCommand(ctx, connections, lifetime.signal);
   ctx.on(
     "agent/pre-step",
     async ({ agent, step, signal }, next): Promise<PreStepDecision> => {
@@ -81,13 +87,7 @@ export function apply(ctx: Context, config: Config = {}): void {
       if (!cwd) return decision;
       const readSignal = AbortSignal.any([signal, lifetime.signal]);
       try {
-        const snapshot = await readSelection({
-          cwd,
-          lockDir,
-          timeoutMs,
-          maxAgeMs,
-          signal: readSignal,
-        });
+        const snapshot = await connections.read(agent.id, cwd, readSignal);
         if (!snapshot || readSignal.aborted) return decision;
         const text = formatEditorContext(snapshot, { maxChars });
         return {

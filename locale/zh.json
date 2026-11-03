@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "IDE 选区",
+    "description": "显示当前 VS Code 选区，并把它加入已接受的人类回合。"
+  }
+}

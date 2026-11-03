@@ -21,23 +21,30 @@ If mise is active in your shell, omit `mise exec --`.
 The build creates:
 
 - `dist/index.js`: the dsh Cordis plugin.
+- `dist/client.js`: the composer status pill.
 - `ide-plugins/vscode/dist/extension.cjs`: the VS Code extension.
 
 ## Start the VS Code extension
 
-Launch an Extension Development Host. Replace the path with this checkout's absolute path:
+Open the repository root in VS Code. Open **Run and Debug**. Select **Run DSH IDE Selection VS Code Extension**. Press F5.
+
+F5 runs `mise exec -- pnpm build`. VS Code then opens an Extension Development Host for this folder. Trust that window. Select text in a local file. Multiple selections are supported. With no selected text, the extension supplies the open file path only.
+
+You can start the same host from a terminal. Replace the path with this checkout's absolute path:
 
 ```sh
 code --extensionDevelopmentPath="/absolute/path/to/dsh-ide-selection/ide-plugins/vscode" /path/to/your/project
 ```
 
-On Windows, use a path such as `F:/workspace/my/dsh-ide-selection`. Trust the project in the new VS Code window. Select text in a local file. Multiple selections are supported. With no selected text, the extension supplies the open file path only.
+On Windows, use a path such as `F:/workspace/my/dsh-ide-selection`.
 
 The extension starts a loopback server and refreshes its discovery file. It does not start dsh or send a prompt. Startup and lock-update errors appear in the **DSH IDE Selection** output channel and in warning messages.
 
-## Load the dsh plugin
+## Install the dsh plugin
 
-Use dsh `0.2.1-rc.5`. Save this overlay as `ide-selection.patch.yml`. Replace the plugin path with the absolute path to the built file:
+Use dsh `0.2.1-rc.5`. Build this package first. In the Web UI, install this checkout directory as a plugin. The package declares `dsh.bundle`, so dsh enables the bundle, loads `dist/index.js`, and serves the composer status pill.
+
+You can also start dsh with an overlay. Save this file as `ide-selection.patch.yml` and replace the plugin path with the absolute path to the built file:
 
 ```yaml
 - insert:
@@ -52,6 +59,23 @@ dsh web --patch ./ide-selection.patch.yml
 ```
 
 Submit a request about the selected code. The plugin reads a fresh IDE snapshot before the first model step of each accepted human turn, even if the selection has not changed. It skips subagent and synthetic turns. It adds selected context through dsh's durable user-message path, so session history retains the supplied text. No IDE connection is required for ordinary requests.
+
+When the Web UI is connected to VS Code, the composer status line shows `⧉`. After you select lines, it shows `⧉ Selected Lines N`, where `N` is the inclusive line count. Hover the status to see the workspace-relative file and the line range, using the same `#L10-L20` form as pi-x-ide. The status disappears when the IDE disconnects. It does not include the selected text.
+
+## Select an IDE
+
+Run `/select-ide` in a dsh conversation. The native question panel lists reachable IDEs with their workspace paths and local ports. Select an IDE and submit the answer. Manual selection can connect to an IDE outside the conversation's workspace, as in pi-x-ide. This version lists VS Code instances only.
+
+The selection applies only to the current session. Both the composer status and fresh turn reads use that IDE. If it disconnects, the plugin does not substitute another IDE. The choice resets when the session unloads or the plugin restarts. Closing or skipping the picker keeps the current choice.
+
+| Command            | Action                                                    |
+| ------------------ | --------------------------------------------------------- |
+| `/select-ide`      | Open the IDE picker.                                      |
+| `/select-ide list` | List reachable IDEs without changing the connection.      |
+| `/select-ide auto` | Restore automatic selection by workspace.                 |
+| `/select-ide off`  | Stop IDE status and selection injection for this session. |
+
+The picker also offers automatic selection and disable options. It uses dsh's user-question UI, not a model turn. The list contains no authentication tokens or selected text. Automatic selection still requires a matching workspace.
 
 ## Configuration
 
@@ -73,7 +97,7 @@ For a custom `lockDir`, set VS Code's machine setting `dshIdeSelection.lockDir` 
 - Authentication header: `x-pi-x-ide-authorization`, retained for wire compatibility.
 - Default discovery directory: `~/.dsh/ide-selection/lock`.
 - Each VS Code session creates a random token. Discovery files contain this token and workspace paths. POSIX permissions are private; Windows uses the account's filesystem access controls.
-- Only matching local workspaces are eligible. The deepest matching workspace ranks first.
+- Automatic selection uses matching local workspaces. The deepest matching workspace ranks first. `/select-ide` can explicitly select another local IDE.
 - The server rejects browser-origin connections. The client validates received paths and ranges. Discovery files are limited to 64 KiB; WebSocket messages are limited to 1 MiB.
 - The plugin sends selected text to the model configured in dsh. Do not select secrets.
 
@@ -81,18 +105,18 @@ The lock directory is separate from pi-x-ide. This extension does not connect au
 
 ## Limitations
 
-This version supports same-host VS Code only. It does not include WSL path translation, SSH forwarding, diagnostics, automatic installation, marketplace publication, or an explicit attach command. The dsh client connects on demand for each eligible turn; it does not keep a background connection.
+This version supports same-host VS Code only. It does not include WSL path translation, SSH forwarding, diagnostics, automatic installation, marketplace publication, or a separate attach-selection command. Turn injection connects on demand for each eligible turn. The composer status uses a separate live connection while a browser subscribes.
 
 Automated tests cover the local transport, selection adapter, and plugin behavior. A live VS Code-to-model session requires manual validation with your dsh profile and credentials.
 
 ## Development
 
-| Command           | Action                                   |
-| ----------------- | ---------------------------------------- |
-| `pnpm check`      | Run lint, format, type, and test checks. |
-| `pnpm build`      | Build both runtime bundles.              |
-| `pnpm test`       | Run behavior tests.                      |
-| `pnpm test:watch` | Watch tests.                             |
-| `pnpm format`     | Format project files.                    |
+| Command           | Action                                          |
+| ----------------- | ----------------------------------------------- |
+| `pnpm check`      | Run lint, format, type, and test checks.        |
+| `pnpm build`      | Build the host, browser, and extension bundles. |
+| `pnpm test`       | Run behavior tests.                             |
+| `pnpm test:watch` | Watch tests.                                    |
+| `pnpm format`     | Format project files.                           |
 
 See the [TDD plan](docs/plans/initial-implementation.md) and [third-party notices](THIRD-PARTY-NOTICES.md).

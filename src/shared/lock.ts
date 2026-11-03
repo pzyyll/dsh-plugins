@@ -173,6 +173,7 @@ export async function discoverLocks(
   cwd: string,
   maxAgeMs: number,
   signal?: AbortSignal,
+  scope: "workspace" | "all" = "workspace",
 ): Promise<IdeLockFile[]> {
   if (!Number.isFinite(maxAgeMs) || maxAgeMs < 0)
     throw new RangeError("maxAgeMs must be non-negative");
@@ -201,7 +202,7 @@ export async function discoverLocks(
         const freshness = Math.min(updated, file.mtimeMs);
         if (now - freshness > maxAgeMs) continue;
         const depth = workspaceDepth(parsed, cwd);
-        if (depth < 0) continue;
+        if (depth < 0 && scope === "workspace") continue;
         found.push({ lock: parsed, depth, freshness });
       } catch {
         // Ignore malformed lock JSON.
