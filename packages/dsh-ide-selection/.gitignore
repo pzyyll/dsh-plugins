@@ -1,0 +1,12 @@
+AGENTS.override.md
+docs/next-prompt.md
+.worktrees/
+
+node_modules/
+.pnpm-store/
+dist/
+out/
+*.vsix
+coverage/
+*.tsbuildinfo
+mise.local.toml

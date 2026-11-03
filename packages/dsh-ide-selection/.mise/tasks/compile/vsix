@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE description="Build the VS Code extension for local debugging"
+#MISE depends=["install"]
+set -euo pipefail
+
+pnpm --filter ./ide-plugins/vscode run compile

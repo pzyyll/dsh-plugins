@@ -1,0 +1,6 @@
+src/**
+scripts/**
+out/**/*.map
+dist/**
+node_modules/**
+tsconfig.json

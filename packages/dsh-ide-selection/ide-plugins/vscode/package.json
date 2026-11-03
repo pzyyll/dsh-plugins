@@ -1,0 +1,51 @@
+{
+  "name": "dsh-ide-selection-vscode",
+  "displayName": "DSH IDE Selection (VS Code)",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shares VS Code editor selections with the local DSH IDE bridge.",
+  "license": "Apache-2.0",
+  "publisher": "local",
+  "type": "commonjs",
+  "main": "./out/extension.js",
+  "scripts": {
+    "compile": "node scripts/build.mjs",
+    "compile:prod": "node scripts/build.mjs --production",
+    "package": "pnpm run compile:prod && node scripts/package.mjs"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "4.1.0",
+    "esbuild": "0.28.2"
+  },
+  "contributes": {
+    "configuration": {
+      "title": "DSH IDE Selection",
+      "properties": {
+        "dshIdeSelection.lockDir": {
+          "type": "string",
+          "scope": "machine",
+          "default": "",
+          "description": "Absolute local lock-directory override; leave empty to use the default."
+        }
+      }
+    }
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "engines": {
+    "vscode": "^1.144.0"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "The local DSH bridge is only started for trusted workspaces."
+    },
+    "virtualWorkspaces": {
+      "supported": false
+    }
+  }
+}
