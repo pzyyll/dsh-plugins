@@ -1,4 +1,4 @@
-// ABOUTME: Show the live IDE connection in the dsh composer status dock.
+// ABOUTME: Show the live IDE connection in the dsh composer status dock and blank-session Hero row.
 // ABOUTME: Decorate /select-ide with the same popup picker /model uses.
 import { createElement, useEffect, useLayoutEffect, useState, type ReactElement } from "react";
 import { Tooltip } from "@deepseek-ai/dsh-client-ui-primitives";
@@ -70,7 +70,7 @@ function isStatusEvent(value: unknown): value is SelectionStatusEvent {
   );
 }
 
-/** Composer pill for the session's current VS Code selection. */
+/** Composer or Hero pill for the session's current VS Code selection. */
 export function SelectionStatus({ sessionId }: { sessionId?: string }): ReactElement | null {
   const [event, setEvent] = useState<SelectionStatusEvent | undefined>(undefined);
   useLayoutEffect(() => {
@@ -128,18 +128,19 @@ interface ClientContext {
 
 export const inject = ["slots"];
 
-/** Register the IDE status pill and the `/select-ide` popup picker. */
+/**
+ * The pill's two seats: the resident composer dock, and the blank-session Hero
+ * options row, which is the only composer-adjacent seat before the first message.
+ */
+const STATUS_SLOTS = ["conversation.composer.dock", "conversation.hero.options"] as const;
+
+/** Register the IDE status pill in both seats and the `/select-ide` popup picker. */
 export function apply(ctx: ClientContext): void {
-  ctx.slots.inject("conversation.composer.dock", () =>
-    ctx.slots.register(
-      {
-        name: "conversation.composer.dock",
-        id: "ide-selection",
-        order: 2,
-      },
-      SelectionStatus,
-    ),
-  );
+  for (const name of STATUS_SLOTS) {
+    ctx.slots.inject(name, () =>
+      ctx.slots.register({ name, id: "ide-selection", order: 2 }, SelectionStatus),
+    );
+  }
   ctx.inject(["locale"], (scope) => {
     const locale = scope.locale;
     if (!locale) return;

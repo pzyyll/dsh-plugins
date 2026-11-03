@@ -1,5 +1,5 @@
 // ABOUTME: Check the compact composer label and its hover detail.
-// ABOUTME: Cover an idle connection, one range, and multiple ranges without selected text.
+// ABOUTME: Cover an idle connection, one line, one range, and multiple ranges.
 import { describe, expect, it } from "vitest";
 import type { EditorSelectionSnapshot } from "./protocol.js";
 import { selectionStatusText } from "./status.js";
@@ -22,9 +22,22 @@ describe("selection status text", () => {
     expect(selectionStatusText({ ...snapshot, ranges: [] })).toEqual({ text: "⧉" });
   });
 
+  it("names a one-line selection without a count", () => {
+    const status = selectionStatusText({
+      ...snapshot,
+      ranges: [
+        {
+          text: "one secret line",
+          selection: { start: { line: 4, character: 2 }, end: { line: 4, character: 9 } },
+        },
+      ],
+    });
+    expect(status).toEqual({ text: "⧉ Selected", detail: "src/example.ts #L5" });
+  });
+
   it("counts inclusive lines and puts the file and range in the hover detail", () => {
     expect(selectionStatusText(snapshot)).toEqual({
-      text: "⧉ Selected Lines 3",
+      text: "⧉ 3 Lines Selected",
       detail: "src/example.ts #L10-L12",
     });
   });
@@ -40,7 +53,7 @@ describe("selection status text", () => {
         },
       ],
     });
-    expect(status.text).toBe("⧉ Selected Lines 4");
+    expect(status.text).toBe("⧉ 4 Lines Selected");
     expect(status.detail).toBe("src/example.ts 1:#L10-L12 2:#L21");
     expect(JSON.stringify(status)).not.toContain("secret");
   });

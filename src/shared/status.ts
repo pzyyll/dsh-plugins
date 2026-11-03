@@ -4,6 +4,8 @@ import { isAbsolute, relative, sep } from "node:path";
 import type { EditorSelectionSnapshot, SelectionRange } from "./protocol.js";
 
 const CONNECTED_ICON = "⧉";
+const SINGLE_LINE_LABEL = "Selected";
+const MULTI_LINE_LABEL = "Lines Selected";
 const LINE_OFFSET = 1;
 
 /** Render a connected editor. No snapshot means the IDE has no active selection. */
@@ -15,9 +17,14 @@ export function selectionStatusText(snapshot?: EditorSelectionSnapshot): {
   if (!snapshot || ranges.length === 0) return { text: CONNECTED_ICON };
   const selectedLines = ranges.reduce((total, range) => total + inclusiveLineCount(range), 0);
   return {
-    text: `${CONNECTED_ICON} Selected Lines ${selectedLines}`,
+    text: `${CONNECTED_ICON} ${selectedLabel(selectedLines)}`,
     detail: `${displayPath(snapshot.filePath, snapshot.workspaceFolder)} ${describeRanges(ranges)}`,
   };
+}
+
+/** One line needs no count; more lines are worth spelling out as `N Lines Selected`. */
+function selectedLabel(selectedLines: number): string {
+  return selectedLines === 1 ? SINGLE_LINE_LABEL : `${selectedLines} ${MULTI_LINE_LABEL}`;
 }
 
 function inclusiveLineCount(range: SelectionRange): number {

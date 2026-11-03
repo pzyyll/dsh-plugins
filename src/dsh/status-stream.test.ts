@@ -76,7 +76,7 @@ describe("selection status stream", () => {
     closers.push(async () => {
       await reader.cancel();
     });
-    const text = await readUntil(reader, "Selected Lines");
+    const text = await readUntil(reader, "Lines Selected");
     expect(text).toContain("src/example.ts #L10-L12");
     expect(text).not.toContain("secret selection");
   });
@@ -245,9 +245,9 @@ describe("selection status stream", () => {
     closers.push(async () => {
       await reader.cancel();
     });
-    const text = await readUntil(reader, "Selected Lines");
+    const text = await readUntil(reader, "Lines Selected");
     expect(text).toContain(
-      '{"connected":true,"text":"⧉ Selected Lines 3","detail":"src/example.ts #L10-L12"}',
+      '{"connected":true,"text":"⧉ 3 Lines Selected","detail":"src/example.ts #L10-L12"}',
     );
     expect(text).not.toContain("secret selection");
     ide.broadcast({
@@ -260,7 +260,7 @@ describe("selection status stream", () => {
       ],
     });
     const changed = await readUntil(reader, "#L20-L21");
-    expect(changed).toContain("Selected Lines 2");
+    expect(changed).toContain("2 Lines Selected");
     expect(changed).not.toContain("another secret");
     lifetime.abort();
     expect((await reader.read()).done).toBe(true);

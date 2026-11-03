@@ -73,7 +73,7 @@ dsh web --patch ./ide-selection.patch.yml
 
 Submit a request about the selected code. The plugin reads a fresh IDE snapshot before the first model step of each accepted human turn, even if the selection has not changed. It skips subagent and synthetic turns. It adds selected context through dsh's durable user-message path, so session history retains the supplied text. No IDE connection is required for ordinary requests.
 
-When the Web UI is connected to VS Code, the composer status line shows `⧉`. After you select lines, it shows `⧉ Selected Lines N`, where `N` is the inclusive line count. Hover the status to see the workspace-relative file and the line range, using the same `#L10-L20` form as pi-x-ide. The status disappears when the IDE disconnects. It does not include the selected text.
+When the Web UI is connected to VS Code, the composer status line shows `⧉`. After you select one line, it shows `⧉ Selected`; after you select more, it shows `⧉ N Lines Selected`, where `N` is the inclusive line count. Hover the status to see the workspace-relative file and the line range, using the same `#L10-L20` form as pi-x-ide. A blank Session has no composer dock yet, so the same status also sits in the New Session row beside the workspace and preset controls until the first message starts the conversation. The status disappears when the IDE disconnects. It does not include the selected text.
 
 ## Select an IDE
 
