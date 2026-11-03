@@ -39,3 +39,7 @@ Set `GROK_OAUTH_USE_API_URL=1` only to send that same OAuth session to `https://
 - A page reload during device approval drops the in-memory wait. Choose **登录** again.
 - **退出登录** deletes credential record `dsh-xai-auth/xai-supergrok`. That does not revoke the token at xAI.
 - Listed model prices are short-context API list prices. The Plugins page meter is the SuperGrok subscription, from the billing credits route.
+
+## License
+
+[MIT](LICENSE)

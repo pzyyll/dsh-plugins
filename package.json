@@ -1,8 +1,18 @@
 {
   "name": "dsh-xai-auth",
   "version": "0.1.0",
-  "private": true,
+  "license": "MIT",
   "description": "dsh plugin that signs in to an xAI SuperGrok subscription and serves it as the xai-supergrok model route.",
+  "keywords": [
+    "dsh-plugin",
+    "xai",
+    "grok",
+    "supergrok",
+    "xai-supergrok",
+    "oauth",
+    "authentication",
+    "subscription"
+  ],
   "type": "module",
   "main": "./src/index.ts",
   "exports": {
@@ -15,7 +25,8 @@
     "lib/client.js",
     "locale",
     "cordis.patch.yml",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=24.9.0",
