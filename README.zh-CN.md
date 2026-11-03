@@ -12,17 +12,18 @@
 dsh plugin --profile <profile> add github:pzyyll/dsh-xai-auth
 ```
 
-`prepare` 脚本使用 Rsbuild 将服务端入口构建为 `dist/index.js`。如果 pnpm 阻止构建，请将报错中的完整 Git 依赖键添加到该 profile 的 `pnpm-workspace.yaml` 的 `allowBuilds` 中，然后重新运行安装命令。
+仓库已包含预构建的服务端入口 `dist/index.js`，安装此插件无需构建。
 
-如需从本地仓库安装，先安装 [mise](https://mise.jdx.dev/getting-started.html)，然后在包目录运行以下命令，安装项目固定版本的 pnpm 并构建入口：
+如需重新构建本地仓库，先安装 [mise](https://mise.jdx.dev/getting-started.html)，然后在包目录运行：
 
 ```sh
 mise trust
 mise install
 mise exec -- pnpm install --frozen-lockfile
+mise exec -- pnpm run build
 ```
 
-再在 `dsh-xai-auth` 的父目录中运行：
+如需安装本地仓库，在 `dsh-xai-auth` 的父目录中运行：
 
 ```sh
 dsh plugin --profile <profile> add ./dsh-xai-auth
@@ -57,6 +58,7 @@ mise exec -- pnpm run format
 mise exec -- pnpm run lint
 mise exec -- pnpm run typecheck
 mise exec -- pnpm test
+mise exec -- pnpm run build
 ```
 
 运行 `mise exec -- pnpm run check` 可执行只读检查。代码编写规范见 [AGENTS.md](AGENTS.md)。

@@ -12,17 +12,18 @@ Install from GitHub:
 dsh plugin --profile <profile> add github:pzyyll/dsh-xai-auth
 ```
 
-The `prepare` script uses Rsbuild to build the host entry at `dist/index.js`. If pnpm blocks this build, add the exact Git dependency key from its error to `allowBuilds` in the profile's `pnpm-workspace.yaml`, then run the install command again.
+The repository includes the prebuilt host entry at `dist/index.js`. No build step is needed to install this plugin.
 
-For a local checkout, install [mise](https://mise.jdx.dev/getting-started.html), then run these commands in the package directory to install the pinned pnpm version and build the entry:
+To rebuild a local checkout, install [mise](https://mise.jdx.dev/getting-started.html), then run these commands in the package directory:
 
 ```sh
 mise trust
 mise install
 mise exec -- pnpm install --frozen-lockfile
+mise exec -- pnpm run build
 ```
 
-Then run this command from its parent directory:
+To install the local checkout, run this command from its parent directory:
 
 ```sh
 dsh plugin --profile <profile> add ./dsh-xai-auth
@@ -57,6 +58,7 @@ mise exec -- pnpm run format
 mise exec -- pnpm run lint
 mise exec -- pnpm run typecheck
 mise exec -- pnpm test
+mise exec -- pnpm run build
 ```
 
 Run `mise exec -- pnpm run check` for read-only checks. See [AGENTS.md](AGENTS.md) for coding rules.
