@@ -4,7 +4,7 @@ import { build } from "esbuild";
 
 const NODE_TARGET = "node24";
 const BUNDLE_HEADER =
-  "// ABOUTME: Generated IDE selection integration bundle.\n// ABOUTME: Rebuild with pnpm build; see source and third-party notices for details.";
+  "// ABOUTME: Generated IDE selection integration bundle.\n// ABOUTME: Rebuild with mise run build; see source and third-party notices for details.";
 
 await Promise.all([
   build({

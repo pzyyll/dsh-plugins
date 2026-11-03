@@ -15,7 +15,7 @@ This package is the editor side only. Install the built dsh plugin from the repo
 From the repository root:
 
 ```sh
-mise exec -- pnpm install --frozen-lockfile
+mise run install
 mise run package:vsix
 cd ide-plugins/vscode && code --install-extension dist/dsh-ide-selection-vscode-$(node -p "require('./package.json').version").vsix
 ```

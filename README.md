@@ -11,12 +11,10 @@ Install [mise](https://mise.jdx.dev/getting-started.html), then run these comman
 ```sh
 mise trust
 mise install
-mise exec -- pnpm install --frozen-lockfile
-mise exec -- pnpm check
-mise exec -- pnpm build
+mise run install
+mise run check
+mise run build
 ```
-
-If mise is active in your shell, omit `mise exec --`.
 
 The build creates:
 
@@ -43,7 +41,7 @@ The extension starts a loopback server and refreshes its discovery file. It does
 
 ## Package the VS Code extension
 
-The extension package is `ide-plugins/vscode`. `pnpm build` does not build it. The flow follows pi-x-ide: esbuild writes `ide-plugins/vscode/out/extension.js`, and `@vscode/vsce` writes the VSIX under `ide-plugins/vscode/dist/`. Only `vscode` stays external. The bundle includes the shared IDE transport and `ws`.
+The extension package is `ide-plugins/vscode`. `mise run build` does not build it. The flow follows pi-x-ide: esbuild writes `ide-plugins/vscode/out/extension.js`, and `@vscode/vsce` writes the VSIX under `ide-plugins/vscode/dist/`. Only `vscode` stays external. The bundle includes the shared IDE transport and `ws`.
 
 vsce does not support pnpm dependency walks. The package command passes `--no-dependencies` and does not set `vscode:prepublish`. This does not publish to the Marketplace.
 
@@ -123,12 +121,14 @@ Automated tests cover the local transport, selection adapter, and plugin behavio
 
 | Command                 | Action                                           |
 | ----------------------- | ------------------------------------------------ |
-| `pnpm check`            | Run lint, format, type, and test checks.         |
-| `pnpm build`            | Build the host and browser bundles.              |
+| `mise run check`        | Run lint, format, type, and test checks.         |
+| `mise run build`        | Build the host and browser bundles.              |
 | `mise run compile:vsix` | Build the VS Code extension for local debugging. |
 | `mise run package:vsix` | Pack the VS Code extension into a VSIX.          |
-| `pnpm test`             | Run behavior tests.                              |
-| `pnpm test:watch`       | Watch tests.                                     |
-| `pnpm format`           | Format project files.                            |
+| `mise run test`         | Run behavior tests.                              |
+| `mise run test:watch`   | Watch tests.                                     |
+| `mise run format`       | Format project files.                            |
+| `mise run lint`         | Lint project files.                              |
+| `mise run typecheck`    | Type-check project files.                        |
 
 See the [TDD plan](docs/plans/initial-implementation.md) and [third-party notices](THIRD-PARTY-NOTICES.md).

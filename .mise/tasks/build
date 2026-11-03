@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE description="Build the dsh plugin and browser client"
+#MISE depends=["install"]
+set -euo pipefail
+
+node scripts/build.mjs

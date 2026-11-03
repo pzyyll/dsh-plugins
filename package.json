@@ -20,19 +20,6 @@
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg"
   },
-  "scripts": {
-    "build": "node scripts/build.mjs",
-    "compile:vsix": "pnpm --filter dsh-ide-selection-vscode run compile",
-    "package:vsix": "pnpm --filter dsh-ide-selection-vscode run package",
-    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test",
-    "lint": "oxlint --deny-warnings .",
-    "lint:fix": "oxlint --fix .",
-    "format": "oxfmt .",
-    "format:check": "oxfmt --check .",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run",
-    "test:watch": "vitest --watch"
-  },
   "dependencies": {
     "@deepseek-ai/schemastery": "3.18.5",
     "ws": "8.22.1"
