@@ -1,0 +1,71 @@
+packages:
+  - "packages/*"
+  - "packages/dsh-ide-selection/ide-plugins/*"
+
+catalogMode: strict
+engineStrict: true
+pmOnFail: ignore
+saveExact: true
+strictPeerDependencies: true
+
+catalog:
+  "@deepseek-ai/cordis": "4.0.5"
+  "@deepseek-ai/dsh-agent": "0.2.1-rc.5"
+  "@deepseek-ai/dsh-client-connection": "0.2.1-rc.5"
+  "@deepseek-ai/dsh-commands": "0.2.1-rc.5"
+  "@deepseek-ai/dsh-credentials": "0.2.1-rc.5"
+  "@deepseek-ai/dsh-home-paths": "0.2.1-rc.5"
+  "@deepseek-ai/dsh-host-webserver": "0.2.1-rc.5"
+  "@deepseek-ai/dsh-llm": "0.2.1-rc.5"
+  "@deepseek-ai/dsh-llm-pi-ai": "0.2.1-rc.5"
+  "@deepseek-ai/dsh-session": "0.2.1-rc.5"
+  "@deepseek-ai/dsh-typert-protocol": "0.2.1-rc.5"
+  "@deepseek-ai/dsh-workspace": "0.2.1-rc.5"
+  "@deepseek-ai/schemastery": "3.18.5"
+  "@earendil-works/pi-ai": "1.1.0"
+  "@rsbuild/core": "2.3.0"
+  "@types/node": "24.19.2"
+  "@types/react": "19.3.0"
+  "@types/vscode": "1.144.0"
+  "@types/ws": "8.18.2"
+  "@vscode/vsce": "4.1.0"
+  esbuild: "0.28.2"
+  oxfmt: "0.76.0"
+  oxlint: "1.90.0"
+  typescript: "7.0.2"
+  vite: "8.3.5"
+  vitest: "5.1.0"
+  ws: "8.22.1"
+
+minimumReleaseAgeExclude:
+  - "@oxfmt/binding-android-arm-eabi@0.76.0"
+  - "@oxfmt/binding-android-arm64@0.76.0"
+  - "@oxfmt/binding-darwin-arm64@0.76.0"
+  - "@oxfmt/binding-darwin-x64@0.76.0"
+  - "@oxfmt/binding-freebsd-x64@0.76.0"
+  - "@oxfmt/binding-linux-arm-gnueabihf@0.76.0"
+  - "@oxfmt/binding-linux-arm-musleabihf@0.76.0"
+  - "@oxfmt/binding-linux-arm64-gnu@0.76.0"
+  - "@oxfmt/binding-linux-arm64-musl@0.76.0"
+  - "@oxfmt/binding-linux-ppc64-gnu@0.76.0"
+  - "@oxfmt/binding-linux-riscv64-gnu@0.76.0"
+  - "@oxfmt/binding-linux-riscv64-musl@0.76.0"
+  - "@oxfmt/binding-linux-s390x-gnu@0.76.0"
+  - "@oxfmt/binding-linux-x64-gnu@0.76.0"
+  - "@oxfmt/binding-linux-x64-musl@0.76.0"
+  - "@oxfmt/binding-openharmony-arm64@0.76.0"
+  - "@oxfmt/binding-win32-arm64-msvc@0.76.0"
+  - "@oxfmt/binding-win32-ia32-msvc@0.76.0"
+  - "@oxfmt/binding-win32-x64-msvc@0.76.0"
+  - "@vitest/mocker@5.1.0"
+  - "@vitest/spy@5.1.0"
+  - oxfmt@0.76.0
+  - vitest@5.1.0
+
+allowBuilds:
+  esbuild: true
+  "@vscode/vsce-sign": false
+  # This preinstall script only prints a no-op message.
+  "@google/genai@2.21.0": false
+  # This postinstall script only prints version-range advice.
+  protobufjs@7.6.6: false

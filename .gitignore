@@ -1,0 +1,8 @@
+node_modules/
+.pnpm-store/
+.worktrees/
+coverage/
+*.tsbuildinfo
+AGENTS.override.md
+AGENTS.local.md
+mise.local.toml

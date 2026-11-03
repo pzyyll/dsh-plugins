@@ -1,0 +1,10 @@
+{
+  "name": "dsh-plugins",
+  "private": true,
+  "description": "pnpm workspace for dsh plugins.",
+  "packageManager": "pnpm@12.16.1",
+  "engines": {
+    "node": "^24.9.0",
+    "pnpm": "12.16.1"
+  }
+}

@@ -1,0 +1,32 @@
+[tools]
+node = "24.22.2"
+pnpm = "12.16.1"
+
+[tasks.install]
+description = "Install workspace dependencies from the lockfile"
+run = "pnpm install --frozen-lockfile"
+
+[tasks.build]
+description = "Build every dsh plugin"
+depends = ["install"]
+run = """
+pnpm --filter dsh-xai-auth run build
+mise -C packages/dsh-ide-selection run --skip-deps build
+"""
+
+[tasks.check]
+description = "Run each plugin's format, lint, type, and test checks"
+depends = ["install"]
+run = """
+pnpm --filter dsh-xai-auth run check
+pnpm --filter dsh-xai-auth test
+mise -C packages/dsh-ide-selection run --skip-deps check
+"""
+
+[tasks."compile:vsix"]
+description = "Build the VS Code extension for local debugging"
+run = "mise -C packages/dsh-ide-selection run compile:vsix"
+
+[tasks."package:vsix"]
+description = "Build the VS Code VSIX"
+run = "mise -C packages/dsh-ide-selection run package:vsix"
