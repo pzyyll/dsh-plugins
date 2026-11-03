@@ -15,6 +15,8 @@ import {
 /** Same hover delay as the composer context meter. */
 const TOOLTIP_DELAY_MS = 200;
 const STATUS_STYLE_ID = "dsh-ide-selection-status";
+/** Keep the IDE pill after the built-in statistics and subscription usage. */
+const STATUS_ORDER = 1000;
 const SELECT_IDE_COMMAND = "select-ide";
 
 /**
@@ -22,7 +24,7 @@ const SELECT_IDE_COMMAND = "select-ide";
  * radius, and a hover fill. Injected once because this client bundle has no CSS loader.
  */
 const STATUS_PILL_CSS = [
-  '[data-composer-stat="ide-selection"]{display:inline-flex;min-width:0;font-size:calc(var(--dsh-content-font-size-secondary, 13px) - 1px);line-height:calc(20px + var(--dsh-content-font-delta-secondary, 0px))}',
+  `[data-composer-stat="ide-selection"]{display:inline-flex;order:${STATUS_ORDER};min-width:0;font-size:calc(var(--dsh-content-font-size-secondary, 13px) - 1px);line-height:calc(20px + var(--dsh-content-font-delta-secondary, 0px))}`,
   '[data-composer-stat="ide-selection"] button{display:inline-flex;align-items:center;box-sizing:border-box;max-width:100%;padding:1px 8px;border:none;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-variant-numeric:tabular-nums;line-height:inherit;white-space:nowrap;cursor:pointer}',
   '@media (hover: hover){[data-composer-stat="ide-selection"] button:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-secondary)}}',
 ].join("");
@@ -138,7 +140,7 @@ const STATUS_SLOTS = ["conversation.composer.dock", "conversation.hero.options"]
 export function apply(ctx: ClientContext): void {
   for (const name of STATUS_SLOTS) {
     ctx.slots.inject(name, () =>
-      ctx.slots.register({ name, id: "ide-selection", order: 2 }, SelectionStatus),
+      ctx.slots.register({ name, id: "ide-selection", order: STATUS_ORDER }, SelectionStatus),
     );
   }
   ctx.inject(["locale"], (scope) => {
