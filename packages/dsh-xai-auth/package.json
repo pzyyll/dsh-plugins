@@ -69,15 +69,5 @@
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "typescript": "catalog:"
-  },
-  "scripts": {
-    "build": "rsbuild build",
-    "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck",
-    "format": "oxfmt .",
-    "format:check": "oxfmt --check .",
-    "lint": "oxlint --deny-warnings .",
-    "lint:fix": "oxlint --fix --deny-warnings .",
-    "test": "node --experimental-strip-types --test tests/*.test.ts",
-    "typecheck": "tsc --noEmit"
   }
 }

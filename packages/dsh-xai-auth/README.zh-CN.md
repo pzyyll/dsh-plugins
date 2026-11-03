@@ -25,7 +25,7 @@ mise run install
 然后在 `packages/dsh-xai-auth` 中运行：
 
 ```sh
-pnpm run build
+mise run build
 ```
 
 如需安装本地仓库，在 `dsh-plugins` 仓库根目录运行：
@@ -59,14 +59,14 @@ dsh plugin --profile <profile> add ./packages/dsh-xai-auth
 使用 Node.js `>=24.9.0`。在本包目录中，修改代码后运行：
 
 ```sh
-mise exec -- pnpm run format
-mise exec -- pnpm run lint
-mise exec -- pnpm run typecheck
-mise exec -- pnpm test
-mise exec -- pnpm run build
+mise run format
+mise run lint
+mise run typecheck
+mise run test
+mise run build
 ```
 
-运行 `mise exec -- pnpm run check` 可执行只读检查。代码编写规范见 [AGENTS.md](AGENTS.md)。
+`mise run check` 会运行 lint、format、type 和 test 检查。代码编写规范见 [AGENTS.md](AGENTS.md)。
 
 ## 许可证
 

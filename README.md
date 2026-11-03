@@ -27,7 +27,7 @@ The first `pnpm install` writes `pnpm-lock.yaml`. Later installs from this direc
 
 ## Tasks
 
-The root task only installs the shared lockfile. Build and check each plugin in its own directory. `packages/dsh-xai-auth` uses `pnpm run`. `packages/dsh-ide-selection` uses `mise run`.
+The root task only installs the shared lockfile. Build and check each plugin in its own directory with `mise run`.
 
 ## Install a plugin
 

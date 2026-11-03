@@ -1,5 +1,6 @@
 AGENTS.override.md
 AGENTS.local.md
 node_modules/
+mise.local.toml
 *.tsbuildinfo
 .worktrees

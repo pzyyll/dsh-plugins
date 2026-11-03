@@ -12,4 +12,4 @@ pnpm workspace. Each directory under `packages/` is one installable dsh plugin.
 
 ## Checks
 
-Run checks in the package you changed. `packages/dsh-xai-auth/AGENTS.md` lists that package's commands. In `packages/dsh-ide-selection`, run `mise run check`. The root task `mise run install` only installs the shared lockfile.
+Run `mise run check` in the package you changed. `packages/dsh-xai-auth/AGENTS.md` lists when extra tasks apply. The root task `mise run install` only installs the shared lockfile.

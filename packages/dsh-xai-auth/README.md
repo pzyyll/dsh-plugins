@@ -25,7 +25,7 @@ mise run install
 Then run this command in `packages/dsh-xai-auth`:
 
 ```sh
-pnpm run build
+mise run build
 ```
 
 To install the local checkout, run this command from the `dsh-plugins` repository root:
@@ -59,14 +59,14 @@ On the plugin page:
 Use Node.js `>=24.9.0`. In this package directory, after code changes, run:
 
 ```sh
-mise exec -- pnpm run format
-mise exec -- pnpm run lint
-mise exec -- pnpm run typecheck
-mise exec -- pnpm test
-mise exec -- pnpm run build
+mise run format
+mise run lint
+mise run typecheck
+mise run test
+mise run build
 ```
 
-Run `mise exec -- pnpm run check` for read-only checks. See [AGENTS.md](AGENTS.md) for coding rules.
+`mise run check` runs lint, format, type, and test checks. See [AGENTS.md](AGENTS.md) for coding rules.
 
 ## License
 

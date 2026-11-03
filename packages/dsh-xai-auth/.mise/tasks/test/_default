@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE description="Run tests"
+#MISE depends=["install"]
+set -euo pipefail
+
+node --experimental-strip-types --test 'tests/*.test.ts'
