@@ -94,36 +94,45 @@ function parseIsoMs(value: string | null | undefined): number | undefined {
   return Number.isFinite(ms) ? ms : undefined
 }
 
-export function isCredentialExpired(credentials: Pick<SuperGrokCredentials, 'expires'>, nowMs: number = Date.now()): boolean {
+export function isCredentialExpired(
+  credentials: Pick<SuperGrokCredentials, 'expires'>,
+  nowMs: number = Date.now(),
+): boolean {
   return nowMs >= credentials.expires
 }
 
-export function grokAuthToCredentials(entry: GrokAuthEntry, nowMs: number = Date.now()): SuperGrokCredentials {
+export function grokAuthToCredentials(
+  entry: GrokAuthEntry,
+  nowMs: number = Date.now(),
+): SuperGrokCredentials {
   const expiresMs = parseIsoMs(entry.expires_at ?? undefined)
   const createdMs = parseIsoMs(entry.create_time) ?? nowMs
   const hardExpiry = expiresMs ?? createdMs + TOKEN_TTL_MS
-  const userId = (typeof entry.user_id === 'string' && entry.user_id) || peekJwtUserId(entry.key) || undefined
+  const userId =
+    (typeof entry.user_id === 'string' && entry.user_id) || peekJwtUserId(entry.key) || undefined
   return {
     access: entry.key,
     refresh: entry.refresh_token ?? '',
     expires: Math.max(nowMs, hardExpiry - EARLY_INVALIDATION_MS),
-    ...userId === undefined ? {} : { userId },
-    ...entry.email ? { email: entry.email } : {},
-    ...entry.first_name ? { firstName: entry.first_name } : {},
-    ...entry.last_name ? { lastName: entry.last_name } : {},
-    ...entry.principal_type ? { principalType: entry.principal_type } : {},
-    ...entry.principal_id ? { principalId: entry.principal_id } : {},
-    ...entry.team_id ? { teamId: entry.team_id } : {},
-    ...typeof entry.coding_data_retention_opt_out === 'boolean'
+    ...(userId === undefined ? {} : { userId }),
+    ...(entry.email ? { email: entry.email } : {}),
+    ...(entry.first_name ? { firstName: entry.first_name } : {}),
+    ...(entry.last_name ? { lastName: entry.last_name } : {}),
+    ...(entry.principal_type ? { principalType: entry.principal_type } : {}),
+    ...(entry.principal_id ? { principalId: entry.principal_id } : {}),
+    ...(entry.team_id ? { teamId: entry.team_id } : {}),
+    ...(typeof entry.coding_data_retention_opt_out === 'boolean'
       ? { codingDataRetentionOptOut: entry.coding_data_retention_opt_out }
-      : {},
-    ...entry.oidc_issuer ? { oidcIssuer: entry.oidc_issuer } : {},
-    ...entry.oidc_client_id ? { oidcClientId: entry.oidc_client_id } : {},
-    ...entry.create_time ? { createTime: entry.create_time } : {},
+      : {}),
+    ...(entry.oidc_issuer ? { oidcIssuer: entry.oidc_issuer } : {}),
+    ...(entry.oidc_client_id ? { oidcClientId: entry.oidc_client_id } : {}),
+    ...(entry.create_time ? { createTime: entry.create_time } : {}),
   }
 }
 
-export function importCredentialsFromGrokAuth(path: string = grokAuthPath()): SuperGrokCredentials | undefined {
+export function importCredentialsFromGrokAuth(
+  path: string = grokAuthPath(),
+): SuperGrokCredentials | undefined {
   const found = findSessionAuth(readGrokAuthStore(path))
   if (!found?.entry.refresh_token) return undefined
   return grokAuthToCredentials(found.entry)
@@ -138,7 +147,8 @@ export function resolveGrokUserId(
   accessToken: string | undefined,
   credentials: SuperGrokCredentials | undefined,
 ): string | undefined {
-  const storedUser = credentials !== undefined && credentials.access === accessToken ? credentials.userId : undefined
+  const storedUser =
+    credentials !== undefined && credentials.access === accessToken ? credentials.userId : undefined
   return storedUser || (accessToken ? peekJwtUserId(accessToken) : undefined)
 }
 
@@ -150,16 +160,22 @@ function firstClaim(obj: Record<string, unknown>, ...keys: string[]): string | u
   return undefined
 }
 
-export function credentialsFromTokens(tokens: {
-  accessToken: string
-  refreshToken: string
-  expiresInSeconds?: number
-  idToken?: string
-}, previous?: SuperGrokCredentials, now: Date = new Date()): SuperGrokCredentials {
+export function credentialsFromTokens(
+  tokens: {
+    accessToken: string
+    refreshToken: string
+    expiresInSeconds?: number
+    idToken?: string
+  },
+  previous?: SuperGrokCredentials,
+  now: Date = new Date(),
+): SuperGrokCredentials {
   const accessClaims = decodeJwtPayload(tokens.accessToken) ?? {}
   const idClaims = tokens.idToken ? (decodeJwtPayload(tokens.idToken) ?? {}) : {}
-  const principalType = firstClaim(accessClaims, 'principal_type', 'principalType') ?? previous?.principalType
-  const principalId = firstClaim(accessClaims, 'principal_id', 'principalId') ?? previous?.principalId
+  const principalType =
+    firstClaim(accessClaims, 'principal_type', 'principalType') ?? previous?.principalType
+  const principalId =
+    firstClaim(accessClaims, 'principal_id', 'principalId') ?? previous?.principalId
   const tokenTeamId = firstClaim(accessClaims, 'team_id', 'teamId')
   const idSub = firstClaim(idClaims, 'sub', 'user_id', 'userId')
   const idEmail = firstClaim(idClaims, 'email')
@@ -176,35 +192,40 @@ export function credentialsFromTokens(tokens: {
     email = undefined
   }
 
-  const expiresMs = tokens.expiresInSeconds && tokens.expiresInSeconds > 0
-    ? now.getTime() + tokens.expiresInSeconds * 1000
-    : now.getTime() + TOKEN_TTL_MS
+  const expiresMs =
+    tokens.expiresInSeconds && tokens.expiresInSeconds > 0
+      ? now.getTime() + tokens.expiresInSeconds * 1000
+      : now.getTime() + TOKEN_TTL_MS
 
   return {
     access: tokens.accessToken,
     refresh: tokens.refreshToken,
     expires: Math.max(now.getTime(), expiresMs - EARLY_INVALIDATION_MS),
-    ...userId === undefined ? {} : { userId },
-    ...email === undefined ? {} : { email },
-    ...previous?.firstName === undefined ? {} : { firstName: previous.firstName },
-    ...previous?.lastName === undefined ? {} : { lastName: previous.lastName },
-    ...principalType === undefined ? {} : { principalType },
-    ...principalId === undefined ? {} : { principalId },
-    ...teamId === undefined ? {} : { teamId },
-    ...previous?.codingDataRetentionOptOut === undefined
+    ...(userId === undefined ? {} : { userId }),
+    ...(email === undefined ? {} : { email }),
+    ...(previous?.firstName === undefined ? {} : { firstName: previous.firstName }),
+    ...(previous?.lastName === undefined ? {} : { lastName: previous.lastName }),
+    ...(principalType === undefined ? {} : { principalType }),
+    ...(principalId === undefined ? {} : { principalId }),
+    ...(teamId === undefined ? {} : { teamId }),
+    ...(previous?.codingDataRetentionOptOut === undefined
       ? {}
-      : { codingDataRetentionOptOut: previous.codingDataRetentionOptOut },
+      : { codingDataRetentionOptOut: previous.codingDataRetentionOptOut }),
     oidcIssuer: previous?.oidcIssuer ?? OIDC_ISSUER,
     oidcClientId: previous?.oidcClientId ?? OIDC_CLIENT_ID,
-    ...previous?.createTime === undefined ? { createTime: now.toISOString() } : { createTime: previous.createTime },
+    ...(previous?.createTime === undefined
+      ? { createTime: now.toISOString() }
+      : { createTime: previous.createTime }),
   }
 }
 
 export function isSuperGrokCredentials(value: unknown): value is SuperGrokCredentials {
-  return isRecord(value)
-    && typeof value.access === 'string'
-    && value.access.length > 0
-    && typeof value.refresh === 'string'
-    && typeof value.expires === 'number'
-    && Number.isFinite(value.expires)
+  return (
+    isRecord(value) &&
+    typeof value.access === 'string' &&
+    value.access.length > 0 &&
+    typeof value.refresh === 'string' &&
+    typeof value.expires === 'number' &&
+    Number.isFinite(value.expires)
+  )
 }

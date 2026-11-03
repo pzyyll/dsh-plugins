@@ -27,7 +27,10 @@ test('parseRemoteModels skips hidden entries and aliases composer effort', () =>
       { model: 'grok-composer-2.5-fast', supports_reasoning_effort: false },
     ],
   })
-  assert.deepEqual(models.map(model => model.id), ['grok-4.5', 'grok-composer-2.5-fast'])
+  assert.deepEqual(
+    models.map((model) => model.id),
+    ['grok-4.5', 'grok-composer-2.5-fast'],
+  )
   assert.equal(models[0]?.reasoning, true)
   assert.deepEqual(models[0]?.reasoningEfforts, ['low', 'xhigh'])
   assert.equal(models[1]?.reasoning, true)
@@ -55,11 +58,14 @@ test('unknown model ids stay zero cost and known aliases map', () => {
 })
 
 test('alignGrokBuildResponsesPayload strips cache keys and forces a concise summary', () => {
-  const aligned = alignGrokBuildResponsesPayload({
-    prompt_cache_key: 'turn',
-    prompt_cache_retention: '24h',
-    reasoning: { effort: 'high' },
-  }, 'grok-composer-2.5-fast')
+  const aligned = alignGrokBuildResponsesPayload(
+    {
+      prompt_cache_key: 'turn',
+      prompt_cache_retention: '24h',
+      reasoning: { effort: 'high' },
+    },
+    'grok-composer-2.5-fast',
+  )
   assert.deepEqual(aligned, { reasoning: { summary: 'concise' } })
 })
 

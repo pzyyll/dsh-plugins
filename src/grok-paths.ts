@@ -28,6 +28,9 @@ export function grokBuildModelsCachePath(env: NodeJS.ProcessEnv = process.env): 
 }
 
 /** auth.json scope key: `{issuer}::{client_id}`. */
-export function authScopeKey(issuer: string = OIDC_ISSUER, clientId: string = OIDC_CLIENT_ID): string {
+export function authScopeKey(
+  issuer: string = OIDC_ISSUER,
+  clientId: string = OIDC_CLIENT_ID,
+): string {
   return `${issuer.replace(/\/+$/, '')}::${clientId}`
 }

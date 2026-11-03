@@ -3,7 +3,12 @@
 
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { isAlwaysOnReasoningModel, isRecord, parseRemoteModelEntry, type CatalogModel } from './catalog.ts'
+import {
+  isAlwaysOnReasoningModel,
+  isRecord,
+  parseRemoteModelEntry,
+  type CatalogModel,
+} from './catalog.ts'
 import { MODELS_CACHE_TTL_MS } from './constants.ts'
 import { grokBuildModelsCachePath } from './grok-paths.ts'
 import { modelsCachePath } from './paths.ts'
@@ -77,9 +82,9 @@ function parseModelsCacheFile(value: unknown): ModelsCacheFile | undefined {
   if (!isRecord(value) || !isRecord(value.models)) return undefined
   return {
     fetched_at: typeof value.fetched_at === 'string' ? value.fetched_at : new Date(0).toISOString(),
-    ...typeof value.auth_method === 'string' ? { auth_method: value.auth_method } : {},
-    ...typeof value.origin === 'string' ? { origin: value.origin } : {},
-    ...typeof value.etag === 'string' ? { etag: value.etag } : {},
+    ...(typeof value.auth_method === 'string' ? { auth_method: value.auth_method } : {}),
+    ...(typeof value.origin === 'string' ? { origin: value.origin } : {}),
+    ...(typeof value.etag === 'string' ? { etag: value.etag } : {}),
     models: value.models,
   }
 }
@@ -96,16 +101,18 @@ function loadCacheAt(
   if (models.length === 0) return undefined
   return {
     models,
-    ...parsed.etag === undefined ? {} : { etag: parsed.etag },
+    ...(parsed.etag === undefined ? {} : { etag: parsed.etag }),
     fresh: isModelsCacheFresh(parsed),
-    ...parsed.origin === undefined ? {} : { origin: parsed.origin },
+    ...(parsed.origin === undefined ? {} : { origin: parsed.origin }),
     source,
   }
 }
 
 export function loadModelsCatalog(expectedOrigin?: string): LoadModelsCacheResult | undefined {
-  return loadCacheAt(modelsCachePath(), 'dsh', expectedOrigin)
-    ?? loadCacheAt(grokBuildModelsCachePath(), 'grok-build', expectedOrigin)
+  return (
+    loadCacheAt(modelsCachePath(), 'dsh', expectedOrigin) ??
+    loadCacheAt(grokBuildModelsCachePath(), 'grok-build', expectedOrigin)
+  )
 }
 
 export function saveModelsCatalog(
@@ -131,7 +138,7 @@ export function saveModelsCatalog(
     fetched_at: (meta.fetchedAt ?? new Date()).toISOString(),
     auth_method: 'session',
     origin: meta.origin,
-    ...meta.etag === undefined ? {} : { etag: meta.etag },
+    ...(meta.etag === undefined ? {} : { etag: meta.etag }),
     models: map,
   }
   atomicWriteJson(modelsCachePath(), cache)

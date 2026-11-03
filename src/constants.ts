@@ -17,7 +17,8 @@ export const DEVICE_AUTHORIZATION_URL = 'https://auth.x.ai/oauth2/device/code'
 export const DEVICE_CODE_GRANT_TYPE = 'urn:ietf:params:oauth:grant-type:device_code'
 
 /** grok-build personal OAuth scopes for a Grok Build session. */
-export const OAUTH_SCOPE = 'openid profile email offline_access grok-cli:access api:access conversations:read conversations:write workspaces:read workspaces:write'
+export const OAUTH_SCOPE =
+  'openid profile email offline_access grok-cli:access api:access conversations:read conversations:write workspaces:read workspaces:write'
 
 export const CLI_CHAT_PROXY_BASE_URL = 'https://cli-chat-proxy.grok.com/v1'
 

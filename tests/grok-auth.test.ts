@@ -25,25 +25,28 @@ test('importCredentialsFromGrokAuth copies the OIDC session and skips a web-logi
   const dir = mkdtempSync(join(tmpdir(), 'dsh-xai-auth-'))
   const path = join(dir, 'auth.json')
   const scope = authScopeKey()
-  writeFileSync(path, JSON.stringify({
-    'https://auth.x.ai::other': {
-      key: 'web-access',
-      auth_mode: 'web_login',
-      refresh_token: 'web-refresh',
-      oidc_issuer: OIDC_ISSUER,
-    },
-    [scope]: {
-      key: jwt({ sub: 'user-1' }),
-      auth_mode: 'oidc',
-      refresh_token: 'refresh-1',
-      email: 'ada@example.com',
-      expires_at: '2099-01-01T00:00:00.000Z',
-      oidc_issuer: OIDC_ISSUER,
-      oidc_client_id: OIDC_CLIENT_ID,
-      principal_type: 'User',
-      principal_id: 'user-1',
-    },
-  }))
+  writeFileSync(
+    path,
+    JSON.stringify({
+      'https://auth.x.ai::other': {
+        key: 'web-access',
+        auth_mode: 'web_login',
+        refresh_token: 'web-refresh',
+        oidc_issuer: OIDC_ISSUER,
+      },
+      [scope]: {
+        key: jwt({ sub: 'user-1' }),
+        auth_mode: 'oidc',
+        refresh_token: 'refresh-1',
+        email: 'ada@example.com',
+        expires_at: '2099-01-01T00:00:00.000Z',
+        oidc_issuer: OIDC_ISSUER,
+        oidc_client_id: OIDC_CLIENT_ID,
+        principal_type: 'User',
+        principal_id: 'user-1',
+      },
+    }),
+  )
   const imported = importCredentialsFromGrokAuth(path)
   assert.ok(imported)
   assert.equal(imported.refresh, 'refresh-1')
@@ -60,12 +63,16 @@ test('credentialsFromTokens uses a team principal as the user id and keeps the r
     expiresInSeconds: 3600,
     idToken: jwt({ sub: 'user-1', email: 'ada@example.com' }),
   })
-  const next = credentialsFromTokens({
-    accessToken: jwt({ principal_type: 'Team', principal_id: 'team-9' }),
-    refreshToken: 'new-refresh',
-    expiresInSeconds: 120,
-    idToken: jwt({ sub: 'user-1', email: 'ada@example.com' }),
-  }, previous, new Date('2026-01-01T00:00:00.000Z'))
+  const next = credentialsFromTokens(
+    {
+      accessToken: jwt({ principal_type: 'Team', principal_id: 'team-9' }),
+      refreshToken: 'new-refresh',
+      expiresInSeconds: 120,
+      idToken: jwt({ sub: 'user-1', email: 'ada@example.com' }),
+    },
+    previous,
+    new Date('2026-01-01T00:00:00.000Z'),
+  )
   assert.equal(next.userId, 'team-9')
   assert.equal(next.email, undefined)
   assert.equal(next.teamId, 'team-9')

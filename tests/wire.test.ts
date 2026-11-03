@@ -83,7 +83,7 @@ async function captureRequests(t: TestContext) {
   t.after(async () => {
     server.closeAllConnections()
     await new Promise<void>((resolve, reject) => {
-      server.close(error => error ? reject(error) : resolve())
+      server.close((error) => (error ? reject(error) : resolve()))
     })
     assert.deepEqual(errors, [])
   })
@@ -134,7 +134,9 @@ test('catalog headers retain their own contract and use JWT identity without an 
   assert.equal(headers.has('x-email'), false)
   assert.equal(headers.has('if-none-match'), false)
 
-  const attributed = new Headers(catalogHeaders({ ...CREDENTIALS, email: 'test@example.com' }, 'catalog-etag'))
+  const attributed = new Headers(
+    catalogHeaders({ ...CREDENTIALS, email: 'test@example.com' }, 'catalog-etag'),
+  )
   assert.equal(attributed.get('x-userid'), 'team-principal')
   assert.equal(attributed.get('x-email'), 'test@example.com')
   assert.equal(attributed.get('if-none-match'), 'catalog-etag')
@@ -145,37 +147,56 @@ test('header identity follows the effective Authorization from model and option 
     ...catalogToModel(FALLBACK_CATALOG[0]!, CLI_CHAT_PROXY_BASE_URL),
     headers: { AUTHORIZATION: `Bearer ${HEADER_TOKEN}` },
   }
-  assert.equal(subscriptionHeaders(model, { apiKey: ACCESS_TOKEN }, CREDENTIALS)[USER_ID_HEADER], 'header-user')
-  const headers = subscriptionHeaders(model, {
-    apiKey: ACCESS_TOKEN,
-    headers: { Authorization: `bEaReR ${ACCESS_TOKEN}`, 'X-Grok-User-ID': 'stale-user' },
-  }, CREDENTIALS)
+  assert.equal(
+    subscriptionHeaders(model, { apiKey: ACCESS_TOKEN }, CREDENTIALS)[USER_ID_HEADER],
+    'header-user',
+  )
+  const headers = subscriptionHeaders(
+    model,
+    {
+      apiKey: ACCESS_TOKEN,
+      headers: { Authorization: `bEaReR ${ACCESS_TOKEN}`, 'X-Grok-User-ID': 'stale-user' },
+    },
+    CREDENTIALS,
+  )
   assert.equal(headers[USER_ID_HEADER], 'team-principal')
 })
 
 for (const authorization of [null, '', 'Basic test-credential']) {
   test(`suppressed or non-Bearer Authorization does not retain stale identity (${authorization})`, () => {
     const model = catalogToModel(FALLBACK_CATALOG[0]!, CLI_CHAT_PROXY_BASE_URL)
-    const headers = subscriptionHeaders(model, {
-      apiKey: ACCESS_TOKEN,
-      headers: { Authorization: authorization, 'X-Grok-User-ID': 'stale-user' },
-    }, CREDENTIALS)
+    const headers = subscriptionHeaders(
+      model,
+      {
+        apiKey: ACCESS_TOKEN,
+        headers: { Authorization: authorization, 'X-Grok-User-ID': 'stale-user' },
+      },
+      CREDENTIALS,
+    )
     assert.equal(headers[USER_ID_HEADER], null)
   })
 }
 
-for (const baseUrl of [API_BASE_URL, 'https://custom.example.com/v1', 'https://cli-chat-proxy.grok.com.evil.example/v1']) {
+for (const baseUrl of [
+  API_BASE_URL,
+  'https://custom.example.com/v1',
+  'https://cli-chat-proxy.grok.com.evil.example/v1',
+]) {
   test(`non-proxy endpoints suppress subscription identity and auth headers (${baseUrl})`, () => {
     const model = catalogToModel(FALLBACK_CATALOG[0]!, baseUrl)
-    const headers = subscriptionHeaders(model, {
-      apiKey: ACCESS_TOKEN,
-      headers: {
-        'X-Grok-User-ID': 'stale-user',
-        'X-XAI-Token-Auth': 'stale-auth',
-        'X-AuthenticateResponse': 'stale-auth',
-        'x-custom': 'preserved',
+    const headers = subscriptionHeaders(
+      model,
+      {
+        apiKey: ACCESS_TOKEN,
+        headers: {
+          'X-Grok-User-ID': 'stale-user',
+          'X-XAI-Token-Auth': 'stale-auth',
+          'X-AuthenticateResponse': 'stale-auth',
+          'x-custom': 'preserved',
+        },
       },
-    }, CREDENTIALS)
+      CREDENTIALS,
+    )
     assert.equal(headers[USER_ID_HEADER], null)
     assert.equal(headers[TOKEN_AUTH_HEADER], null)
     assert.equal(headers[AUTHENTICATE_RESPONSE_HEADER], null)
@@ -187,15 +208,21 @@ test('simple streams serialize the product contract, system role, reasoning and 
   const capture = await captureRequests(t)
   const model = catalogToModel(FALLBACK_CATALOG[0]!, capture.baseUrl)
   const provider = createSuperGrokProvider([model], () => CREDENTIALS)
-  const result = await provider.streamSimple(model, CONTEXT, {
-    apiKey: ACCESS_TOKEN,
-    maxRetries: 0,
-    timeoutMs: REQUEST_TIMEOUT_MS,
-    sessionId: 'child-session',
-    reasoning: 'high',
-    headers: { 'USER-AGENT': 'caller-agent', 'X-Grok-Client-Version': 'outdated', session_id: 'stale' },
-    samplingParams: { prompt_cache_key: 'cache-key', prompt_cache_retention: '24h' },
-  }).result()
+  const result = await provider
+    .streamSimple(model, CONTEXT, {
+      apiKey: ACCESS_TOKEN,
+      maxRetries: 0,
+      timeoutMs: REQUEST_TIMEOUT_MS,
+      sessionId: 'child-session',
+      reasoning: 'high',
+      headers: {
+        'USER-AGENT': 'caller-agent',
+        'X-Grok-Client-Version': 'outdated',
+        session_id: 'stale',
+      },
+      samplingParams: { prompt_cache_key: 'cache-key', prompt_cache_retention: '24h' },
+    })
+    .result()
   assert.equal(result.stopReason, 'error')
   assert.equal(capture.requests.length, 1)
   const { path, headers, payload } = capture.requests[0]!
@@ -224,12 +251,17 @@ test('serialized Authorization overrides use the new token identity even without
   const capture = await captureRequests(t)
   const model = catalogToModel(FALLBACK_CATALOG[0]!, capture.baseUrl)
   for (const apiKey of [ACCESS_TOKEN, undefined]) {
-    await streamSuperGrok(model, CONTEXT, {
-      apiKey,
-      headers: { AUTHORIZATION: `Bearer ${HEADER_TOKEN}` },
-      maxRetries: 0,
-      timeoutMs: REQUEST_TIMEOUT_MS,
-    }, CREDENTIALS).result()
+    await streamSuperGrok(
+      model,
+      CONTEXT,
+      {
+        apiKey,
+        headers: { AUTHORIZATION: `Bearer ${HEADER_TOKEN}` },
+        maxRetries: 0,
+        timeoutMs: REQUEST_TIMEOUT_MS,
+      },
+      CREDENTIALS,
+    ).result()
   }
   assert.equal(capture.requests.length, 2)
   for (const { headers } of capture.requests) {
@@ -242,14 +274,16 @@ test('direct provider streams preserve API-specific effort and service tier', as
   const capture = await captureRequests(t)
   const model = catalogToModel(FALLBACK_CATALOG[0]!, capture.baseUrl)
   const provider = createSuperGrokProvider([model], () => CREDENTIALS)
-  await provider.stream(model, CONTEXT, {
-    apiKey: ACCESS_TOKEN,
-    maxRetries: 0,
-    timeoutMs: REQUEST_TIMEOUT_MS,
-    reasoningEffort: 'xhigh',
-    reasoningSummary: 'detailed',
-    serviceTier: 'default',
-  }).result()
+  await provider
+    .stream(model, CONTEXT, {
+      apiKey: ACCESS_TOKEN,
+      maxRetries: 0,
+      timeoutMs: REQUEST_TIMEOUT_MS,
+      reasoningEffort: 'xhigh',
+      reasoningSummary: 'detailed',
+      serviceTier: 'default',
+    })
+    .result()
   assert.equal(capture.requests.length, 1)
   assert.deepEqual(capture.requests[0]!.payload.reasoning, { effort: 'xhigh', summary: 'concise' })
   assert.equal(capture.requests[0]!.payload.service_tier, 'default')
@@ -259,58 +293,82 @@ test('mixed simple and API-specific options retain reasoning with explicit effor
   const capture = await captureRequests(t)
   const model = catalogToModel(FALLBACK_CATALOG[0]!, capture.baseUrl)
   for (const reasoningEffort of [undefined, 'low'] as const) {
-    await streamSuperGrok(model, CONTEXT, {
-      apiKey: ACCESS_TOKEN,
-      reasoning: 'high',
-      reasoningEffort,
-      serviceTier: 'default',
-      maxRetries: 0,
-      timeoutMs: REQUEST_TIMEOUT_MS,
-    }, CREDENTIALS).result()
+    await streamSuperGrok(
+      model,
+      CONTEXT,
+      {
+        apiKey: ACCESS_TOKEN,
+        reasoning: 'high',
+        reasoningEffort,
+        serviceTier: 'default',
+        maxRetries: 0,
+        timeoutMs: REQUEST_TIMEOUT_MS,
+      },
+      CREDENTIALS,
+    ).result()
   }
   assert.equal(capture.requests.length, 2)
-  assert.deepEqual(capture.requests.map(request => request.payload.reasoning), [
-    { effort: 'high', summary: 'concise' },
-    { effort: 'low', summary: 'concise' },
-  ])
-  assert.ok(capture.requests.every(request => request.payload.service_tier === 'default'))
+  assert.deepEqual(
+    capture.requests.map((request) => request.payload.reasoning),
+    [
+      { effort: 'high', summary: 'concise' },
+      { effort: 'low', summary: 'concise' },
+    ],
+  )
+  assert.ok(capture.requests.every((request) => request.payload.service_tier === 'default'))
 })
 
 test('mixed summary options do not enable reasoning when the simple level clamps to off', async (t) => {
   const capture = await captureRequests(t)
-  const model = catalogToModel({ ...FALLBACK_CATALOG[0]!, reasoningEfforts: ['none'] }, capture.baseUrl)
-  await streamSuperGrok(model, CONTEXT, {
-    apiKey: ACCESS_TOKEN,
-    reasoning: 'minimal',
-    reasoningSummary: 'detailed',
-    maxRetries: 0,
-    timeoutMs: REQUEST_TIMEOUT_MS,
-  }, CREDENTIALS).result()
+  const model = catalogToModel(
+    { ...FALLBACK_CATALOG[0]!, reasoningEfforts: ['none'] },
+    capture.baseUrl,
+  )
+  await streamSuperGrok(
+    model,
+    CONTEXT,
+    {
+      apiKey: ACCESS_TOKEN,
+      reasoning: 'minimal',
+      reasoningSummary: 'detailed',
+      maxRetries: 0,
+      timeoutMs: REQUEST_TIMEOUT_MS,
+    },
+    CREDENTIALS,
+  ).result()
   assert.equal(capture.requests.length, 1)
   assert.deepEqual(capture.requests[0]!.payload.reasoning, { effort: 'none', summary: 'concise' })
 })
 
 test('replacement payloads retain caller fields and reapply always-on reasoning and cache rules', async (t) => {
   const capture = await captureRequests(t)
-  const model = catalogToModel({ ...FALLBACK_CATALOG[0]!, id: 'grok-composer-2.5-fast' }, capture.baseUrl)
+  const model = catalogToModel(
+    { ...FALLBACK_CATALOG[0]!, id: 'grok-composer-2.5-fast' },
+    capture.baseUrl,
+  )
   let observed = false
-  await streamSuperGrok(model, CONTEXT, {
-    apiKey: ACCESS_TOKEN,
-    reasoning: 'high',
-    maxRetries: 0,
-    timeoutMs: REQUEST_TIMEOUT_MS,
-    onPayload: async (payload) => {
-      observed = true
-      assert.deepEqual((payload as Record<string, unknown>).reasoning, { summary: 'concise' })
-      return {
-        ...(payload as object),
-        metadata: { caller: 'preserved' },
-        prompt_cache_key: 'replacement-cache',
-        prompt_cache_retention: '24h',
-        reasoning: { effort: 'high', summary: 'auto' },
-      }
+  await streamSuperGrok(
+    model,
+    CONTEXT,
+    {
+      apiKey: ACCESS_TOKEN,
+      reasoning: 'high',
+      maxRetries: 0,
+      timeoutMs: REQUEST_TIMEOUT_MS,
+      onPayload: async (payload) => {
+        observed = true
+        assert.deepEqual((payload as Record<string, unknown>).reasoning, { summary: 'concise' })
+        return {
+          ...(payload as object),
+          metadata: { caller: 'preserved' },
+          prompt_cache_key: 'replacement-cache',
+          prompt_cache_retention: '24h',
+          reasoning: { effort: 'high', summary: 'auto' },
+        }
+      },
     },
-  }, CREDENTIALS).result()
+    CREDENTIALS,
+  ).result()
   assert.equal(observed, true)
   assert.equal(capture.requests.length, 1)
   const { payload } = capture.requests[0]!
@@ -323,18 +381,33 @@ test('replacement payloads retain caller fields and reapply always-on reasoning 
 test('parallel child requests keep distinct session and request IDs and preserve in-place payload edits', async (t) => {
   const capture = await captureRequests(t)
   const model = catalogToModel(FALLBACK_CATALOG[1]!, capture.baseUrl)
-  await Promise.all(['child-a', 'child-b'].map(sessionId => streamSuperGrok(model, CONTEXT, {
-    apiKey: ACCESS_TOKEN,
-    sessionId,
-    maxRetries: 0,
-    timeoutMs: REQUEST_TIMEOUT_MS,
-    onPayload: async (payload) => {
-      (payload as Record<string, unknown>).metadata = { session: sessionId }
-    },
-  }, CREDENTIALS).result()))
+  await Promise.all(
+    ['child-a', 'child-b'].map((sessionId) =>
+      streamSuperGrok(
+        model,
+        CONTEXT,
+        {
+          apiKey: ACCESS_TOKEN,
+          sessionId,
+          maxRetries: 0,
+          timeoutMs: REQUEST_TIMEOUT_MS,
+          onPayload: async (payload) => {
+            ;(payload as Record<string, unknown>).metadata = { session: sessionId }
+          },
+        },
+        CREDENTIALS,
+      ).result(),
+    ),
+  )
   assert.equal(capture.requests.length, 2)
-  assert.deepEqual(capture.requests.map(request => request.headers[SESSION_ID_HEADER]).sort(), ['child-a', 'child-b'])
-  assert.equal(new Set(capture.requests.map(request => request.headers['x-grok-req-id'])).size, capture.requests.length)
+  assert.deepEqual(capture.requests.map((request) => request.headers[SESSION_ID_HEADER]).sort(), [
+    'child-a',
+    'child-b',
+  ])
+  assert.equal(
+    new Set(capture.requests.map((request) => request.headers['x-grok-req-id'])).size,
+    capture.requests.length,
+  )
   for (const { headers, payload } of capture.requests) {
     assert.deepEqual(payload.metadata, { session: headers[SESSION_ID_HEADER] })
     assert.deepEqual(payload.reasoning, { summary: 'concise' })
@@ -345,13 +418,20 @@ test('cancellation reaches the real SDK before any network request', async (t) =
   const capture = await captureRequests(t)
   const model = catalogToModel(FALLBACK_CATALOG[0]!, capture.baseUrl)
   const controller = new AbortController()
-  const result = await streamSuperGrok(model, CONTEXT, {
-    apiKey: ACCESS_TOKEN,
-    signal: controller.signal,
-    maxRetries: 0,
-    timeoutMs: REQUEST_TIMEOUT_MS,
-    onPayload: () => { controller.abort() },
-  }, CREDENTIALS).result()
+  const result = await streamSuperGrok(
+    model,
+    CONTEXT,
+    {
+      apiKey: ACCESS_TOKEN,
+      signal: controller.signal,
+      maxRetries: 0,
+      timeoutMs: REQUEST_TIMEOUT_MS,
+      onPayload: () => {
+        controller.abort()
+      },
+    },
+    CREDENTIALS,
+  ).result()
   assert.equal(result.stopReason, 'aborted')
   assert.equal(capture.requests.length, 0)
 })

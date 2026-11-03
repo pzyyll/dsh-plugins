@@ -10,12 +10,7 @@ import {
   type PiAiAdapterOptions,
   type ResolvedPiAiProviderProfile,
 } from '@deepseek-ai/dsh-llm-pi-ai'
-import {
-  FALLBACK_CATALOG,
-  modelsListUrl,
-  parseRemoteModels,
-  type CatalogModel,
-} from './catalog.ts'
+import { FALLBACK_CATALOG, modelsListUrl, parseRemoteModels, type CatalogModel } from './catalog.ts'
 import {
   MAX_REQUEST_IMAGE_BYTES,
   PLUGIN_NAME,
@@ -50,7 +45,9 @@ export function grantRecord(credentials: SuperGrokCredentials): CredentialRecord
   return { kind: 'grant', payload: credentials }
 }
 
-function credentialsFromRecord(record: CredentialRecord | undefined): SuperGrokCredentials | undefined {
+function credentialsFromRecord(
+  record: CredentialRecord | undefined,
+): SuperGrokCredentials | undefined {
   if (record?.kind !== 'grant' || !isSuperGrokCredentials(record.payload)) return undefined
   return record.payload
 }
@@ -62,9 +59,9 @@ export class SuperGrokRuntime {
   private profileVersion = -1
   private latest: SuperGrokCredentials | undefined
   private loginAbort: AbortController | undefined
-  private pending: { url: string, code: string } | undefined
+  private pending: { url: string; code: string } | undefined
   private loginError: string | undefined
-  private usageCache: { at: number, view: GrokUsageView } | undefined
+  private usageCache: { at: number; view: GrokUsageView } | undefined
   private usageError: string | undefined
   private usageInflight: Promise<void> | undefined
   private usageGeneration = 0
@@ -83,8 +80,10 @@ export class SuperGrokRuntime {
         credentials: {
           read: () => Promise.resolve(undefined),
           list: () => Promise.resolve([]),
-          modify: (_providerId: string, mutate: (current: Credential | undefined) => Promise<Credential | undefined>) =>
-            mutate(undefined),
+          modify: (
+            _providerId: string,
+            mutate: (current: Credential | undefined) => Promise<Credential | undefined>,
+          ) => mutate(undefined),
           delete: () => Promise.resolve(),
         } satisfies CredentialStore,
         authContext: {
@@ -93,11 +92,12 @@ export class SuperGrokRuntime {
         },
       },
       resolveAttachments: () => this.ctx.get('attachments'),
-      resolveImageAccess: (attachments, ref) => resolveImageAttachmentAccess(
-        attachments,
-        hostPath => this.ctx.get('fs')?.processPathFromHostPath(hostPath),
-        ref,
-      ),
+      resolveImageAccess: (attachments, ref) =>
+        resolveImageAttachmentAccess(
+          attachments,
+          (hostPath) => this.ctx.get('fs')?.processPathFromHostPath(hostPath),
+          ref,
+        ),
     }
     this.adapter = new PiAiAdapter(options)
   }
@@ -109,7 +109,7 @@ export class SuperGrokRuntime {
   private profileMap(): ReadonlyMap<string, ResolvedPiAiProviderProfile> {
     if (this.profiles !== undefined && this.profileVersion === this.version) return this.profiles
     const baseUrl = oauthBaseUrl()
-    const piModels = this.models.map(entry => catalogToModel(entry, baseUrl))
+    const piModels = this.models.map((entry) => catalogToModel(entry, baseUrl))
     const profile: ResolvedPiAiProviderProfile = {
       provider: PROVIDER_ID,
       displayName: PROVIDER_LABEL,
@@ -131,11 +131,11 @@ export class SuperGrokRuntime {
 
   private replaceModels(next: readonly CatalogModel[], announce = false): void {
     if (next.length === 0) return
-    const previous = this.models.map(model => model.id).join('\n')
+    const previous = this.models.map((model) => model.id).join('\n')
     this.models = [...next]
     this.version += 1
     this.profiles = undefined
-    if (previous === this.models.map(model => model.id).join('\n') && !announce) return
+    if (previous === this.models.map((model) => model.id).join('\n') && !announce) return
     // dsh 0.2.1 refreshes the picker on adapter updates.
     this.ctx.emit('llm/adapters-updated')
   }
@@ -150,7 +150,10 @@ export class SuperGrokRuntime {
   private async resolveCredentials(signal?: AbortSignal): Promise<SuperGrokCredentials> {
     const credentials = this.ctx.get('credentials')
     if (credentials === undefined) {
-      throw new LlmError('xAI SuperGrok needs the credentials service to store the subscription sign-in', 'NO_CREDENTIAL_STORE')
+      throw new LlmError(
+        'xAI SuperGrok needs the credentials service to store the subscription sign-in',
+        'NO_CREDENTIAL_STORE',
+      )
     }
     const stored = await credentials.modifyRecord(CREDENTIAL_KEY, async (current) => {
       const existing = credentialsFromRecord(current)
@@ -170,7 +173,11 @@ export class SuperGrokRuntime {
     return ready
   }
 
-  async warmCatalog(credentials: SuperGrokCredentials, signal?: AbortSignal, announce = false): Promise<void> {
+  async warmCatalog(
+    credentials: SuperGrokCredentials,
+    signal?: AbortSignal,
+    announce = false,
+  ): Promise<void> {
     const baseUrl = oauthBaseUrl()
     const origin = modelsListUrl(baseUrl)
     const previous = loadModelsCatalog(origin)
@@ -188,7 +195,7 @@ export class SuperGrokRuntime {
       const models = parseRemoteModels(await response.json())
       if (models.length === 0) throw new Error('xAI models catalog returned no models')
       const etag = response.headers.get('etag') ?? undefined
-      saveModelsCatalog(models, { origin, ...etag === undefined ? {} : { etag } })
+      saveModelsCatalog(models, { origin, ...(etag === undefined ? {} : { etag }) })
       this.replaceModels(models, announce)
     } catch (error) {
       this.ctx.logger.warn('dsh-xai-auth: model catalog refresh failed; keeping the cached list')
@@ -216,7 +223,7 @@ export class SuperGrokRuntime {
   accountStatus(): {
     signedIn: boolean
     account?: string
-    pending?: { url: string, code: string }
+    pending?: { url: string; code: string }
     error?: string
     models: string[]
     usage?: GrokUsageView
@@ -228,31 +235,37 @@ export class SuperGrokRuntime {
     const pending = this.usageInflight !== undefined && this.usageCache === undefined
     return {
       signedIn: this.latest !== undefined,
-      models: this.models.map(model => model.id),
-      ...account === undefined ? {} : { account },
-      ...this.pending === undefined ? {} : { pending: this.pending },
-      ...this.loginError === undefined ? {} : { error: this.loginError },
-      ...this.usageCache === undefined ? {} : { usage: this.usageCache.view },
-      ...this.usageError === undefined ? {} : { usageError: this.usageError },
-      ...pending ? { usagePending: true } : {},
+      models: this.models.map((model) => model.id),
+      ...(account === undefined ? {} : { account }),
+      ...(this.pending === undefined ? {} : { pending: this.pending }),
+      ...(this.loginError === undefined ? {} : { error: this.loginError }),
+      ...(this.usageCache === undefined ? {} : { usage: this.usageCache.view }),
+      ...(this.usageError === undefined ? {} : { usageError: this.usageError }),
+      ...(pending ? { usagePending: true } : {}),
     }
   }
 
   /** Start one billing read when the cached meter is missing or stale. */
   private refreshUsageSoon(): void {
     if (this.usageInflight !== undefined) return
-    if (this.usageCache !== undefined && Date.now() - this.usageCache.at < USAGE_CACHE_TTL_MS) return
+    if (this.usageCache !== undefined && Date.now() - this.usageCache.at < USAGE_CACHE_TTL_MS)
+      return
     const generation = this.usageGeneration
-    this.usageInflight = this.planUsage().then((result) => {
-      if (generation !== this.usageGeneration) return
-      if (result.usage !== undefined) this.usageCache = { at: Date.now(), view: result.usage }
-      this.usageError = result.error
-    }, (error: unknown) => {
-      if (generation !== this.usageGeneration) return
-      this.usageError = error instanceof Error ? error.message : 'xAI usage request failed'
-    }).finally(() => {
-      if (generation === this.usageGeneration) this.usageInflight = undefined
-    })
+    this.usageInflight = this.planUsage()
+      .then(
+        (result) => {
+          if (generation !== this.usageGeneration) return
+          if (result.usage !== undefined) this.usageCache = { at: Date.now(), view: result.usage }
+          this.usageError = result.error
+        },
+        (error: unknown) => {
+          if (generation !== this.usageGeneration) return
+          this.usageError = error instanceof Error ? error.message : 'xAI usage request failed'
+        },
+      )
+      .finally(() => {
+        if (generation === this.usageGeneration) this.usageInflight = undefined
+      })
   }
 
   private async storedCredentials(): Promise<SuperGrokCredentials | undefined> {
@@ -263,20 +276,28 @@ export class SuperGrokRuntime {
   }
 
   /** Read the subscription meter. A fresh result is reused until the cache expires. */
-  async planUsage(): Promise<{ usage?: GrokUsageView, error?: string }> {
+  async planUsage(): Promise<{ usage?: GrokUsageView; error?: string }> {
     const ready = await this.storedCredentials()
     if (ready === undefined) return {}
     this.latest = ready
     const cached = this.usageCache
-    if (cached !== undefined && Date.now() - cached.at < USAGE_CACHE_TTL_MS) return { usage: cached.view }
+    if (cached !== undefined && Date.now() - cached.at < USAGE_CACHE_TTL_MS)
+      return { usage: cached.view }
     try {
       const access = await this.resolveAccessToken()
-      const view = await fetchGrokUsage({ access, ...this.latest?.userId === undefined ? {} : { userId: this.latest.userId } })
-      if (view === undefined) return { ...cached === undefined ? {} : { usage: cached.view }, error: 'xAI returned no SuperGrok usage.' }
+      const view = await fetchGrokUsage({
+        access,
+        ...(this.latest?.userId === undefined ? {} : { userId: this.latest.userId }),
+      })
+      if (view === undefined)
+        return {
+          ...(cached === undefined ? {} : { usage: cached.view }),
+          error: 'xAI returned no SuperGrok usage.',
+        }
       return { usage: view }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'xAI usage request failed'
-      return { ...cached === undefined ? {} : { usage: cached.view }, error: message }
+      return { ...(cached === undefined ? {} : { usage: cached.view }), error: message }
     }
   }
 
@@ -284,11 +305,11 @@ export class SuperGrokRuntime {
   async refreshModels(): Promise<{ models: string[] }> {
     const ready = await this.resolveCredentials()
     await this.warmCatalog(ready, undefined, true)
-    return { models: this.models.map(model => model.id) }
+    return { models: this.models.map((model) => model.id) }
   }
 
   /** Return the device challenge immediately and finish the grant in the background. */
-  async startDeviceLogin(): Promise<{ url: string, code: string }> {
+  async startDeviceLogin(): Promise<{ url: string; code: string }> {
     this.loginAbort?.abort()
     const abort = new AbortController()
     this.loginAbort = abort
@@ -297,16 +318,19 @@ export class SuperGrokRuntime {
     const instructions = deviceInstructions(device)
     this.pending = instructions
     void pollDeviceCodeToken(device, abort.signal)
-      .then(tokens => credentialsFromTokenResponse(tokens))
-      .then(credentials => this.store(credentials, abort.signal))
+      .then((tokens) => credentialsFromTokenResponse(tokens))
+      .then((credentials) => this.store(credentials, abort.signal))
       .then((credentials) => {
         this.pending = undefined
-        this.ctx.logger.info(`dsh-xai-auth: SuperGrok sign-in stored for ${describeGrokAuthSession(credentials)}`)
+        this.ctx.logger.info(
+          `dsh-xai-auth: SuperGrok sign-in stored for ${describeGrokAuthSession(credentials)}`,
+        )
       })
       .catch((error: unknown) => {
         if (abort.signal.aborted) return
         this.pending = undefined
-        this.loginError = error instanceof Error ? error.message : 'xAI SuperGrok device sign-in failed'
+        this.loginError =
+          error instanceof Error ? error.message : 'xAI SuperGrok device sign-in failed'
         this.ctx.logger.warn('dsh-xai-auth: SuperGrok device sign-in failed')
         this.ctx.logger.warn(error)
       })
@@ -332,9 +356,13 @@ export class SuperGrokRuntime {
     await credentials.deleteRecord(CREDENTIAL_KEY)
   }
 
-  async store(credentials: SuperGrokCredentials, signal?: AbortSignal): Promise<SuperGrokCredentials> {
+  async store(
+    credentials: SuperGrokCredentials,
+    signal?: AbortSignal,
+  ): Promise<SuperGrokCredentials> {
     const service = this.ctx.get('credentials')
-    if (service === undefined) throw new Error('xAI SuperGrok needs the credentials service to store the sign-in')
+    if (service === undefined)
+      throw new Error('xAI SuperGrok needs the credentials service to store the sign-in')
     this.latest = credentials
     this.usageGeneration += 1
     this.usageCache = undefined
@@ -344,5 +372,4 @@ export class SuperGrokRuntime {
     await service.modifyRecord(CREDENTIAL_KEY, () => Promise.resolve(grantRecord(credentials)))
     return credentials
   }
-
 }

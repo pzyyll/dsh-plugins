@@ -71,11 +71,15 @@ export async function requestDeviceCode(signal?: AbortSignal): Promise<DeviceCod
   })
   if (!response.ok) {
     const detail = await responseText(response)
-    throw new Error(`xAI device code request failed (${response.status})${detail ? `: ${detail}` : ''}`)
+    throw new Error(
+      `xAI device code request failed (${response.status})${detail ? `: ${detail}` : ''}`,
+    )
   }
-  const json = await response.json() as DeviceCode
+  const json = (await response.json()) as DeviceCode
   if (!json.device_code || !json.user_code || !json.verification_uri) {
-    throw new Error('xAI device code response is missing device_code, user_code, or verification_uri')
+    throw new Error(
+      'xAI device code response is missing device_code, user_code, or verification_uri',
+    )
   }
   return json
 }
@@ -87,7 +91,10 @@ export function deviceInstructions(device: DeviceCode): { url: string; code: str
   }
 }
 
-export async function pollDeviceCodeToken(device: DeviceCode, signal?: AbortSignal): Promise<TokenResponse> {
+export async function pollDeviceCodeToken(
+  device: DeviceCode,
+  signal?: AbortSignal,
+): Promise<TokenResponse> {
   const expiresInMs = positiveSecondsToMs(device.expires_in, DEVICE_CODE_DEFAULT_EXPIRES_MS)
   const deadline = Date.now() + expiresInMs
   let intervalMs = Math.max(
@@ -106,17 +113,21 @@ export async function pollDeviceCodeToken(device: DeviceCode, signal?: AbortSign
       }).toString(),
       signal,
     })
-    if (response.ok) return await response.json() as TokenResponse
+    if (response.ok) return (await response.json()) as TokenResponse
 
-    const body = await response.json().catch(() => ({})) as DeviceTokenErrorBody
+    const body = (await response.json().catch(() => ({}))) as DeviceTokenErrorBody
     const remaining = Math.max(0, deadline - Date.now())
     if (body.error === 'authorization_pending') {
-      await sleep(Math.min(intervalMs + OAUTH_POLLING_SAFETY_MARGIN_MS, remaining), undefined, { signal })
+      await sleep(Math.min(intervalMs + OAUTH_POLLING_SAFETY_MARGIN_MS, remaining), undefined, {
+        signal,
+      })
       continue
     }
     if (body.error === 'slow_down') {
       intervalMs += DEVICE_CODE_SLOW_DOWN_INCREMENT_MS
-      await sleep(Math.min(intervalMs + OAUTH_POLLING_SAFETY_MARGIN_MS, remaining), undefined, { signal })
+      await sleep(Math.min(intervalMs + OAUTH_POLLING_SAFETY_MARGIN_MS, remaining), undefined, {
+        signal,
+      })
       continue
     }
     if (body.error === 'access_denied' || body.error === 'authorization_denied') {
@@ -124,7 +135,9 @@ export async function pollDeviceCodeToken(device: DeviceCode, signal?: AbortSign
     }
     if (body.error === 'expired_token') throw new Error('xAI device code expired; run login again')
     const detail = body.error_description ?? body.error ?? ''
-    throw new Error(`xAI device token exchange failed (${response.status})${detail ? `: ${detail}` : ''}`)
+    throw new Error(
+      `xAI device token exchange failed (${response.status})${detail ? `: ${detail}` : ''}`,
+    )
   }
   throw new Error('xAI device authorization timed out')
 }
@@ -134,13 +147,17 @@ export function credentialsFromTokenResponse(
   previous?: SuperGrokCredentials,
 ): SuperGrokCredentials {
   if (!tokens.access_token) throw new Error('xAI token response is missing access_token')
-  if (!tokens.refresh_token && !previous?.refresh) throw new Error('xAI token response is missing refresh_token')
-  return credentialsFromTokens({
-    accessToken: tokens.access_token,
-    refreshToken: tokens.refresh_token ?? previous?.refresh ?? '',
-    ...typeof tokens.expires_in === 'number' ? { expiresInSeconds: tokens.expires_in } : {},
-    ...tokens.id_token === undefined ? {} : { idToken: tokens.id_token },
-  }, previous)
+  if (!tokens.refresh_token && !previous?.refresh)
+    throw new Error('xAI token response is missing refresh_token')
+  return credentialsFromTokens(
+    {
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token ?? previous?.refresh ?? '',
+      ...(typeof tokens.expires_in === 'number' ? { expiresInSeconds: tokens.expires_in } : {}),
+      ...(tokens.id_token === undefined ? {} : { idToken: tokens.id_token }),
+    },
+    previous,
+  )
 }
 
 export async function refreshAccessToken(
@@ -165,7 +182,7 @@ export async function refreshAccessToken(
     const detail = await responseText(response)
     throw new Error(`xAI token refresh failed (${response.status})${detail ? `: ${detail}` : ''}`)
   }
-  return credentialsFromTokenResponse(await response.json() as TokenResponse, credentials)
+  return credentialsFromTokenResponse((await response.json()) as TokenResponse, credentials)
 }
 
 export async function loginWithDeviceCode(signal?: AbortSignal): Promise<SuperGrokCredentials> {

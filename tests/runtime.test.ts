@@ -55,7 +55,7 @@ test('cached catalog changes publish the supported adapter update and rebuild th
   const expected = { ...FALLBACK_CATALOG[0]!, id: 'grok-runtime-test', name: 'Runtime Test' }
   const updates: string[][] = []
   ctx.on('llm/adapters-updated', () => {
-    updates.push(runtime.currentModels().map(model => model.id))
+    updates.push(runtime.currentModels().map((model) => model.id))
   })
   saveModelsCatalog([expected], { origin: modelsListUrl(oauthBaseUrl()) })
 

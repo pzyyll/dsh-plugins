@@ -1,7 +1,14 @@
 // ABOUTME: Parses the SuperGrok credits payload from cli-chat-proxy billing.
 // ABOUTME: The plugin page renders this view; it does not draw a terminal usage bar.
 
-import { BILLING_URL, CLIENT_IDENTIFIER, CLIENT_MODE_VALUE, GROK_CLIENT_VERSION, TOKEN_AUTH_VALUE, USAGE_FETCH_TIMEOUT_MS } from './constants.ts'
+import {
+  BILLING_URL,
+  CLIENT_IDENTIFIER,
+  CLIENT_MODE_VALUE,
+  GROK_CLIENT_VERSION,
+  TOKEN_AUTH_VALUE,
+  USAGE_FETCH_TIMEOUT_MS,
+} from './constants.ts'
 
 const USAGE_WARN_PERCENT = 70
 const USAGE_ERROR_PERCENT = 90
@@ -35,7 +42,7 @@ export interface GrokPlanUsage {
   readonly prepaidBalanceCents: number | undefined
   readonly isUnifiedBillingUser: boolean | undefined
   readonly productUsage: readonly GrokProductUsage[]
-  readonly windows: readonly { usedPercent: number, label: string, resetsIn: string | undefined }[]
+  readonly windows: readonly { usedPercent: number; label: string; resetsIn: string | undefined }[]
   readonly usable: boolean
 }
 
@@ -85,7 +92,8 @@ export function parseGrokPlanUsage(raw: unknown, now: number): GrokPlanUsage {
   const subscriptionTier = firstString(
     root?.['subscriptionTier'] ?? root?.['subscription_tier'] ?? config?.['subscriptionTier'],
   )
-  const onDemandEnabled = typeof root?.['onDemandEnabled'] === 'boolean' ? root['onDemandEnabled'] : undefined
+  const onDemandEnabled =
+    typeof root?.['onDemandEnabled'] === 'boolean' ? root['onDemandEnabled'] : undefined
 
   const creditPctRaw = config?.['creditUsagePercent'] ?? config?.['credit_usage_percent']
   const monthlyLimit = centVal(config?.['monthlyLimit'] ?? config?.['monthly_limit'])
@@ -101,8 +109,9 @@ export function parseGrokPlanUsage(raw: unknown, now: number): GrokPlanUsage {
   const periodTypeRaw = firstString(
     currentPeriod?.['type'] ?? currentPeriod?.['period_type'] ?? currentPeriod?.['periodType'],
   )
-  const periodEndIso = firstString(currentPeriod?.['end'])
-    ?? firstString(config?.['billingPeriodEnd'] ?? config?.['billing_period_end'])
+  const periodEndIso =
+    firstString(currentPeriod?.['end']) ??
+    firstString(config?.['billingPeriodEnd'] ?? config?.['billing_period_end'])
   const resetsIn = periodEndIso === undefined ? undefined : remainingFromIso(periodEndIso, now)
   const periodEndDisplay = periodEndIso === undefined ? undefined : formatPeriodEnd(periodEndIso)
 
@@ -110,8 +119,11 @@ export function parseGrokPlanUsage(raw: unknown, now: number): GrokPlanUsage {
   const onDemandUsed = centVal(config?.['onDemandUsed'] ?? config?.['on_demand_used'])
   const prepaidBalance = centVal(config?.['prepaidBalance'] ?? config?.['prepaid_balance'])
   const payAsYouGo = (onDemandCap ?? 0) > 0
-  const onDemandUsedCents = onDemandUsed
-    ?? (used !== undefined && monthlyLimit !== undefined ? Math.max(0, used - monthlyLimit) : undefined)
+  const onDemandUsedCents =
+    onDemandUsed ??
+    (used !== undefined && monthlyLimit !== undefined
+      ? Math.max(0, used - monthlyLimit)
+      : undefined)
 
   let effectiveUsagePct = usagePct
   if (payAsYouGo && onDemandCap !== undefined && onDemandCap > 0) {
@@ -123,21 +135,26 @@ export function parseGrokPlanUsage(raw: unknown, now: number): GrokPlanUsage {
     }
   }
 
-  const isUnifiedBillingUser = typeof config?.['isUnifiedBillingUser'] === 'boolean'
-    ? config['isUnifiedBillingUser']
-    : typeof config?.['is_unified_billing_user'] === 'boolean'
-      ? config['is_unified_billing_user']
-      : undefined
+  const isUnifiedBillingUser =
+    typeof config?.['isUnifiedBillingUser'] === 'boolean'
+      ? config['isUnifiedBillingUser']
+      : typeof config?.['is_unified_billing_user'] === 'boolean'
+        ? config['is_unified_billing_user']
+        : undefined
   const productUsage = parseProductUsage(config?.['productUsage'] ?? config?.['product_usage'])
-  const windows = hasCreditPct || (monthlyLimit !== undefined && used !== undefined) || prepaidBalance !== undefined
-    ? [{ usedPercent: usagePct, label: periodLabel(periodTypeRaw), resetsIn }]
-    : []
-  const usable = windows.length > 0
-    || subscriptionTier !== undefined
-    || prepaidBalance !== undefined
-    || payAsYouGo
-    || onDemandEnabled !== undefined
-    || productUsage.length > 0
+  const windows =
+    hasCreditPct ||
+    (monthlyLimit !== undefined && used !== undefined) ||
+    prepaidBalance !== undefined
+      ? [{ usedPercent: usagePct, label: periodLabel(periodTypeRaw), resetsIn }]
+      : []
+  const usable =
+    windows.length > 0 ||
+    subscriptionTier !== undefined ||
+    prepaidBalance !== undefined ||
+    payAsYouGo ||
+    onDemandEnabled !== undefined ||
+    productUsage.length > 0
 
   return {
     subscriptionTier,
@@ -165,33 +182,42 @@ export function grokUsageView(usage: GrokPlanUsage): GrokUsageView | undefined {
   const periodBits: string[] = []
   if (usage.periodType !== undefined) periodBits.push(formatPeriodType(usage.periodType))
   if (usage.periodEndDisplay !== undefined) periodBits.push(`${usage.periodEndDisplay} 结束`)
-  const onDemand = usage.payAsYouGo || usage.onDemandEnabled === true
-    ? formatOnDemand(usage.onDemandUsedCents ?? 0, usage.onDemandCapCents)
-    : undefined
+  const onDemand =
+    usage.payAsYouGo || usage.onDemandEnabled === true
+      ? formatOnDemand(usage.onDemandUsedCents ?? 0, usage.onDemandCapCents)
+      : undefined
   const periodKind = periodKindOf(usage.periodType)
   return {
-    ...usage.subscriptionTier === undefined ? {} : { tier: formatTier(usage.subscriptionTier) },
-    ...window === undefined ? {} : {
-      credits: {
-        percent: window.usedPercent,
-        tone: usageTone(window.usedPercent),
-        ...window.resetsIn === undefined ? {} : {
-          resetsIn: formatRemainingZh(window.resetsIn),
-          resetsCompact: window.resetsIn,
-        },
-      },
-    },
-    ...periodBits.length === 0 ? {} : { period: periodBits.join(' · ') },
-    ...periodKind === undefined ? {} : { periodKind },
-    ...usage.periodEndIso === undefined ? {} : { periodEnd: usage.periodEndIso },
-    ...usage.prepaidBalanceCents === undefined ? {} : { prepaid: formatCentsUsd(usage.prepaidBalanceCents) },
-    ...onDemand === undefined ? {} : { onDemand },
+    ...(usage.subscriptionTier === undefined ? {} : { tier: formatTier(usage.subscriptionTier) }),
+    ...(window === undefined
+      ? {}
+      : {
+          credits: {
+            percent: window.usedPercent,
+            tone: usageTone(window.usedPercent),
+            ...(window.resetsIn === undefined
+              ? {}
+              : {
+                  resetsIn: formatRemainingZh(window.resetsIn),
+                  resetsCompact: window.resetsIn,
+                }),
+          },
+        }),
+    ...(periodBits.length === 0 ? {} : { period: periodBits.join(' · ') }),
+    ...(periodKind === undefined ? {} : { periodKind }),
+    ...(usage.periodEndIso === undefined ? {} : { periodEnd: usage.periodEndIso }),
+    ...(usage.prepaidBalanceCents === undefined
+      ? {}
+      : { prepaid: formatCentsUsd(usage.prepaidBalanceCents) }),
+    ...(onDemand === undefined ? {} : { onDemand }),
     onDemandDisabled: usage.onDemandEnabled === false,
-    ...usage.payAsYouGo && usage.usagePct >= PERCENT_MAX ? {
-      effective: { percent: usage.effectiveUsagePct, tone: usageTone(usage.effectiveUsagePct) },
-    } : {},
+    ...(usage.payAsYouGo && usage.usagePct >= PERCENT_MAX
+      ? {
+          effective: { percent: usage.effectiveUsagePct, tone: usageTone(usage.effectiveUsagePct) },
+        }
+      : {}),
     unified: usage.isUnifiedBillingUser === true,
-    products: usage.productUsage.map(product => ({
+    products: usage.productUsage.map((product) => ({
       label: product.label,
       percent: product.usagePct,
       tone: usageTone(product.usagePct),
@@ -200,7 +226,7 @@ export function grokUsageView(usage: GrokPlanUsage): GrokUsageView | undefined {
 }
 
 export async function fetchGrokUsage(
-  credentials: { access: string, userId?: string },
+  credentials: { access: string; userId?: string },
   signal?: AbortSignal,
   now = Date.now(),
 ): Promise<GrokUsageView | undefined> {
@@ -214,7 +240,7 @@ export async function fetchGrokUsage(
       'x-grok-client-version': GROK_CLIENT_VERSION,
       'x-grok-client-identifier': CLIENT_IDENTIFIER,
       'x-grok-client-mode': CLIENT_MODE_VALUE,
-      ...credentials.userId === undefined ? {} : { 'x-userid': credentials.userId },
+      ...(credentials.userId === undefined ? {} : { 'x-userid': credentials.userId }),
     },
     signal: signal === undefined ? timeout : AbortSignal.any([signal, timeout]),
   })
@@ -331,8 +357,8 @@ function formatCentsUsd(cents: number): string {
 function formatSnakeCase(value: string): string {
   return value
     .split(/[_\s]+/)
-    .filter(part => part.length > 0)
-    .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .filter((part) => part.length > 0)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
     .join(' ')
 }
 
@@ -344,7 +370,9 @@ function parseProductUsage(raw: unknown): GrokProductUsage[] {
     const pctRaw = entry['usagePercent'] ?? entry['usage_percent']
     if (!isFiniteNumber(pctRaw)) continue
     const product = firstString(entry['product'] ?? entry['product_type'] ?? entry['name'])
-    const label = firstString(entry['label'] ?? entry['displayName'] ?? entry['display_name']) ?? formatProductLabel(product)
+    const label =
+      firstString(entry['label'] ?? entry['displayName'] ?? entry['display_name']) ??
+      formatProductLabel(product)
     if (label === undefined) continue
     items.push({ label, product, usagePct: clampPercent(pctRaw) })
   }
@@ -370,9 +398,16 @@ function formatProductLabel(product: string | undefined): string | undefined {
   const upper = product.trim().toUpperCase()
   const named = known[upper]
   if (named !== undefined) return named
-  const stripped = upper.replace(/^PRODUCT_/, '').replace(/^GROK_/, '').replace(/_/g, ' ').trim()
+  const stripped = upper
+    .replace(/^PRODUCT_/, '')
+    .replace(/^GROK_/, '')
+    .replace(/_/g, ' ')
+    .trim()
   if (stripped.length === 0) return undefined
-  return stripped.split(/\s+/).map(part => part === 'API' ? 'API' : part.charAt(0) + part.slice(1).toLowerCase()).join(' ')
+  return stripped
+    .split(/\s+/)
+    .map((part) => (part === 'API' ? 'API' : part.charAt(0) + part.slice(1).toLowerCase()))
+    .join(' ')
 }
 
 function clampPercent(value: number): number {

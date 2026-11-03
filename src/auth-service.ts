@@ -17,10 +17,13 @@ function exposeRemoteMethod(prototype: object, method: string): void {
     configurable: true,
     value: Object.freeze({
       version: 1,
-      methods: Object.freeze([...methods, Object.freeze({
-        method,
-        invocation: Object.freeze({ kind: 'direct' }),
-      })]),
+      methods: Object.freeze([
+        ...methods,
+        Object.freeze({
+          method,
+          invocation: Object.freeze({ kind: 'direct' }),
+        }),
+      ]),
     }),
   })
 }
@@ -35,15 +38,17 @@ export class SuperGrokAuthService extends TypertRemoteService {
     super(ctx, 'xaiSupergrok')
     this.runtime = new SuperGrokRuntime(ctx)
     ctx.llm.registerAdapter([PROVIDER_ID], this.runtime.adapter)
-    ctx.llm.registerConfigurableProviders([{
-      provider: PROVIDER_ID,
-      displayName: PROVIDER_LABEL,
-      settingsNs: PLUGIN_NAME,
-      settingsPath: [],
-      declared: true,
-      defaultBaseURL: 'https://cli-chat-proxy.grok.com/v1',
-      nativeAuth: { env: [], oauth: true },
-    }])
+    ctx.llm.registerConfigurableProviders([
+      {
+        provider: PROVIDER_ID,
+        displayName: PROVIDER_LABEL,
+        settingsNs: PLUGIN_NAME,
+        settingsPath: [],
+        declared: true,
+        defaultBaseURL: 'https://cli-chat-proxy.grok.com/v1',
+        nativeAuth: { env: [], oauth: true },
+      },
+    ])
     void this.runtime.restore().catch((error: unknown) => {
       ctx.logger.warn('dsh-xai-auth: could not restore the SuperGrok sign-in')
       ctx.logger.warn(error)
@@ -54,7 +59,7 @@ export class SuperGrokAuthService extends TypertRemoteService {
     return this.runtime.accountStatus()
   }
 
-  start(): Promise<{ url: string, code: string }> {
+  start(): Promise<{ url: string; code: string }> {
     return this.runtime.startDeviceLogin()
   }
 

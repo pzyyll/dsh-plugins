@@ -5,7 +5,12 @@
 export type ReasoningEffortWire = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
 
 /** Offered when the server marks effort selectable but lists no menu. */
-export const LEGACY_REASONING_EFFORTS: readonly ReasoningEffortWire[] = ['low', 'medium', 'high', 'xhigh']
+export const LEGACY_REASONING_EFFORTS: readonly ReasoningEffortWire[] = [
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+]
 
 export type ThinkingLevelMap = {
   off: string | null
@@ -120,11 +125,16 @@ function firstBool(obj: Record<string, unknown>, ...keys: string[]): boolean | u
 
 export function parseReasoningEffortToken(token: string): ReasoningEffortWire | undefined {
   switch (token.toLowerCase()) {
-    case 'none': return 'none'
-    case 'minimal': return 'minimal'
-    case 'low': return 'low'
-    case 'medium': return 'medium'
-    case 'high': return 'high'
+    case 'none':
+      return 'none'
+    case 'minimal':
+      return 'minimal'
+    case 'low':
+      return 'low'
+    case 'medium':
+      return 'medium'
+    case 'high':
+      return 'high'
     case 'xhigh':
     case 'max':
       return 'xhigh'
@@ -138,9 +148,12 @@ export function parseReasoningEffortOptions(raw: unknown): ReasoningEffortWire[]
   const out: ReasoningEffortWire[] = []
   const seen = new Set<ReasoningEffortWire>()
   for (const entry of raw) {
-    const token = typeof entry === 'string'
-      ? entry
-      : isRecord(entry) && typeof entry.value === 'string' ? entry.value : undefined
+    const token =
+      typeof entry === 'string'
+        ? entry
+        : isRecord(entry) && typeof entry.value === 'string'
+          ? entry.value
+          : undefined
     if (token === undefined) continue
     const effort = parseReasoningEffortToken(token)
     if (effort === undefined || seen.has(effort)) continue
@@ -187,7 +200,8 @@ export function thinkingLevelMapForCatalog(entry: CatalogModel): ThinkingLevelMa
 }
 
 function decodeBase64UrlJson(segment: string): unknown {
-  const padded = segment.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((segment.length + 3) % 4)
+  const padded =
+    segment.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((segment.length + 3) % 4)
   return JSON.parse(globalThis.atob(padded)) as unknown
 }
 
@@ -220,30 +234,37 @@ export function decodeJwtPayload(token: string): Record<string, unknown> | undef
 export function parseRemoteModelEntry(value: unknown): CatalogModel | undefined {
   if (!isRecord(value)) return undefined
   const meta = isRecord(value._meta) ? value._meta : undefined
-  const hidden = firstBool(value, 'hidden') ?? (meta ? firstBool(meta, 'hidden') : undefined) ?? false
+  const hidden =
+    firstBool(value, 'hidden') ?? (meta ? firstBool(meta, 'hidden') : undefined) ?? false
   if (hidden) return undefined
 
-  const id = firstString(value, 'model', 'modelId', 'id')
-    ?? (meta ? firstString(meta, 'model', 'modelId') : undefined)
+  const id =
+    firstString(value, 'model', 'modelId', 'id') ??
+    (meta ? firstString(meta, 'model', 'modelId') : undefined)
   if (id === undefined) return undefined
 
-  const contextWindow = firstNumber(value, 'contextWindow', 'context_window')
-    ?? (meta ? firstNumber(meta, 'contextWindow', 'totalContextTokens') : undefined)
-    ?? DEFAULT_CONTEXT_WINDOW
-  const maxCompletion = firstNumber(value, 'maxCompletionTokens', 'max_completion_tokens')
-    ?? (meta ? firstNumber(meta, 'maxCompletionTokens', 'max_completion_tokens') : undefined)
-  const supportsEffort = firstBool(value, 'supportsReasoningEffort', 'supports_reasoning_effort')
-    ?? (meta ? firstBool(meta, 'supportsReasoningEffort', 'supports_reasoning_effort') : undefined)
-    ?? false
-  const effortsRaw = value.reasoningEfforts ?? value.reasoning_efforts
-    ?? (meta ? (meta.reasoningEfforts ?? meta.reasoning_efforts) : undefined)
+  const contextWindow =
+    firstNumber(value, 'contextWindow', 'context_window') ??
+    (meta ? firstNumber(meta, 'contextWindow', 'totalContextTokens') : undefined) ??
+    DEFAULT_CONTEXT_WINDOW
+  const maxCompletion =
+    firstNumber(value, 'maxCompletionTokens', 'max_completion_tokens') ??
+    (meta ? firstNumber(meta, 'maxCompletionTokens', 'max_completion_tokens') : undefined)
+  const supportsEffort =
+    firstBool(value, 'supportsReasoningEffort', 'supports_reasoning_effort') ??
+    (meta ? firstBool(meta, 'supportsReasoningEffort', 'supports_reasoning_effort') : undefined) ??
+    false
+  const effortsRaw =
+    value.reasoningEfforts ??
+    value.reasoning_efforts ??
+    (meta ? (meta.reasoningEfforts ?? meta.reasoning_efforts) : undefined)
   const reasoningEfforts = supportsEffort ? parseReasoningEffortOptions(effortsRaw) : undefined
 
   return {
     id,
     name: firstString(value, 'name') ?? id,
     reasoning: supportsEffort || isAlwaysOnReasoningModel(id),
-    ...reasoningEfforts === undefined ? {} : { reasoningEfforts },
+    ...(reasoningEfforts === undefined ? {} : { reasoningEfforts }),
     input: ['text', 'image'],
     cost: resolveXaiModelCost(id),
     contextWindow,

@@ -28,6 +28,7 @@
     "README.md",
     "LICENSE"
   ],
+  "packageManager": "pnpm@12.16.1",
   "engines": {
     "node": ">=24.9.0",
     "dsh": ">=0.2.0 <0.3.0"
@@ -56,14 +57,27 @@
     "@earendil-works/pi-ai": "*"
   },
   "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-credentials": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-home-paths": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-llm": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-llm-pi-ai": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.1-rc.5",
     "@earendil-works/pi-ai": "1.1.0",
     "@rsbuild/core": "2.3.0",
     "@types/node": "26.6.6",
+    "oxfmt": "0.75.0",
+    "oxlint": "1.90.0",
     "typescript": "6.0.3"
   },
   "scripts": {
     "build": "rsbuild build",
-    "prepare": "npm run build",
+    "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint --deny-warnings .",
+    "lint:fix": "oxlint --fix --deny-warnings .",
+    "prepare": "pnpm run build",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "typecheck": "tsc --noEmit"
   }

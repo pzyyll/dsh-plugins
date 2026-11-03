@@ -52,17 +52,23 @@ const RESPONSES_COMPAT = {
 
 function platformOs(): string {
   switch (process.platform) {
-    case 'darwin': return 'macos'
-    case 'win32': return 'windows'
-    default: return process.platform
+    case 'darwin':
+      return 'macos'
+    case 'win32':
+      return 'windows'
+    default:
+      return process.platform
   }
 }
 
 function platformArch(): string {
   switch (process.arch) {
-    case 'arm64': return 'aarch64'
-    case 'x64': return 'x86_64'
-    default: return process.arch
+    case 'arm64':
+      return 'aarch64'
+    case 'x64':
+      return 'x86_64'
+    default:
+      return process.arch
   }
 }
 
@@ -86,10 +92,13 @@ export function resolveAgentId(): string {
   const owned = readAgentIdFile(ownedPath)
   if (owned) return owned
   const host = hostname()
-  const id = host.length > 0
-    ? createHash('sha1').update(`agent_id:${host}`).digest('hex')
-      .replace(/^(.{8})(.{4})(.{4})(.{4})(.{12}).*$/, '$1-$2-$3-$4-$5')
-    : randomUUID()
+  const id =
+    host.length > 0
+      ? createHash('sha1')
+          .update(`agent_id:${host}`)
+          .digest('hex')
+          .replace(/^(.{8})(.{4})(.{4})(.{4})(.{12}).*$/, '$1-$2-$3-$4-$5')
+      : randomUUID()
   try {
     mkdirSync(dirname(ownedPath), { recursive: true })
     const tmp = `${ownedPath}.tmp.${process.pid}.${Date.now()}`
@@ -111,7 +120,12 @@ export function isCliChatProxyUrl(url: string | undefined): boolean {
   if (!url) return false
   try {
     const host = new URL(url).hostname
-    return host === 'cli-chat-proxy.grok.com' || host === 'localhost' || host === '127.0.0.1' || host === '[::1]'
+    return (
+      host === 'cli-chat-proxy.grok.com' ||
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === '[::1]'
+    )
   } catch {
     return false
   }
@@ -126,7 +140,10 @@ export function productHeaders(): Record<string, string> {
 }
 
 /** Model discovery uses its own identity header, not the sampling request headers. */
-export function catalogHeaders(credentials: SuperGrokCredentials, etag?: string): Record<string, string> {
+export function catalogHeaders(
+  credentials: SuperGrokCredentials,
+  etag?: string,
+): Record<string, string> {
   const userId = resolveGrokUserId(credentials.access, credentials)
   return {
     Accept: 'application/json',
@@ -134,9 +151,9 @@ export function catalogHeaders(credentials: SuperGrokCredentials, etag?: string)
     [TOKEN_AUTH_HEADER]: TOKEN_AUTH_VALUE,
     'x-grok-client-version': GROK_CLIENT_VERSION,
     [CLIENT_MODE_HEADER]: CLIENT_MODE_VALUE,
-    ...userId === undefined ? {} : { 'x-userid': userId },
-    ...credentials.email === undefined ? {} : { 'x-email': credentials.email },
-    ...etag === undefined ? {} : { 'If-None-Match': etag },
+    ...(userId === undefined ? {} : { 'x-userid': userId }),
+    ...(credentials.email === undefined ? {} : { 'x-email': credentials.email }),
+    ...(etag === undefined ? {} : { 'If-None-Match': etag }),
   }
 }
 
@@ -157,18 +174,22 @@ export function subscriptionHeaders(
   delete headers['user-agent']
   Object.assign(headers, productHeaders())
   headers['user-agent'] = subscriptionUserAgent()
-  const sessionId = options.sessionId || (typeof headers[SESSION_ID_HEADER] === 'string' ? headers[SESSION_ID_HEADER] : '') || randomUUID()
+  const sessionId =
+    options.sessionId ||
+    (typeof headers[SESSION_ID_HEADER] === 'string' ? headers[SESSION_ID_HEADER] : '') ||
+    randomUUID()
   const authorization = headers.authorization
-  const accessToken = authorization === undefined
-    ? options.apiKey
-    : authorization?.trim().match(/^Bearer\s+(.+)$/i)?.[1]
+  const accessToken =
+    authorization === undefined
+      ? options.apiKey
+      : authorization?.trim().match(/^Bearer\s+(.+)$/i)?.[1]
   const proxy = isCliChatProxyUrl(model.baseUrl)
   headers['x-grok-conv-id'] = headers['x-grok-conv-id'] || sessionId
   headers['x-grok-req-id'] = `xai-perm-auto-${randomUUID()}`
   headers[SESSION_ID_HEADER] = sessionId
   headers[MODEL_OVERRIDE_HEADER] = model.id
   headers['x-grok-agent-id'] = getAgentId()
-  headers[USER_ID_HEADER] = proxy ? resolveGrokUserId(accessToken, credentials) ?? null : null
+  headers[USER_ID_HEADER] = proxy ? (resolveGrokUserId(accessToken, credentials) ?? null) : null
   headers[TOKEN_AUTH_HEADER] = proxy ? TOKEN_AUTH_VALUE : null
   headers[AUTHENTICATE_RESPONSE_HEADER] = proxy ? AUTHENTICATE_RESPONSE_VALUE : null
   headers.session_id = null
@@ -184,7 +205,7 @@ export function catalogToModel(entry: CatalogModel, baseUrl: string): Model<'ope
     provider: 'xai-supergrok',
     baseUrl,
     reasoning: entry.reasoning,
-    ...thinkingLevelMap === undefined ? {} : { thinkingLevelMap },
+    ...(thinkingLevelMap === undefined ? {} : { thinkingLevelMap }),
     input: [...entry.input],
     cost: { ...entry.cost },
     contextWindow: entry.contextWindow,
@@ -213,10 +234,14 @@ export function streamSuperGrok(
     onPayload: async (payload, payloadModel) => {
       const aligned = alignGrokBuildResponsesPayload(payload, model.id)
       const replacement = await options.onPayload?.(aligned, payloadModel)
-      return alignGrokBuildResponsesPayload(replacement === undefined ? aligned : replacement, model.id)
+      return alignGrokBuildResponsesPayload(
+        replacement === undefined ? aligned : replacement,
+        model.id,
+      )
     },
   }
-  const needsApiStream = 'reasoningEffort' in options || 'reasoningSummary' in options || 'serviceTier' in options
+  const needsApiStream =
+    'reasoningEffort' in options || 'reasoningSummary' in options || 'serviceTier' in options
   if (!needsApiStream) return RESPONSES.streamSimple(requestModel, context, requestOptions)
   if (options.reasoningEffort === undefined && options.reasoning !== undefined) {
     const reasoning = clampThinkingLevel(requestModel, options.reasoning)
@@ -243,13 +268,18 @@ export function createSuperGrokProvider(
     auth: {
       apiKey: {
         name: 'xAI SuperGrok subscription',
-        resolve: ({ credential }) => Promise.resolve(credential?.key === undefined
-          ? undefined
-          : { auth: { apiKey: credential.key }, source: 'xAI SuperGrok' }),
+        resolve: ({ credential }) =>
+          Promise.resolve(
+            credential?.key === undefined
+              ? undefined
+              : { auth: { apiKey: credential.key }, source: 'xAI SuperGrok' },
+          ),
       },
     },
     getModels: () => listed,
-    stream: (model, context, options) => streamSuperGrok(model, context, asStreamOptions(options), credentials()),
-    streamSimple: (model, context, options) => streamSuperGrok(model, context, options ?? {}, credentials()),
+    stream: (model, context, options) =>
+      streamSuperGrok(model, context, asStreamOptions(options), credentials()),
+    streamSimple: (model, context, options) =>
+      streamSuperGrok(model, context, options ?? {}, credentials()),
   }
 }

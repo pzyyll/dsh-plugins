@@ -14,7 +14,15 @@ dsh plugin --profile <profile> add github:pzyyll/dsh-xai-auth
 
 The `prepare` script uses Rsbuild to build the host entry at `dist/index.js`. If pnpm blocks this build, add the exact Git dependency key from its error to `allowBuilds` in the profile's `pnpm-workspace.yaml`, then run the install command again.
 
-For a local checkout, run `npm install --legacy-peer-deps` in the package directory to build the entry. Then run this command from its parent directory:
+For a local checkout, install [mise](https://mise.jdx.dev/getting-started.html), then run these commands in the package directory to install the pinned pnpm version and build the entry:
+
+```sh
+mise trust
+mise install
+mise exec -- pnpm install --frozen-lockfile
+```
+
+Then run this command from its parent directory:
 
 ```sh
 dsh plugin --profile <profile> add ./dsh-xai-auth
@@ -39,6 +47,19 @@ On the plugin page:
 - If you reload during sign-in approval, choose **Sign in** again.
 - Listed model prices are short-context API prices, not subscription usage. Check **Usage** for subscription credits.
 - Set `GROK_OAUTH_USE_API_URL=1` to use `https://api.x.ai/v1` instead of cli-chat-proxy.
+
+## Development
+
+Use Node.js `>=24.9.0`. After code changes, run:
+
+```sh
+mise exec -- pnpm run format
+mise exec -- pnpm run lint
+mise exec -- pnpm run typecheck
+mise exec -- pnpm test
+```
+
+Run `mise exec -- pnpm run check` for read-only checks. See [AGENTS.md](AGENTS.md) for coding rules.
 
 ## License
 
