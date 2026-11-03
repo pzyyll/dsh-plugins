@@ -1,3 +1,6 @@
+packages:
+  - ide-plugins/vscode
+
 engineStrict: true
 pmOnFail: ignore
 minimumReleaseAgeExclude:
@@ -28,3 +31,4 @@ saveExact: true
 strictPeerDependencies: true
 allowBuilds:
   esbuild: true
+  "@vscode/vsce-sign": false

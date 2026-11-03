@@ -10,9 +10,9 @@
         "--extensionDevelopmentPath=${workspaceFolder}/ide-plugins/vscode",
         "${workspaceFolder}"
       ],
-      "outFiles": ["${workspaceFolder}/ide-plugins/vscode/dist/extension.cjs"],
+      "outFiles": ["${workspaceFolder}/ide-plugins/vscode/out/extension.js"],
       "sourceMaps": true,
-      "preLaunchTask": "pnpm: build"
+      "preLaunchTask": "mise: compile:vsix"
     }
   ]
 }

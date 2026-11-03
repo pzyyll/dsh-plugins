@@ -2,9 +2,9 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "pnpm: build",
+      "label": "mise: compile:vsix",
       "type": "shell",
-      "command": "mise exec -- pnpm build",
+      "command": "mise run compile:vsix",
       "options": {
         "cwd": "${workspaceFolder}"
       },

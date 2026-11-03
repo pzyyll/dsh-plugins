@@ -1,5 +1,5 @@
-// ABOUTME: Build the dsh plugin and the local VS Code extension from TypeScript.
-// ABOUTME: Keep host-owned dsh modules external and include the IDE transport in each bundle.
+// ABOUTME: Build the dsh plugin and its browser client from TypeScript.
+// ABOUTME: Keep host-owned dsh modules external. The VS Code extension builds separately.
 import { build } from "esbuild";
 
 const NODE_TARGET = "node24";
@@ -15,17 +15,6 @@ await Promise.all([
     format: "esm",
     target: NODE_TARGET,
     packages: "external",
-    banner: { js: BUNDLE_HEADER },
-    sourcemap: true,
-  }),
-  build({
-    entryPoints: ["ide-plugins/vscode/src/extension.ts"],
-    outfile: "ide-plugins/vscode/dist/extension.cjs",
-    bundle: true,
-    platform: "node",
-    format: "cjs",
-    target: NODE_TARGET,
-    external: ["vscode"],
     banner: { js: BUNDLE_HEADER },
     sourcemap: true,
   }),

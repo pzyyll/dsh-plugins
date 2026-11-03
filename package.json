@@ -22,6 +22,8 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
+    "compile:vsix": "pnpm --filter dsh-ide-selection-vscode run compile",
+    "package:vsix": "pnpm --filter dsh-ide-selection-vscode run package",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test",
     "lint": "oxlint --deny-warnings .",
     "lint:fix": "oxlint --fix .",

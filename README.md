@@ -22,13 +22,14 @@ The build creates:
 
 - `dist/index.js`: the dsh Cordis plugin.
 - `dist/client.js`: the composer status pill and the `/select-ide` popup picker.
-- `ide-plugins/vscode/dist/extension.cjs`: the VS Code extension.
+
+The VS Code extension builds separately. See [Package the VS Code extension](#package-the-vs-code-extension).
 
 ## Start the VS Code extension
 
 Open the repository root in VS Code. Open **Run and Debug**. Select **Run DSH IDE Selection VS Code Extension**. Press F5.
 
-F5 runs `mise exec -- pnpm build`. VS Code then opens an Extension Development Host for this folder. Trust that window. Select text in a local file. Multiple selections are supported. With no selected text, the extension supplies the open file path only.
+F5 runs `mise run compile:vsix`. VS Code then opens an Extension Development Host for this folder. Trust that window. Select text in a local file. Multiple selections are supported. With no selected text, the extension supplies the open file path only.
 
 You can start the same host from a terminal. Replace the path with this checkout's absolute path:
 
@@ -39,6 +40,20 @@ code --extensionDevelopmentPath="/absolute/path/to/dsh-ide-selection/ide-plugins
 On Windows, use a path such as `F:/workspace/my/dsh-ide-selection`.
 
 The extension starts a loopback server and refreshes its discovery file. It does not start dsh or send a prompt. Startup and lock-update errors appear in the **DSH IDE Selection** output channel and in warning messages.
+
+## Package the VS Code extension
+
+The extension package is `ide-plugins/vscode`. `pnpm build` does not build it. The flow follows pi-x-ide: esbuild writes `ide-plugins/vscode/out/extension.js`, and `@vscode/vsce` writes the VSIX under `ide-plugins/vscode/dist/`. Only `vscode` stays external. The bundle includes the shared IDE transport and `ws`.
+
+vsce does not support pnpm dependency walks. The package command passes `--no-dependencies` and does not set `vscode:prepublish`. This does not publish to the Marketplace.
+
+```sh
+mise run compile:vsix
+mise run package:vsix
+cd ide-plugins/vscode && code --install-extension dist/dsh-ide-selection-vscode-$(node -p "require('./package.json').version").vsix
+```
+
+`compile:vsix` keeps a source map for F5. `package:vsix` rebuilds a minified bundle without a source map, then writes the VSIX. Reload VS Code after installation. Install the dsh plugin separately. The VSIX does not contain it.
 
 ## Install the dsh plugin
 
@@ -100,18 +115,20 @@ The lock directory is separate from pi-x-ide. This extension does not connect au
 
 ## Limitations
 
-This version supports same-host VS Code only. It does not include WSL path translation, SSH forwarding, diagnostics, automatic installation, marketplace publication, or a separate attach-selection command. Turn injection connects on demand for each eligible turn. The composer status uses a separate live connection while a browser subscribes.
+This version supports same-host VS Code only. It does not include WSL path translation, SSH forwarding, diagnostics, automatic installation, Marketplace publication, or a separate attach-selection command. You can still pack a local VSIX. Turn injection connects on demand for each eligible turn. The composer status uses a separate live connection while a browser subscribes.
 
 Automated tests cover the local transport, selection adapter, and plugin behavior. A live VS Code-to-model session requires manual validation with your dsh profile and credentials.
 
 ## Development
 
-| Command           | Action                                          |
-| ----------------- | ----------------------------------------------- |
-| `pnpm check`      | Run lint, format, type, and test checks.        |
-| `pnpm build`      | Build the host, browser, and extension bundles. |
-| `pnpm test`       | Run behavior tests.                             |
-| `pnpm test:watch` | Watch tests.                                    |
-| `pnpm format`     | Format project files.                           |
+| Command                 | Action                                           |
+| ----------------------- | ------------------------------------------------ |
+| `pnpm check`            | Run lint, format, type, and test checks.         |
+| `pnpm build`            | Build the host and browser bundles.              |
+| `mise run compile:vsix` | Build the VS Code extension for local debugging. |
+| `mise run package:vsix` | Pack the VS Code extension into a VSIX.          |
+| `pnpm test`             | Run behavior tests.                              |
+| `pnpm test:watch`       | Watch tests.                                     |
+| `pnpm format`           | Format project files.                            |
 
 See the [TDD plan](docs/plans/initial-implementation.md) and [third-party notices](THIRD-PARTY-NOTICES.md).

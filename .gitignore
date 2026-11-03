@@ -5,6 +5,8 @@ docs/next-prompt.md
 node_modules/
 .pnpm-store/
 dist/
+out/
+*.vsix
 coverage/
 *.tsbuildinfo
 mise.local.toml
