@@ -7,5 +7,5 @@
   "env": {
     "node": true
   },
-  "ignorePatterns": ["dist/**", "coverage/**", ".worktrees/**"]
+  "ignorePatterns": ["**/dist/**", "coverage/**", ".worktrees/**"]
 }

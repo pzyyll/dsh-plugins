@@ -3,23 +3,47 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js"
+  },
   "scripts": {
+    "build": "node scripts/build.mjs",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test",
     "lint": "oxlint --deny-warnings .",
     "lint:fix": "oxlint --fix .",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "test:watch": "vitest --watch"
   },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "3.18.5",
+    "ws": "8.22.1"
+  },
   "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-agent": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-llm": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-session": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-workspace": "0.2.1-rc.5",
     "@types/node": "24.19.2",
+    "@types/vscode": "1.144.0",
+    "@types/ws": "8.18.2",
+    "esbuild": "0.28.2",
     "oxfmt": "0.76.0",
     "oxlint": "1.90.0",
     "typescript": "7.0.2",
     "vite": "8.3.5",
     "vitest": "5.1.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.0.5",
+    "@deepseek-ai/dsh-agent": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-llm": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-session": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-workspace": "0.2.1-rc.5"
   },
   "engines": {
     "node": "^24.9.0",

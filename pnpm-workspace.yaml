@@ -26,3 +26,5 @@ minimumReleaseAgeExclude:
   - vitest@5.1.0
 saveExact: true
 strictPeerDependencies: true
+allowBuilds:
+  esbuild: true
