@@ -14,14 +14,14 @@
     "subscription"
   ],
   "type": "module",
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
   "exports": {
-    ".": "./src/index.ts",
+    ".": "./dist/index.js",
     "./client": "./lib/client.js",
     "./locale/*.json": "./locale/*.json"
   },
   "files": [
-    "src",
+    "dist",
     "lib/client.js",
     "locale",
     "cordis.patch.yml",
@@ -57,10 +57,13 @@
   },
   "devDependencies": {
     "@earendil-works/pi-ai": "1.1.0",
+    "@rsbuild/core": "2.3.0",
     "@types/node": "26.6.6",
     "typescript": "6.0.3"
   },
   "scripts": {
+    "build": "rsbuild build",
+    "prepare": "npm run build",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "typecheck": "tsc --noEmit"
   }

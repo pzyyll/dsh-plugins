@@ -6,7 +6,15 @@
 
 ## 安装
 
-在 `dsh-xai-auth` 的父目录中运行：
+从 GitHub 安装：
+
+```sh
+dsh plugin --profile <profile> add github:pzyyll/dsh-xai-auth
+```
+
+`prepare` 脚本使用 Rsbuild 将服务端入口构建为 `dist/index.js`。如果 pnpm 阻止构建，请将报错中的完整 Git 依赖键添加到该 profile 的 `pnpm-workspace.yaml` 的 `allowBuilds` 中，然后重新运行安装命令。
+
+如需从本地仓库安装，先在包目录运行 `npm install --legacy-peer-deps` 构建入口，再在 `dsh-xai-auth` 的父目录中运行：
 
 ```sh
 dsh plugin --profile <profile> add ./dsh-xai-auth

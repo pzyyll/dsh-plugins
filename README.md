@@ -6,7 +6,15 @@ Use an xAI SuperGrok or X Premium subscription in dsh through [cli-chat-proxy](h
 
 ## Install
 
-From the directory that contains this package:
+Install from GitHub:
+
+```sh
+dsh plugin --profile <profile> add github:pzyyll/dsh-xai-auth
+```
+
+The `prepare` script uses Rsbuild to build the host entry at `dist/index.js`. If pnpm blocks this build, add the exact Git dependency key from its error to `allowBuilds` in the profile's `pnpm-workspace.yaml`, then run the install command again.
+
+For a local checkout, run `npm install --legacy-peer-deps` in the package directory to build the entry. Then run this command from its parent directory:
 
 ```sh
 dsh plugin --profile <profile> add ./dsh-xai-auth
