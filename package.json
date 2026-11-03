@@ -68,7 +68,7 @@
     "@types/node": "26.6.6",
     "oxfmt": "0.75.0",
     "oxlint": "1.90.0",
-    "typescript": "6.0.3"
+    "typescript": "7.0.2"
   },
   "scripts": {
     "build": "rsbuild build",
