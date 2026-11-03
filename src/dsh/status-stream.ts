@@ -140,7 +140,7 @@ export function registerSelectionStatus(
   ctx: Context,
   options: SelectionHubOptions & { connections: IdeConnections },
 ): void {
-  ctx.inject(["webServer", "connection"], (scope) => {
+  ctx.inject(["webServer", "connection", "sessions"], (scope) => {
     const { webServer, connection } = scope;
     const controller = new AbortController();
     const signal = AbortSignal.any([options.signal, controller.signal]);

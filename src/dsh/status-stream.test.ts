@@ -7,7 +7,9 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Context, type Plugin } from "@deepseek-ai/cordis";
 import { WebServer } from "@deepseek-ai/dsh-host-webserver";
-import { SessionId } from "@deepseek-ai/dsh-session";
+import { SessionId, SessionStore } from "@deepseek-ai/dsh-session";
+import { AgentRegistry } from "@deepseek-ai/dsh-agent";
+import * as selectionPlugin from "./index.js";
 import { IdeConnections } from "./ide-connections.js";
 import { ideLockId } from "../shared/ide.js";
 import { createLock, writeLock } from "../shared/lock.js";
@@ -40,6 +42,45 @@ const selected: EditorSelectionSnapshot = {
 };
 
 describe("selection status stream", () => {
+  it("streams an authenticated live session through the actual plugin and WebServer scopes", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "dsh-status-scope-"));
+    roots.push(dir);
+    const ide = new IdeServer("a".repeat(64), () => selected);
+    closers.push(() => ide.stop());
+    const port = await ide.start();
+    await writeLock(join(dir, "vscode.lock"), createLock(port, "a".repeat(64), ["/work/app"]));
+    const ctx = new Context();
+    closers.push(async () => {
+      await ctx.fiber.dispose();
+    });
+    await ctx.plugin(SessionStore);
+    await ctx.plugin(AgentRegistry);
+    await ctx.plugin(WebServer, { host: "127.0.0.1", port: 0 });
+    let authorized = false;
+    await ctx.plugin({
+      name: "status-test-authorization",
+      apply(scope: Context) {
+        scope.provide("connection", { requestRejection: () => (authorized ? undefined : 401) });
+      },
+    });
+    await ctx.plugin(selectionPlugin, { lockDir: dir });
+    const session = ctx.sessions.create(undefined, { meta: { cwd: "/work/app" } });
+    const endpoint = `${ctx.webServer.getOrigin()}${SELECTION_EVENTS_PATH}?session=${encodeURIComponent(session.id)}`;
+    expect((await fetch(endpoint)).status).toBe(401);
+    authorized = true;
+    const response = await fetch(endpoint);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/event-stream");
+    if (!response.body) throw new Error("missing authenticated status stream");
+    const reader = response.body.getReader();
+    closers.push(async () => {
+      await reader.cancel();
+    });
+    const text = await readUntil(reader, "Selected Lines");
+    expect(text).toContain("src/example.ts #L10-L12");
+    expect(text).not.toContain("secret selection");
+  });
+
   it("waits for late services, follows dependency restarts, and removes its real HTTP route", async () => {
     const ctx = new Context();
     const lifetime = new AbortController();
@@ -72,12 +113,24 @@ describe("selection status stream", () => {
       },
     };
     const connection = await ctx.plugin(authorization);
+    expect((await fetch(endpoint)).status).toBe(404);
+    const sessions = await ctx.plugin(SessionStore);
+    closers.push(async () => {
+      await sessions.dispose();
+    });
     await vi.waitFor(async () => expect((await fetch(endpoint)).status).toBe(401));
     await connection.dispose();
     expect((await fetch(endpoint)).status).toBe(404);
     const restarted = await ctx.plugin(authorization);
     closers.push(async () => {
       await restarted.dispose();
+    });
+    await vi.waitFor(async () => expect((await fetch(endpoint)).status).toBe(401));
+    await sessions.dispose();
+    expect((await fetch(endpoint)).status).toBe(404);
+    const restoredSessions = await ctx.plugin(SessionStore);
+    closers.push(async () => {
+      await restoredSessions.dispose();
     });
     await vi.waitFor(async () => expect((await fetch(endpoint)).status).toBe(401));
     await registration.dispose();
