@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write # createWorkflowDispatch for publish.yml
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    outputs:
+      releases_created: ${{ steps.rp.outputs.releases_created }}
+      prs_created: ${{ steps.rp.outputs.prs_created }}
+      paths_released: ${{ steps.rp.outputs.paths_released }}
+    steps:
+      - id: rp
+        uses: googleapis/release-please-action@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Manifest mode: do NOT set release-type here. release-please reads
+          # release-please-config.json + .release-please-manifest.json instead.
+
+  dispatch:
+    needs: process
+    runs-on: ubuntu-latest
+    if: needs.process.outputs.releases_created == 'true' || needs.process.outputs.prs_created == 'true'
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Dispatch latest publishes (per released path)
+        if: needs.process.outputs.releases_created == 'true'
+        uses: actions/github-script@v9
+        env:
+          PATHS_RELEASED: ${{ needs.process.outputs.paths_released }}
+        with:
+          script: |
+            const paths = JSON.parse(process.env.PATHS_RELEASED || '[]');
+            for (const path of paths) {
+              await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'publish.yml',
+                ref: 'main',
+                inputs: { path, tag: 'latest' },
+              });
+              core.info(`dispatched latest: ${path}`);
+            }
+
+      - name: Dispatch next snapshots (npm packages only)
+        if: needs.process.outputs.prs_created == 'true'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const config = JSON.parse(fs.readFileSync('release-please-config.json', 'utf8'));
+            for (const path of Object.keys(config.packages)) {
+              const manifest = JSON.parse(fs.readFileSync(path + '/package.json', 'utf8'));
+              if (manifest.engines && manifest.engines.vscode) {
+                core.info(`skip next for Marketplace package: ${path}`);
+                continue;
+              }
+              await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'publish.yml',
+                ref: 'main',
+                inputs: { path, tag: 'next' },
+              });
+              core.info(`dispatched next: ${path}`);
+            }

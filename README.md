@@ -29,6 +29,10 @@ The first `pnpm install` writes `pnpm-lock.yaml`. Later installs from this direc
 
 The root task only installs the shared lockfile. Build and check each plugin in its own directory with `mise run`.
 
+## Release
+
+Each package under `release-please-config.json` is versioned and tagged on its own. Plugin packages publish to npm. The VS Code extension's VSIX is attached to its GitHub Release, then published to the Visual Studio Marketplace. See [RELEASE.md](RELEASE.md).
+
 ## Install a plugin
 
 dsh installs one package directory, not this repository root.

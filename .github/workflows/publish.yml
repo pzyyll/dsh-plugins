@@ -1,0 +1,40 @@
+name: Publish Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      path:
+        description: 'Package directory, e.g. packages/dsh-xai-auth'
+        required: true
+      tag:
+        description: 'Channel (latest or next)'
+        required: true
+        type: choice
+        options:
+          - latest
+          - next
+
+permissions:
+  id-token: write # npm and Marketplace OIDC
+  contents: write # attach the VSIX to the GitHub Release
+
+concurrency:
+  group: publish-${{ inputs.path }}-${{ inputs.tag }}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: jdx/mise-action@dad1bfd3df957f44999b559dd69dc1671cb4e9ea # v4.2.1
+        with:
+          install: true
+          cache: true
+          experimental: true
+
+      - name: Publish
+        run: mise run publish --package "${{ inputs.path }}" --tag "${{ inputs.tag }}"

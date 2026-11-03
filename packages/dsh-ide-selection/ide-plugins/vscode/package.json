@@ -5,6 +5,11 @@
   "private": true,
   "description": "Shares VS Code editor selections with the local DSH IDE bridge.",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pzyyll/dsh-plugins.git",
+    "directory": "packages/dsh-ide-selection/ide-plugins/vscode"
+  },
   "publisher": "local",
   "type": "commonjs",
   "main": "./out/extension.js",

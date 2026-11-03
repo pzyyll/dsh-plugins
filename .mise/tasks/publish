@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+#MISE description="Publish one package to npm, or a VSIX to its GitHub Release and the Marketplace"
+#USAGE flag "-p --package <path>" "Package dir, e.g. packages/dsh-xai-auth" default=""
+#USAGE flag "-t --tag <tag>" "Channel: latest or next" default="latest"
+#USAGE flag "-d --dry-run" "Build and print the publish commands without publishing"
+#USAGE flag "--otp <otp>" "One-time password for npm two-factor authentication" default=""
+
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+PKG="${usage_package:-}"
+PKG="${PKG//\\//}"
+TAG="${usage_tag:-latest}"
+DRY="${usage_dry_run:-false}"
+OTP="${usage_otp:-}"
+
+if [ "$TAG" != "latest" ] && [ "$TAG" != "next" ]; then
+	echo "tag must be latest or next" >&2
+	exit 1
+fi
+[ -f "$PKG/package.json" ] || { echo "no such package: ${PKG:-<missing>}" >&2; exit 1; }
+
+COMPONENT="$(node --input-type=commonjs -e '
+const fs = require("fs");
+const pkgPath = process.argv[1];
+const cfg = JSON.parse(fs.readFileSync("release-please-config.json", "utf8"));
+const entry = cfg.packages[pkgPath];
+if (!entry || !entry.component) {
+  console.error("package is not in release-please-config.json: " + pkgPath);
+  process.exit(1);
+}
+process.stdout.write(entry.component);
+' "$PKG")"
+
+read_meta() {
+	node --input-type=commonjs -e '
+const fs = require("fs");
+const manifest = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+const kind = manifest.engines && manifest.engines.vscode ? "vsix" : "npm";
+process.stdout.write([manifest.name, manifest.version, kind, manifest.private === true ? "1" : "0", manifest.publisher || ""].join("\n"));
+' "$1"
+}
+
+META="$(read_meta "$PKG/package.json")"
+NAME="$(printf '%s\n' "$META" | sed -n '1p')"
+VERSION="$(printf '%s\n' "$META" | sed -n '2p')"
+KIND="$(printf '%s\n' "$META" | sed -n '3p')"
+IS_PRIVATE="$(printf '%s\n' "$META" | sed -n '4p')"
+PUBLISHER="$(printf '%s\n' "$META" | sed -n '5p')"
+
+if [ "$KIND" = "npm" ] && [ "$IS_PRIVATE" = "1" ]; then
+	echo "refusing to publish private package: $NAME" >&2
+	exit 1
+fi
+
+echo "Publishing $PKG ($KIND) channel=$TAG component=$COMPONENT"
+
+if [ "$KIND" = "vsix" ] && [ "$TAG" = "next" ]; then
+	echo " > vscode next snapshots are not published"
+	echo " > latest attaches the VSIX to the GitHub Release, then publishes it to the Marketplace"
+	exit 0
+fi
+
+if [ "$KIND" = "npm" ] && [ "$TAG" = "next" ]; then
+	cd "$PKG"
+	LAST_TAG="$(git describe --tags --abbrev=0 --match "${COMPONENT}-v*" 2>/dev/null || true)"
+	if [ -n "$LAST_TAG" ]; then
+		BUILD_NUMBER="$(git rev-list "${LAST_TAG}..HEAD" --count -- .)"
+		echo " > last component tag: ${LAST_TAG}"
+		echo " > commits since: ${BUILD_NUMBER}"
+	else
+		BUILD_NUMBER="$(git rev-list HEAD --count -- .)"
+		echo " > no component tag found; commits in ${PKG}: ${BUILD_NUMBER}"
+	fi
+	if [ "$BUILD_NUMBER" -eq 0 ]; then
+		echo " > no commits to ${PKG} since ${LAST_TAG}; skipping next"
+		exit 0
+	fi
+	CURRENT_VERSION="$(node --input-type=commonjs -p 'require("./package.json").version')"
+	RELEASE_CORE="$(node --input-type=commonjs -e 'process.stdout.write(process.argv[1].split("+")[0].split("-")[0])' "$CURRENT_VERSION")"
+	PRERELEASE_VERSION="${RELEASE_CORE}-next.${BUILD_NUMBER}"
+	echo " > version: ${CURRENT_VERSION} -> ${PRERELEASE_VERSION}"
+	if [ "$DRY" != "true" ]; then
+		node --input-type=commonjs -e '
+const fs = require("fs");
+const file = process.argv[1];
+const version = process.argv[2];
+const text = fs.readFileSync(file, "utf8");
+const next = text.replace(/("version"\s*:\s*")[^"]+(")/, "$1" + version + "$2");
+if (next === text) { console.error("version field not found in " + file); process.exit(1); }
+fs.writeFileSync(file, next);
+' package.json "$PRERELEASE_VERSION"
+		VERSION="$PRERELEASE_VERSION"
+	fi
+	cd "$ROOT"
+fi
+
+mise run build --package "$PKG"
+
+if [ "$KIND" = "vsix" ]; then
+	VERSION="$(node --input-type=commonjs -e 'const fs=require("fs"); process.stdout.write(JSON.parse(fs.readFileSync(process.argv[1],"utf8")).version)' "$PKG/package.json")"
+	VSIX="$ROOT/$PKG/dist/${NAME}-${VERSION}.vsix"
+	RELEASE_TAG="${COMPONENT}-v${VERSION}"
+	[ -f "$VSIX" ] || { echo "VSIX not found: $VSIX" >&2; exit 1; }
+	echo " > VSIX: $VSIX"
+	echo " > GitHub Release: $RELEASE_TAG"
+
+	if [ "$DRY" = "true" ]; then
+		echo "Dry run: would upload $VSIX to GitHub Release $RELEASE_TAG"
+		echo "Dry run: would run vsce publish --oidc --packagePath $VSIX --skip-duplicate"
+		exit 0
+	fi
+
+	if [ -z "${GITHUB_ACTIONS:-}" ]; then
+		echo "VSIX written to $VSIX"
+		echo "GitHub Release upload and Marketplace publish run in the publish workflow."
+		exit 0
+	fi
+
+	if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+		gh release upload "$RELEASE_TAG" "$VSIX" --clobber
+	else
+		gh release create "$RELEASE_TAG" "$VSIX" --title "$RELEASE_TAG" --target "${GITHUB_SHA}" --notes "VSIX for ${NAME} ${VERSION}"
+	fi
+	echo " > attached VSIX to GitHub Release $RELEASE_TAG"
+
+	if [ -z "$PUBLISHER" ] || [ "$PUBLISHER" = "local" ]; then
+		echo "VSIX is on GitHub Release $RELEASE_TAG. Set ide-plugins/vscode package.json publisher to the Marketplace publisher id before publishing. Current publisher: ${PUBLISHER:-<empty>}" >&2
+		exit 1
+	fi
+
+	(cd "$PKG" && pnpm exec vsce publish --oidc --packagePath "$VSIX" --skip-duplicate)
+	echo "Marketplace publish completed."
+	exit 0
+fi
+
+cd "$PKG"
+args=()
+case "$NAME" in
+@*) args+=("--access" "public") ;;
+esac
+if [ -n "$OTP" ]; then
+	args+=("--otp" "$OTP")
+	echo " > using provided OTP for 2FA"
+fi
+if [ -n "${GITHUB_ACTIONS:-}" ]; then
+	args+=("--provenance")
+	echo " > adding provenance for CI publish"
+fi
+
+if [ "$DRY" = "true" ]; then
+	echo "Dry run: pnpm publish --tag $TAG --no-git-checks ${args[*]}"
+	pnpm publish --dry-run --tag "$TAG" --no-git-checks "${args[@]}"
+	exit 0
+fi
+
+pnpm publish --tag "$TAG" --no-git-checks "${args[@]}"
+echo "Publish process completed."

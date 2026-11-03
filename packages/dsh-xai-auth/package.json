@@ -2,6 +2,11 @@
   "name": "dsh-xai-auth",
   "version": "0.1.0",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pzyyll/dsh-plugins.git",
+    "directory": "packages/dsh-xai-auth"
+  },
   "description": "dsh plugin that signs in to an xAI SuperGrok subscription and serves it as the xai-supergrok model route.",
   "keywords": [
     "dsh-plugin",

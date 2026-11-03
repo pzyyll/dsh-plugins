@@ -2,6 +2,11 @@
   "name": "dsh-ide-selection",
   "version": "0.1.0",
   "description": "Shows the current VS Code selection and adds it to accepted human turns.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pzyyll/dsh-plugins.git",
+    "directory": "packages/dsh-ide-selection"
+  },
   "files": [
     "dist/index.js",
     "dist/index.js.map",

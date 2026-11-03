@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+#MISE description="Build one workspace package"
+#USAGE flag "-p --package <path>" "Package dir, e.g. packages/dsh-xai-auth" default=""
+
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+PKG="${usage_package:-}"
+PKG="${PKG//\\//}"
+[ -f "$PKG/package.json" ] || { echo "no such package: ${PKG:-<missing>}" >&2; exit 1; }
+
+KIND="$(node --input-type=commonjs -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(p.engines&&p.engines.vscode?"vsix":"npm")' "$PKG/package.json")"
+if [ "$KIND" = "vsix" ]; then
+	(cd "$ROOT/packages/dsh-ide-selection" && mise run package:vsix)
+else
+	(cd "$ROOT/$PKG" && mise run build)
+fi

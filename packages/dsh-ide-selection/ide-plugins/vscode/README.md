@@ -43,4 +43,4 @@ Build and package commands run from `packages/dsh-ide-selection`:
 
 Press F5 in the `dsh-plugins` repository root to build the extension and open an Extension Development Host.
 
-This flow does not publish the extension to the Marketplace.
+Local packaging does not publish the extension. Releases attach the VSIX to GitHub Release `dsh-ide-selection-vscode-v<version>`, then publish that file to the Visual Studio Marketplace. See [RELEASE.md](../../../../RELEASE.md).

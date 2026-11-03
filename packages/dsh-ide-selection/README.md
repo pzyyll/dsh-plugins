@@ -48,7 +48,7 @@ The extension starts a loopback server and refreshes its discovery file. It does
 
 The extension package is `ide-plugins/vscode`. `mise run build` does not build it. The flow follows pi-x-ide: esbuild writes `ide-plugins/vscode/out/extension.js`, and `@vscode/vsce` writes the VSIX under `ide-plugins/vscode/dist/`. Only `vscode` stays external. The bundle includes the shared IDE transport and `ws`.
 
-vsce does not support pnpm dependency walks. The package command passes `--no-dependencies` and does not set `vscode:prepublish`. This does not publish to the Marketplace.
+vsce does not support pnpm dependency walks. The package command passes `--no-dependencies` and does not set `vscode:prepublish`. Local packaging does not publish to the Marketplace. A release attaches the VSIX to the `dsh-ide-selection-vscode` GitHub Release, and the publish workflow then publishes that file. See [RELEASE.md](../../RELEASE.md).
 
 From `packages/dsh-ide-selection`:
 
