@@ -1,7 +1,6 @@
 {
   "name": "dsh-ide-selection",
   "version": "0.1.0",
-  "private": true,
   "description": "Shows the current VS Code selection and adds it to accepted human turns.",
   "files": [
     "dist/index.js",
@@ -21,28 +20,28 @@
     "./icon": "./icon.svg"
   },
   "dependencies": {
-    "@deepseek-ai/schemastery": "3.18.5",
-    "ws": "8.22.1"
+    "@deepseek-ai/schemastery": "catalog:",
+    "ws": "catalog:"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "4.0.5",
-    "@deepseek-ai/dsh-agent": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-client-connection": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-commands": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-host-webserver": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-llm": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-session": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-workspace": "0.2.1-rc.5",
-    "@types/node": "24.19.2",
-    "@types/react": "19.3.0",
-    "@types/vscode": "1.144.0",
-    "@types/ws": "8.18.2",
-    "esbuild": "0.28.2",
-    "oxfmt": "0.76.0",
-    "oxlint": "1.90.0",
-    "typescript": "7.0.2",
-    "vite": "8.3.5",
-    "vitest": "5.1.0"
+    "@deepseek-ai/cordis": "catalog:",
+    "@deepseek-ai/dsh-agent": "catalog:",
+    "@deepseek-ai/dsh-client-connection": "catalog:",
+    "@deepseek-ai/dsh-commands": "catalog:",
+    "@deepseek-ai/dsh-host-webserver": "catalog:",
+    "@deepseek-ai/dsh-llm": "catalog:",
+    "@deepseek-ai/dsh-session": "catalog:",
+    "@deepseek-ai/dsh-workspace": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/vscode": "catalog:",
+    "@types/ws": "catalog:",
+    "esbuild": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "*",

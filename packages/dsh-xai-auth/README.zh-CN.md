@@ -9,24 +9,29 @@
 从 GitHub 安装：
 
 ```sh
-dsh plugin --profile <profile> add github:pzyyll/dsh-xai-auth
+dsh plugin --profile <profile> add github:pzyyll/dsh-plugins#path:/packages/dsh-xai-auth
 ```
 
-仓库已包含预构建的服务端入口 `dist/index.js`，安装此插件无需构建。
+包内已包含预构建的服务端入口 `dist/index.js`，安装此插件无需构建。
 
-如需重新构建本地仓库，先安装 [mise](https://mise.jdx.dev/getting-started.html)，然后在包目录运行：
+如需重新构建本地仓库，先安装 [mise](https://mise.jdx.dev/getting-started.html)。在 `dsh-plugins` 仓库根目录安装共享工具链和锁文件：
 
 ```sh
 mise trust
 mise install
-mise exec -- pnpm install --frozen-lockfile
-mise exec -- pnpm run build
+mise run install
 ```
 
-如需安装本地仓库，在 `dsh-xai-auth` 的父目录中运行：
+然后在 `packages/dsh-xai-auth` 中运行：
 
 ```sh
-dsh plugin --profile <profile> add ./dsh-xai-auth
+pnpm run build
+```
+
+如需安装本地仓库，在 `dsh-plugins` 仓库根目录运行：
+
+```sh
+dsh plugin --profile <profile> add ./packages/dsh-xai-auth
 ```
 
 需要 dsh `>=0.2.0 <0.3.0`。默认配置已包含所需服务。
@@ -51,7 +56,7 @@ dsh plugin --profile <profile> add ./dsh-xai-auth
 
 ## 开发
 
-使用 Node.js `>=24.9.0`。修改代码后运行：
+使用 Node.js `>=24.9.0`。在本包目录中，修改代码后运行：
 
 ```sh
 mise exec -- pnpm run format

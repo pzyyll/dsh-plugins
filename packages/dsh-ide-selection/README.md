@@ -6,11 +6,16 @@ VS Code selection context for dsh. This first version ports the selection protoc
 
 ## Build
 
-Install [mise](https://mise.jdx.dev/getting-started.html), then run these commands from the repository root:
+Install [mise](https://mise.jdx.dev/getting-started.html). From the `dsh-plugins` repository root, trust the shared toolchain:
 
 ```sh
 mise trust
 mise install
+```
+
+Run this package's tasks from `packages/dsh-ide-selection`:
+
+```sh
 mise run install
 mise run check
 mise run build
@@ -25,17 +30,17 @@ The VS Code extension builds separately. See [Package the VS Code extension](#pa
 
 ## Start the VS Code extension
 
-Open the repository root in VS Code. Open **Run and Debug**. Select **Run DSH IDE Selection VS Code Extension**. Press F5.
+Open the `dsh-plugins` repository root in VS Code. Open **Run and Debug**. Select **Run DSH IDE Selection VS Code Extension**. Press F5.
 
 F5 runs `mise run compile:vsix`. VS Code then opens an Extension Development Host for this folder. Trust that window. Select text in a local file. Multiple selections are supported. With no selected text, the extension supplies the open file path only.
 
 You can start the same host from a terminal. Replace the path with this checkout's absolute path:
 
 ```sh
-code --extensionDevelopmentPath="/absolute/path/to/dsh-ide-selection/ide-plugins/vscode" /path/to/your/project
+code --extensionDevelopmentPath="/absolute/path/to/dsh-plugins/packages/dsh-ide-selection/ide-plugins/vscode" /path/to/your/project
 ```
 
-On Windows, use a path such as `F:/workspace/my/dsh-ide-selection`.
+On Windows, use a path such as `F:/workspace/my/dsh-plugins/packages/dsh-ide-selection`.
 
 The extension starts a loopback server and refreshes its discovery file. It does not start dsh or send a prompt. Startup and lock-update errors appear in the **DSH IDE Selection** output channel and in warning messages.
 
@@ -44,6 +49,8 @@ The extension starts a loopback server and refreshes its discovery file. It does
 The extension package is `ide-plugins/vscode`. `mise run build` does not build it. The flow follows pi-x-ide: esbuild writes `ide-plugins/vscode/out/extension.js`, and `@vscode/vsce` writes the VSIX under `ide-plugins/vscode/dist/`. Only `vscode` stays external. The bundle includes the shared IDE transport and `ws`.
 
 vsce does not support pnpm dependency walks. The package command passes `--no-dependencies` and does not set `vscode:prepublish`. This does not publish to the Marketplace.
+
+From `packages/dsh-ide-selection`:
 
 ```sh
 mise run compile:vsix
@@ -55,14 +62,14 @@ cd ide-plugins/vscode && code --install-extension dist/dsh-ide-selection-vscode-
 
 ## Install the dsh plugin
 
-Use dsh `0.2.1-rc.5`. Build this package first. In the Web UI, install this checkout directory as a plugin. The package declares `dsh.bundle`, so dsh enables the bundle, loads `dist/index.js`, and serves the composer status pill.
+Use dsh `0.2.1-rc.5`. Build this package first. In the Web UI, install `packages/dsh-ide-selection` as a plugin. Do not install the monorepo root. The package declares `dsh.bundle`, so dsh enables the bundle, loads `dist/index.js`, and serves the composer status pill.
 
 You can also start dsh with an overlay. Save this file as `ide-selection.patch.yml` and replace the plugin path with the absolute path to the built file:
 
 ```yaml
 - insert:
     - id: ide-selection
-      name: "/absolute/path/to/dsh-ide-selection/dist/index.js"
+      name: "/absolute/path/to/dsh-plugins/packages/dsh-ide-selection/dist/index.js"
 ```
 
 Start dsh with the overlay from a directory inside the VS Code workspace:

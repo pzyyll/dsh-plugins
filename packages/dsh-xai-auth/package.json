@@ -57,18 +57,18 @@
     "@earendil-works/pi-ai": "*"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "4.0.5",
-    "@deepseek-ai/dsh-credentials": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-home-paths": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-llm": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-llm-pi-ai": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-typert-protocol": "0.2.1-rc.5",
-    "@earendil-works/pi-ai": "1.1.0",
-    "@rsbuild/core": "2.3.0",
-    "@types/node": "26.6.6",
-    "oxfmt": "0.75.0",
-    "oxlint": "1.90.0",
-    "typescript": "7.0.2"
+    "@deepseek-ai/cordis": "catalog:",
+    "@deepseek-ai/dsh-credentials": "catalog:",
+    "@deepseek-ai/dsh-home-paths": "catalog:",
+    "@deepseek-ai/dsh-llm": "catalog:",
+    "@deepseek-ai/dsh-llm-pi-ai": "catalog:",
+    "@deepseek-ai/dsh-typert-protocol": "catalog:",
+    "@earendil-works/pi-ai": "catalog:",
+    "@rsbuild/core": "catalog:",
+    "@types/node": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:"
   },
   "scripts": {
     "build": "rsbuild build",

@@ -23,14 +23,11 @@ mise install
 pnpm install
 ```
 
-The first `pnpm install` writes `pnpm-lock.yaml`. Later installs use `mise run install`, which runs `pnpm install --frozen-lockfile`.
+The first `pnpm install` writes `pnpm-lock.yaml`. Later installs from this directory use `mise run install`.
 
-## Checks
+## Tasks
 
-```sh
-mise run check
-mise run build
-```
+The root task only installs the shared lockfile. Build and check each plugin in its own directory. `packages/dsh-xai-auth` uses `pnpm run`. `packages/dsh-ide-selection` uses `mise run`.
 
 ## Install a plugin
 

@@ -17,5 +17,5 @@
     "forceConsistentCasingInFileNames": true
   },
   "include": ["**/*.ts", "**/*.d.ts"],
-  "exclude": ["node_modules", "dist", "coverage", ".worktrees"]
+  "exclude": ["node_modules", "dist", "coverage", ".worktrees", "ide-plugins"]
 }

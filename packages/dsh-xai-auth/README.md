@@ -9,24 +9,29 @@ Use an xAI SuperGrok or X Premium subscription in dsh through [cli-chat-proxy](h
 Install from GitHub:
 
 ```sh
-dsh plugin --profile <profile> add github:pzyyll/dsh-xai-auth
+dsh plugin --profile <profile> add github:pzyyll/dsh-plugins#path:/packages/dsh-xai-auth
 ```
 
-The repository includes the prebuilt host entry at `dist/index.js`. No build step is needed to install this plugin.
+The package includes the prebuilt host entry at `dist/index.js`. No build step is needed to install this plugin.
 
-To rebuild a local checkout, install [mise](https://mise.jdx.dev/getting-started.html), then run these commands in the package directory:
+To rebuild a local checkout, install [mise](https://mise.jdx.dev/getting-started.html). From the `dsh-plugins` repository root, install the shared toolchain and lockfile:
 
 ```sh
 mise trust
 mise install
-mise exec -- pnpm install --frozen-lockfile
-mise exec -- pnpm run build
+mise run install
 ```
 
-To install the local checkout, run this command from its parent directory:
+Then run this command in `packages/dsh-xai-auth`:
 
 ```sh
-dsh plugin --profile <profile> add ./dsh-xai-auth
+pnpm run build
+```
+
+To install the local checkout, run this command from the `dsh-plugins` repository root:
+
+```sh
+dsh plugin --profile <profile> add ./packages/dsh-xai-auth
 ```
 
 Requires dsh `>=0.2.0 <0.3.0`. The default profile includes all required services.
@@ -51,7 +56,7 @@ On the plugin page:
 
 ## Development
 
-Use Node.js `>=24.9.0`. After code changes, run:
+Use Node.js `>=24.9.0`. In this package directory, after code changes, run:
 
 ```sh
 mise exec -- pnpm run format

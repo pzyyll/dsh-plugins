@@ -3,4 +3,4 @@
 #MISE depends=["install"]
 set -euo pipefail
 
-pnpm --filter ./ide-plugins/vscode run compile
+pnpm --filter dsh-ide-selection-vscode run compile

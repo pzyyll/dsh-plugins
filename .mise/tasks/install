@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="Install workspace dependencies from the lockfile"
+set -euo pipefail
+
+pnpm install --frozen-lockfile

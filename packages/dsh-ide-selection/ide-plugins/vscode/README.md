@@ -2,7 +2,7 @@
 
 Shares the active VS Code file and text selections with a local dsh IDE bridge.
 
-This package is the editor side only. Install the built dsh plugin from the repository root as well. The two sides meet through a private loopback discovery file. They do not start each other.
+This package is the editor side only. Install the built dsh plugin from `packages/dsh-ide-selection` as well. The two sides meet through a private loopback discovery file. They do not start each other.
 
 ## Requirements
 
@@ -12,7 +12,7 @@ This package is the editor side only. Install the built dsh plugin from the repo
 
 ## Install
 
-From the repository root:
+From `packages/dsh-ide-selection`:
 
 ```sh
 mise run install
@@ -34,13 +34,13 @@ Set the same absolute `lockDir` on the dsh plugin when you override it. Do not u
 
 ## Development
 
-Build and package commands run from the repository root:
+Build and package commands run from `packages/dsh-ide-selection`:
 
 | Command                 | Action                                                      |
 | ----------------------- | ----------------------------------------------------------- |
 | `mise run compile:vsix` | Build `out/extension.js` for local debugging.               |
 | `mise run package:vsix` | Build the production bundle and write a VSIX under `dist/`. |
 
-Press F5 in the repository root to build the extension and open an Extension Development Host.
+Press F5 in the `dsh-plugins` repository root to build the extension and open an Extension Development Host.
 
 This flow does not publish the extension to the Marketplace.
