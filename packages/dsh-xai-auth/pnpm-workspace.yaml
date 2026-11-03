@@ -1,0 +1,9 @@
+# mise manages pnpm. Keep pnpm from downloading its own copy.
+pmOnFail: ignore
+saveExact: true
+
+allowBuilds:
+  # This preinstall script only prints a no-op message.
+  '@google/genai@2.21.0': false
+  # This postinstall script only prints version-range advice.
+  protobufjs@7.6.6: false

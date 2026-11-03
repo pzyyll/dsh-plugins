@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "xAI SuperGrok",
+    "description": "Signs in with an xAI SuperGrok subscription and serves it as the xai-supergrok model route."
+  }
+}

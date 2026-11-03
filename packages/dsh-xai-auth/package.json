@@ -1,0 +1,83 @@
+{
+  "name": "dsh-xai-auth",
+  "version": "0.1.0",
+  "license": "MIT",
+  "description": "dsh plugin that signs in to an xAI SuperGrok subscription and serves it as the xai-supergrok model route.",
+  "keywords": [
+    "dsh-plugin",
+    "xai",
+    "grok",
+    "supergrok",
+    "xai-supergrok",
+    "oauth",
+    "authentication",
+    "subscription"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./lib/client.js",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "dist",
+    "lib/client.js",
+    "locale",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "packageManager": "pnpm@12.16.1",
+  "engines": {
+    "node": ">=24.9.0",
+    "dsh": ">=0.2.0 <0.3.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-api-gateway",
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-plugin-manager"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-credentials": "*",
+    "@deepseek-ai/dsh-home-paths": "*",
+    "@deepseek-ai/dsh-llm": "*",
+    "@deepseek-ai/dsh-llm-pi-ai": "*",
+    "@deepseek-ai/dsh-typert-protocol": "*",
+    "@earendil-works/pi-ai": "*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-credentials": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-home-paths": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-llm": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-llm-pi-ai": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.1-rc.5",
+    "@earendil-works/pi-ai": "1.1.0",
+    "@rsbuild/core": "2.3.0",
+    "@types/node": "26.6.6",
+    "oxfmt": "0.75.0",
+    "oxlint": "1.90.0",
+    "typescript": "7.0.2"
+  },
+  "scripts": {
+    "build": "rsbuild build",
+    "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint --deny-warnings .",
+    "lint:fix": "oxlint --fix --deny-warnings .",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  }
+}
