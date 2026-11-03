@@ -1,0 +1,29 @@
+{
+  "name": "dsh-ide-selection",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test",
+    "lint": "oxlint --deny-warnings .",
+    "lint:fix": "oxlint --fix .",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest --watch"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "oxfmt": "0.76.0",
+    "oxlint": "1.90.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "vitest": "5.1.0"
+  },
+  "engines": {
+    "node": "^24.9.0",
+    "pnpm": "12.16.1"
+  },
+  "packageManager": "pnpm@12.16.1"
+}
