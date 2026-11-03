@@ -14,7 +14,7 @@ The running dsh release must satisfy `engines.dsh` (`>=0.2.0 <0.3.0`). The profi
 
 ## Sign in
 
-Open **Plugins**, then open **dsh-xai-auth**. The page shows **登录**. Choose it, open the verification page, and enter the code. Approval finishes in the background. The same page shows **退出登录** after the grant is stored. **刷新模型** fetches the catalog again and reloads the model picker. The same list then shows **用量**: the subscription credit meter, period, prepaid balance, on-demand spend, and per-product share from `GET /v1/billing?format=credits`. A successful read is reused for 2 minutes. While a Session's selected model is `xai-supergrok`, the composer dock shows the same remaining percent. Choose it to open the meter.
+Open **Plugins**, then open **dsh-xai-auth**. The page shows **登录**. Choose it, open the verification page, and enter the code. Approval finishes in the background. The same page shows **退出登录** after the grant is stored. **刷新模型** fetches the catalog again and reloads the model picker. The same list then shows **用量**: the subscription credit meter, period, prepaid balance, on-demand spend, and per-product share from `GET /v1/billing?format=credits`. A successful read is reused for 2 minutes. While a Session's selected model is `xai-supergrok`, the composer dock shows the same remaining percent. A blank Session shows that reading in the new-session options row as soon as the model is selected, before the first message. Choose it to open the meter.
 
 This plugin does not import `~/.grok/auth.json` and does not register a chat command.
 
