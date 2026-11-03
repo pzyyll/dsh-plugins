@@ -18,7 +18,7 @@ test('the package exposes the compiled host entry and keeps the client entry', (
   assert.equal(manifest.exports['./client'], './lib/client.js')
   assert.ok(manifest.files.includes('dist'))
   assert.ok(!manifest.files.includes('src'))
-  assert.equal(manifest.scripts.prepare, 'pnpm run build')
+  assert.equal(manifest.scripts.prepare, undefined)
 })
 
 test('the Rsbuild host bundle loads from node_modules with external runtime peers', async (t) => {
