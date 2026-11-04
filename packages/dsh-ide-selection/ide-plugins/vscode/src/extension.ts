@@ -1,6 +1,6 @@
 // ABOUTME: Runs the trusted-workspace VS Code bridge and publishes editor selection changes.
 // ABOUTME: Owns the DSH lock heartbeat and deterministic extension lifecycle cleanup.
-// Adapted from pi-x-ide/ide-plugins/vscode/src/extension.ts under Apache-2.0; diagnostics, terminals, tmux, and status UI omitted.
+// Adapted from pi-x-ide/ide-plugins/vscode/src/extension.ts under Apache-2.0; selection and diagnostic quick fixes enabled.
 import { randomBytes } from "node:crypto";
 import { rm } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
@@ -9,6 +9,7 @@ import { createLock, defaultLockDir, writeLock } from "../../../src/shared/lock.
 import type { IdeLockFile } from "../../../src/shared/protocol.js";
 import { IdeServer } from "../../../src/shared/server.js";
 import { getActiveSelectionSnapshot } from "./selection.js";
+import { registerDiagnosticQuickFixes } from "./diagnostics.js";
 
 const AUTH_TOKEN_BYTES = 32;
 const HEARTBEAT_INTERVAL_MS = 60_000;
@@ -92,6 +93,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     await writeLock(path, initialLock);
     heartbeatTimer = setInterval(queueHeartbeat, HEARTBEAT_INTERVAL_MS);
 
+    registerDiagnosticQuickFixes(context, () => server);
     context.subscriptions.push(
       vscode.window.onDidChangeActiveTextEditor(scheduleSelectionBroadcast),
       vscode.window.onDidChangeTextEditorSelection(scheduleSelectionBroadcast),

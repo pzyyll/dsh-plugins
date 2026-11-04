@@ -2,7 +2,7 @@
 
 ## pi-x-ide
 
-Selection handling, selected-context formatting, and the IDE protocol are adapted from [pi-x-ide](https://github.com/balaenis/pi-x-ide), commit `83c2e6978035363c87a0ebf11144167fcc13a134`.
+Selection handling, diagnostic quick fixes, selected-context formatting, and the IDE protocol are adapted from [pi-x-ide](https://github.com/balaenis/pi-x-ide), commit `83c2e6978035363c87a0ebf11144167fcc13a134`.
 
 The upstream code uses the Apache License, Version 2.0. See [the license copy](LICENSES/pi-x-ide-Apache-2.0.txt). Adapted source files identify the source and changes in their headers.
 

@@ -23,6 +23,20 @@
     "esbuild": "catalog:"
   },
   "contributes": {
+    "commands": [
+      {
+        "command": "dsh-ide-selection.sendDiagnostic",
+        "title": "DSH: Send diagnostic"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "dsh-ide-selection.sendDiagnostic",
+          "when": "false"
+        }
+      ]
+    },
     "configuration": {
       "title": "DSH IDE Selection",
       "properties": {

@@ -41,10 +41,34 @@ export interface IdeLockFile {
   updatedAt: string;
 }
 
+export interface DiagnosticContextLine {
+  line: number;
+  text: string;
+}
+
+export interface IdeDiagnostic {
+  severity: "error" | "warning";
+  message: string;
+  source?: string;
+  code?: string | number;
+  range: { start: Position; end: Position };
+  selectedText: string;
+  contextLines: DiagnosticContextLine[];
+}
+
+export interface DiagnosticContext {
+  source: "vscode";
+  filePath: string;
+  workspaceFolder?: string;
+  documentVersion: number;
+  diagnostics: IdeDiagnostic[];
+}
+
 export interface InitializeParams {
   protocolVersion: number;
   client?: { name?: string; version?: string };
   cwd?: string;
+  capabilities?: { diagnostics?: boolean };
 }
 
 export interface InitializeResult {

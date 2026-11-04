@@ -1,11 +1,14 @@
 // ABOUTME: Follow one IDE lock and report selection changes until cancellation.
 // ABOUTME: Reconnect after discovery or socket failures without retaining selected text.
+import { isAbsolute, relative, sep } from "node:path";
 import WebSocket from "ws";
+import { parseDiagnosticContext } from "./diagnostics.js";
 import { discoverLocks } from "./lock.js";
 import { ideLockId } from "./ide.js";
 import {
   AUTH_HEADER,
   PROTOCOL_VERSION,
+  type DiagnosticContext,
   type EditorSelectionSnapshot,
   type IdeLockFile,
   type Position,
@@ -29,6 +32,7 @@ export interface FollowSelectionOptions {
   retryMs?: number;
   ideId?: string;
   onUpdate: (update: FollowUpdate) => void;
+  onDiagnostic?: (context: DiagnosticContext) => void;
 }
 
 /** Keep the best matching IDE connection current until `signal` aborts. */
@@ -56,7 +60,7 @@ async function follow(options: FollowSelectionOptions, retryMs: number): Promise
       await delay(retryMs, options.signal);
       continue;
     }
-    await watchLock(lock, options.cwd, options.signal, options.onUpdate);
+    await watchLock(lock, options.cwd, options.signal, options.onUpdate, options.onDiagnostic);
     if (options.signal.aborted) return;
     options.onUpdate({ type: "disconnected" });
     await delay(retryMs, options.signal);
@@ -68,6 +72,7 @@ function watchLock(
   cwd: string,
   signal: AbortSignal,
   onUpdate: (update: FollowUpdate) => void,
+  onDiagnostic?: (context: DiagnosticContext) => void,
 ): Promise<void> {
   if (signal.aborted) return Promise.resolve();
   return new Promise((resolve) => {
@@ -102,16 +107,55 @@ function watchLock(
             protocolVersion: PROTOCOL_VERSION,
             client: { name: "dsh-ide-selection", version: "0.1.0" },
             cwd,
+            ...(onDiagnostic ? { capabilities: { diagnostics: true } } : {}),
           },
         }),
       );
     });
     socket.on("message", (raw) => {
-      const update = parseUpdate(raw.toString(), initialized);
+      if (signal.aborted) return;
+      const text = raw.toString();
+      if (initialized && onDiagnostic) {
+        const diagnostic = parseDiagnosticNotification(text, lock, cwd);
+        if (diagnostic) onDiagnostic(diagnostic);
+      }
+      const update = parseUpdate(text, initialized);
       if (update === "initialized") initialized = true;
       else if (update) onUpdate(update);
     });
   });
+}
+
+function inside(base: string, target: string): boolean {
+  const rel = relative(base, target);
+  return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+}
+
+function parseDiagnosticNotification(
+  text: string,
+  lock: IdeLockFile,
+  cwd: string,
+): DiagnosticContext | undefined {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+  if (!isRecord(value) || value.jsonrpc !== "2.0" || value.method !== "diagnostic_requested")
+    return undefined;
+  const context = parseDiagnosticContext(value.params);
+  if (
+    !context ||
+    !isAbsolute(context.filePath) ||
+    !inside(cwd, context.filePath) ||
+    !lock.workspaceFolders.some((folder) => inside(folder, context.filePath)) ||
+    (context.workspaceFolder !== undefined &&
+      (!lock.workspaceFolders.includes(context.workspaceFolder) ||
+        !inside(context.workspaceFolder, context.filePath)))
+  )
+    return undefined;
+  return context;
 }
 
 function parseUpdate(text: string, initialized: boolean): FollowUpdate | "initialized" | undefined {

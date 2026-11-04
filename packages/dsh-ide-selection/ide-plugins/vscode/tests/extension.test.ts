@@ -56,10 +56,19 @@ vi.mock("vscode", () => {
       showWarningMessage: vi.fn((message: string) => {
         state.warningMessages.push(message);
       }),
+      setStatusBarMessage: vi.fn(),
       onDidChangeActiveTextEditor: register,
       onDidChangeTextEditorSelection: register,
       tabGroups: { onDidChangeTabs: register },
     },
+    languages: {
+      registerCodeActionsProvider: vi.fn(() => ({ dispose: vi.fn() })),
+    },
+    commands: {
+      registerCommand: vi.fn(() => ({ dispose: vi.fn() })),
+    },
+    CodeActionKind: { QuickFix: "quickfix" },
+    DiagnosticSeverity: { Error: 0, Warning: 1 },
     workspace: {
       get isTrusted() {
         return state.trusted;

@@ -129,9 +129,9 @@ export function statusFromUpdate(update: FollowUpdate): SelectionStatusEvent {
   };
 }
 
-export interface SelectionStreamDependencies {
+export interface SelectionStreamDependencies<Event = SelectionStatusEvent> {
   authorize: (request: IncomingMessage) => 401 | 403 | undefined;
-  subscribe: (sessionId: string, listener: (event: SelectionStatusEvent) => void) => () => void;
+  subscribe: (sessionId: string, listener: (event: Event) => void) => () => void;
   signal?: AbortSignal;
 }
 
@@ -170,10 +170,10 @@ export function registerSelectionStatus(
 }
 
 /** Write `text/event-stream` updates for `?session=<id>` after authorization. */
-export function handleSelectionStream(
+export function handleSelectionStream<Event = SelectionStatusEvent>(
   request: IncomingMessage,
   response: ServerResponse,
-  dependencies: SelectionStreamDependencies,
+  dependencies: SelectionStreamDependencies<Event>,
 ): void {
   const rejection = dependencies.authorize(request);
   if (rejection) {

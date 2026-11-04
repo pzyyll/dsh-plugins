@@ -18,6 +18,8 @@ import {
   type Translate,
 } from "./targets.js";
 import { localizeRemoteCommandList } from "./command-localization.js";
+import { DiagnosticInput } from "./diagnostics-input.js";
+import type { InputActions } from "./diagnostics-stream.js";
 import { statusButtonText, statusButtonVisible } from "./status-label.js";
 import { IdeStatusControl, STATUS_ORDER, STATUS_PILL_CSS } from "./status-picker.js";
 const STATUS_STYLE_ID = "dsh-ide-selection-status";
@@ -154,11 +156,16 @@ export function SelectionStatus({ sessionId }: { sessionId?: string }): ReactEle
   });
 }
 
+interface SlotComponentProps {
+  sessionId?: string;
+  inputActions?: InputActions;
+}
+
 interface ClientSlots {
   inject: (name: string, register: () => () => void) => void;
   register: (
     options: { name: string; id: string; order: number },
-    component: (props: { sessionId?: string }) => ReactElement | null,
+    component: (props: SlotComponentProps) => ReactElement | null,
   ) => () => void;
 }
 
@@ -212,6 +219,17 @@ export function apply(ctx: ClientContext): void {
       ctx.slots.register({ name, id: "ide-selection", order: STATUS_ORDER }, SelectionStatus),
     );
   }
+  ctx.slots.inject("conversation.composer.dock", () =>
+    ctx.slots.register(
+      { name: "conversation.composer.dock", id: "ide-diagnostics-input", order: STATUS_ORDER + 1 },
+      (props) =>
+        createElement(DiagnosticInput, {
+          ...props,
+          key: props.sessionId,
+          t: (key) => activeTranslate()(key),
+        }),
+    ),
+  );
   ctx.inject(["locale"], (scope) => {
     const locale = scope.locale;
     if (!locale) return;

@@ -5,9 +5,11 @@ import { createServer, type IncomingMessage, type Server } from "node:http";
 import { timingSafeEqual } from "node:crypto";
 import { isAbsolute, relative, sep } from "node:path";
 import WebSocket, { WebSocketServer } from "ws";
+import { parseDiagnosticContext } from "./diagnostics.js";
 import {
   AUTH_HEADER,
   PROTOCOL_VERSION,
+  type DiagnosticContext,
   type EditorSelectionSnapshot,
   type InitializeResult,
 } from "./protocol.js";
@@ -32,7 +34,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isRequest(
   value: unknown,
-): value is { jsonrpc: "2.0"; id: string | number; method: string } {
+): value is { jsonrpc: "2.0"; id: string | number; method: string; params?: unknown } {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   if (!isRecord(value)) return false;
   const request = value;
@@ -48,6 +50,7 @@ export class IdeServer {
   private http: Server | undefined;
   private websocket: WebSocketServer | undefined;
   private readonly clients = new Set<WebSocket>();
+  private readonly diagnosticClients = new Map<WebSocket, string>();
   private started = false;
 
   constructor(
@@ -64,8 +67,12 @@ export class IdeServer {
     this.http.on("upgrade", (request, socket, head) => this.handleUpgrade(request, socket, head));
     this.websocket.on("connection", (socket) => {
       this.clients.add(socket);
-      socket.once("close", () => this.clients.delete(socket));
-      socket.once("error", () => this.clients.delete(socket));
+      const forget = () => {
+        this.clients.delete(socket);
+        this.diagnosticClients.delete(socket);
+      };
+      socket.once("close", forget);
+      socket.once("error", forget);
       socket.on("message", (raw) => {
         try {
           this.handleMessage(socket, raw.toString());
@@ -90,6 +97,27 @@ export class IdeServer {
   get port(): number {
     const address = this.http?.address();
     return address && typeof address !== "string" ? address.port : 0;
+  }
+
+  get diagnosticClientCount(): number {
+    return [...this.diagnosticClients.keys()].filter(
+      (client) => client.readyState === WebSocket.OPEN,
+    ).length;
+  }
+
+  /** Forward an explicit action to one matching composer, never status or polling clients. */
+  sendDiagnostics(context: DiagnosticContext): boolean {
+    if (!parseDiagnosticContext(context) || !isAbsolute(context.filePath)) return false;
+    for (const [client, cwd] of this.diagnosticClients) {
+      if (client.readyState !== WebSocket.OPEN || !inside(cwd, context.filePath)) continue;
+      this.send(client, {
+        jsonrpc: "2.0",
+        method: "diagnostic_requested",
+        params: context,
+      });
+      return true;
+    }
+    return false;
   }
 
   broadcast(snapshot: EditorSelectionSnapshot | undefined): void {
@@ -123,6 +151,7 @@ export class IdeServer {
     this.started = false;
     for (const client of websocket?.clients ?? this.clients) client.terminate();
     this.clients.clear();
+    this.diagnosticClients.clear();
     await Promise.all([
       new Promise<void>((resolve) => websocket?.close(() => resolve()) ?? resolve()),
       new Promise<void>((resolve) => http?.close(() => resolve()) ?? resolve()),
@@ -172,6 +201,16 @@ export class IdeServer {
       socket.close(1011, "Selection provider failed");
       return;
     }
+    const params = parsed.params;
+    if (
+      isRecord(params) &&
+      isRecord(params.capabilities) &&
+      params.capabilities.diagnostics === true &&
+      typeof params.cwd === "string" &&
+      isAbsolute(params.cwd) &&
+      !params.cwd.includes("\0")
+    )
+      this.diagnosticClients.set(socket, params.cwd);
     this.broadcastTo(socket, this.selectionNotification(snapshot));
   }
 
@@ -217,6 +256,11 @@ export class IdeServer {
     const message = error instanceof Error ? error.message : String(error);
     process.emitWarning(`DSH IDE Selection ${label}: ${message}`);
   }
+}
+
+function inside(base: string, target: string): boolean {
+  const rel = relative(base, target);
+  return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
 }
 
 function formatRangeMention(snapshot: EditorSelectionSnapshot): string {

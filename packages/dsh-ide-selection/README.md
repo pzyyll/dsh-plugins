@@ -53,6 +53,18 @@ The Web UI composer always shows the IDE status:
 
 When VS Code is disconnected, the status remains visible with a dimmed icon; when connected, the icon has normal brightness. `N` is the number of selected lines. Hover the status to see the file and line range, such as `#L10-L20`. Before the first message, the same status appears beside the workspace and preset controls, and it does not show the selected text. The status and the `/select-ide` description follow the Web UI language.
 
+### Send a diagnostic
+
+1. Open a dsh Web session for the VS Code workspace. Keep its composer open.
+2. In VS Code, put the cursor on an error or warning. Open **Quick Fix** (`Ctrl+.` on Windows/Linux, `Cmd+.` on macOS).
+3. Select **DSH: Send diagnostic**.
+
+The diagnostic, file path, document version, and nearby code are inserted at the dsh input cursor. Existing text and reference chips outside the input selection stay unchanged. Review the draft, then send it yourself. This action does not start an agent turn. Do not send code that contains secrets.
+
+Diagnostics follow the session's IDE choice. Disabling IDE integration stops diagnostic delivery too. If several matching composers are open, the first connected composer receives the action; delivery is not broadcast. Close other matching composers to choose the receiver. Diagnostics are not queued or replayed after a reconnect. If the input is locked, the Web UI keeps the text in a retry panel.
+
+Update both the dsh plugin and the VS Code extension to use this feature. It works in the Web UI, not a headless session.
+
 ### Choose an IDE
 
 Click the status button or run `/select-ide` to open the picker. The status popup shows all reachable VS Code windows and folders; entries outside the dsh workspace are visible but disabled. `/select-ide` lists only selectable matching windows, plus **Automatic (workspace match)** and **Disable IDE integration**. Pick an option to apply it to this session immediately. Closing the list keeps the current choice.
