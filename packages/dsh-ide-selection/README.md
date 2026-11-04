@@ -6,7 +6,10 @@ Shows the current VS Code selection in dsh, and includes it when you send a mess
 
 Install the dsh plugin and the VS Code extension. One does not start the other.
 
-**Requirements:** dsh `0.2.1-rc.5`, Node.js 24.9 or later in the 24.x series, and VS Code 1.144 or later.
+<img width="1499" height="807" alt="image" src="https://github.com/user-attachments/assets/b3183386-b595-4414-95d7-ce0051d5b1b2" />
+
+<img width="1497" height="430" alt="image" src="https://github.com/user-attachments/assets/c9fecce4-821a-4fcf-b0ba-ee8b3272ceb3" />
+
 
 ## Install
 
