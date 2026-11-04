@@ -1,6 +1,6 @@
 {
   "name": "@balaenis/dsh-xai-auth",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "dsh plugin that signs in to an xAI SuperGrok subscription and serves it as the xai-supergrok model route.",
   "keywords": [
     "authentication",
