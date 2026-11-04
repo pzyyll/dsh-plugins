@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/pzyyll/dsh-plugins/compare/dsh-ide-selection-v0.2.0...dsh-ide-selection-v0.3.0) (2026-11-04)
+
+
+### Features
+
+* **dsh-ide-selection:** add workspace-scoped IDE picker ([f793683](https://github.com/pzyyll/dsh-plugins/commit/f793683fdeaf8d36d75c414b9cd97e1026027970))
+
 ## [0.2.0](https://github.com/pzyyll/dsh-plugins/compare/dsh-ide-selection-v0.1.2...dsh-ide-selection-v0.2.0) (2026-11-04)
 
 
