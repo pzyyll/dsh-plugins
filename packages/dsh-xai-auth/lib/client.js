@@ -2,7 +2,7 @@
 // ABOUTME: The browser half uses the dsh web controls and never imports a Grok session file.
 
 window.__ModuleLoader__.load({
-  id: 'dsh-xai-auth',
+  id: '@balaenis/dsh-xai-auth',
   factory: (require) => {
     const module = { exports: {} }
     const exports = module.exports
@@ -724,7 +724,7 @@ window.__ModuleLoader__.load({
     }
 
     function isThisBundle(subject) {
-      return subject?.kind === 'bundle' && subject.pkg?.name === 'dsh-xai-auth'
+      return subject?.kind === 'bundle' && subject.pkg?.name === '@balaenis/dsh-xai-auth'
     }
 
     function apply(ctx) {

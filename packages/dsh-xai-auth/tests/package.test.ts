@@ -21,6 +21,15 @@ test('the package exposes the compiled host entry and keeps the client entry', (
   assert.equal(manifest.scripts?.prepare, undefined)
 })
 
+test('the bundle patch loads the published package name', () => {
+  const manifest = JSON.parse(readFileSync(join(PROJECT_ROOT, 'package.json'), 'utf8'))
+  const patch = readFileSync(join(PROJECT_ROOT, 'cordis.patch.yml'), 'utf8')
+  const specifier = patch.match(/^\s+name:\s+["']?([^"'\r\n]+)["']?$/m)?.[1]
+
+  assert.equal(specifier, manifest.name)
+  assert.equal(import.meta.resolve(specifier!), pathToFileURL(join(PROJECT_ROOT, HOST_ENTRY)).href)
+})
+
 test('the Rsbuild host bundle loads from node_modules with external runtime peers', async (t) => {
   const temp = mkdtempSync(join(PROJECT_ROOT, 'node_modules', '.dsh-xai-build-'))
   t.after(() => rmSync(temp, { recursive: true, force: true }))
