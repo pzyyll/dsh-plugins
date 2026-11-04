@@ -4,7 +4,7 @@
 import { isAbsolute, relative, sep } from "node:path";
 import { performance } from "node:perf_hooks";
 import WebSocket from "ws";
-import { discoverLocks, workspaceMatchDepth } from "./lock.js";
+import { discoverLocks, workspaceMatchDistance } from "./lock.js";
 import { ideLockId, type AvailableIde } from "./ide.js";
 import {
   AUTH_HEADER,
@@ -225,13 +225,7 @@ export async function readSelection(
     options,
     () => undefined,
     async (signal, deadline) => {
-      const locks = await discoverLocks(
-        options.lockDir,
-        options.cwd,
-        options.maxAgeMs,
-        signal,
-        options.ideId === undefined ? "workspace" : "all",
-      );
+      const locks = await discoverLocks(options.lockDir, options.cwd, options.maxAgeMs, signal);
       for (const lock of locks) {
         if (options.ideId !== undefined && ideLockId(lock) !== options.ideId) continue;
         if (signal.aborted) return undefined;
@@ -249,7 +243,7 @@ export async function readSelection(
 /** Authenticated IDEs plus the one automatic selection would read for this workspace. */
 export interface IdeTargetList {
   readonly ides: readonly AvailableIde[];
-  /** Present when a reachable IDE contains the Session workspace. */
+  /** Present when a reachable IDE folder is equal to or inside the Session workspace. */
   readonly automaticId?: string;
 }
 
@@ -259,10 +253,7 @@ export async function listIdeTargets(options: ReadSelectionOptions): Promise<Ide
   let locks: IdeLockFile[] = [];
   const collected = (): IdeTargetList => {
     const ides = rows.filter((ide): ide is AvailableIde => ide !== undefined);
-    const automaticIndex = locks.findIndex(
-      (lock, index) => rows[index] !== undefined && workspaceMatchDepth(lock, options.cwd) >= 0,
-    );
-    const automatic = automaticIndex < 0 ? undefined : rows[automaticIndex];
+    const automatic = ides.find((ide) => ide.workspaceMatched);
     return { ides, ...(automatic === undefined ? {} : { automaticId: automatic.id }) };
   };
   return withDeadline<IdeTargetList>(options, collected, async (signal, deadline) => {
@@ -279,6 +270,7 @@ export async function listIdeTargets(options: ReadSelectionOptions): Promise<Ide
           host: lock.host,
           port: lock.port,
           workspaceFolders: [...lock.workspaceFolders],
+          workspaceMatched: Number.isFinite(workspaceMatchDistance(lock, options.cwd)),
         };
       }),
     );

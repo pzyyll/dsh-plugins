@@ -45,7 +45,6 @@ async function follow(options: FollowSelectionOptions, retryMs: number): Promise
       options.cwd,
       options.maxAgeMs,
       options.signal,
-      options.ideId === undefined ? "workspace" : "all",
     ).catch(() => []);
     const lock =
       options.ideId === undefined

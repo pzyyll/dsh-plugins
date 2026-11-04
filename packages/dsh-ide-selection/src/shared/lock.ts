@@ -122,22 +122,23 @@ function isLock(value: unknown): value is IdeLockFile {
 }
 
 /**
- * Rank how closely one IDE workspace contains the Session's workspace.
+ * Rank IDE folders equal to or inside the Session workspace, nearest first.
  * @param lock - discovered IDE lock file.
  * @param cwd - Session workspace directory.
- * @returns the deepest containing workspace length, or -1 when none contains `cwd`.
+ * @returns the fewest child-directory segments, or Infinity when no folder matches.
  */
-export function workspaceMatchDepth(lock: IdeLockFile, cwd: string): number {
-  const target = process.platform === "win32" ? cwd.toLowerCase() : cwd;
-  let deepest = -1;
+export function workspaceMatchDistance(lock: IdeLockFile, cwd: string): number {
+  const base = process.platform === "win32" ? cwd.toLowerCase() : cwd;
+  let nearest = Infinity;
   for (const folder of lock.workspaceFolders) {
-    const base = process.platform === "win32" ? folder.toLowerCase() : folder;
+    const target = process.platform === "win32" ? folder.toLowerCase() : folder;
     const rel = relative(base, target);
-    if (rel === "" || (!rel.startsWith(`..${sep}`) && rel !== ".." && !isAbsolute(rel))) {
-      deepest = Math.max(deepest, base.length);
+    if (rel === "") return 0;
+    if (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)) {
+      nearest = Math.min(nearest, rel.split(sep).length);
     }
   }
-  return deepest;
+  return nearest;
 }
 
 const MAX_LOCK_FILE_BYTES = 64 * 1024;
@@ -193,7 +194,7 @@ export async function discoverLocks(
     return [];
   }
 
-  const found: Array<{ lock: IdeLockFile; depth: number; freshness: number }> = [];
+  const found: Array<{ lock: IdeLockFile; distance: number; freshness: number }> = [];
   try {
     for await (const entry of directory) {
       if (signal?.aborted) return [];
@@ -207,9 +208,9 @@ export async function discoverLocks(
         const updated = Date.parse(parsed.updatedAt);
         const freshness = Math.min(updated, file.mtimeMs);
         if (now - freshness > maxAgeMs) continue;
-        const depth = workspaceMatchDepth(parsed, cwd);
-        if (depth < 0 && scope === "workspace") continue;
-        found.push({ lock: parsed, depth, freshness });
+        const distance = workspaceMatchDistance(parsed, cwd);
+        if (!Number.isFinite(distance) && scope === "workspace") continue;
+        found.push({ lock: parsed, distance, freshness });
       } catch {
         // Ignore malformed lock JSON.
       }
@@ -220,6 +221,6 @@ export async function discoverLocks(
     await directory.close().catch(() => undefined);
   }
   if (signal?.aborted) return [];
-  found.sort((a, b) => b.depth - a.depth || b.freshness - a.freshness);
+  found.sort((a, b) => a.distance - b.distance || b.freshness - a.freshness);
   return found.map(({ lock }) => lock);
 }

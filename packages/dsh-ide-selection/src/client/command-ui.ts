@@ -8,6 +8,7 @@ export interface SelectOption {
   readonly detail?: string;
   readonly group?: { readonly name: string; readonly label: string };
   readonly active?: boolean;
+  readonly disabled?: boolean;
 }
 
 /** The session projection every command callback receives. */

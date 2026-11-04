@@ -67,28 +67,49 @@ describe("manual IDE targets", () => {
       ideLockId(local.lock),
       ideLockId(remoteWorkspace.lock),
     ]);
+    expect(available[0]).toMatchObject({
+      id: ideLockId(local.lock),
+      workspaceFolders: ["/work/app"],
+      workspaceMatched: true,
+    });
     expect(available[1]).toMatchObject({
+      id: ideLockId(remoteWorkspace.lock),
       name: "Visual Studio Code",
       workspaceFolders: ["/other/project"],
+      workspaceMatched: false,
     });
     expect(JSON.stringify(available)).not.toContain("secret");
     expect(JSON.stringify(available)).not.toContain(local.lock.authToken);
   });
 
-  it("uses the explicit IDE even outside the session workspace and reads a fresh snapshot", async () => {
+  it("uses an explicit descendant IDE and reads a fresh snapshot", async () => {
     const options = await setup();
     const local = await addIde(options.lockDir, options.cwd, "local");
-    const manual = await addIde(options.lockDir, "/other/project", "manual");
+    const manual = await addIde(options.lockDir, "/work/app/other", "manual");
     expect(await readSelection(options)).toEqual(expect.objectContaining(local.snapshot));
     expect(await readSelection({ ...options, ideId: ideLockId(manual.lock) })).toEqual(
       expect.objectContaining(manual.snapshot),
     );
   });
 
+  it("rejects a mismatching manual read while retaining it in the all-IDE list", async () => {
+    const options = await setup();
+    const local = await addIde(options.lockDir, options.cwd, "local");
+    const remote = await addIde(options.lockDir, "/other/project", "remote");
+
+    expect(await readSelection({ ...options, ideId: ideLockId(remote.lock) })).toBeUndefined();
+    const available = await listAvailableIde(options);
+    expect(available.map((ide) => ide.id)).toEqual([ideLockId(local.lock), ideLockId(remote.lock)]);
+    expect(available.find((ide) => ide.id === ideLockId(remote.lock))).toMatchObject({
+      workspaceFolders: ["/other/project"],
+      workspaceMatched: false,
+    });
+  });
+
   it("does not fall back to another IDE when the explicit target is unavailable", async () => {
     const options = await setup();
     await addIde(options.lockDir, options.cwd, "local");
-    const manual = await addIde(options.lockDir, "/other/project", "manual");
+    const manual = await addIde(options.lockDir, "/work/app/other", "manual");
     await manual.server.stop();
     expect(await readSelection({ ...options, ideId: ideLockId(manual.lock) })).toBeUndefined();
   });

@@ -21,6 +21,7 @@ const REACHABLE_IDE: IdeTargetRow = {
   host: "127.0.0.1",
   port: 51_234,
   workspaceFolders: ["/work/app"],
+  workspaceMatched: true,
 };
 
 function overview(
@@ -46,7 +47,7 @@ describe("targetOptions", () => {
     expect(rows[0]).toMatchObject({
       label: "Visual Studio Code",
       detail: "/work/app · 127.0.0.1:51234",
-      group: { name: "ides", label: "Connected IDEs" },
+      group: { name: "ides", label: "Available IDEs" },
     });
     expect(rows[1]).toMatchObject({
       label: "Automatic (workspace match)",
@@ -54,6 +55,35 @@ describe("targetOptions", () => {
       group: { name: "mode", label: "This session" },
     });
     expect(rows[2]).toMatchObject({ label: "Disable IDE integration" });
+  });
+
+  it("shows nonmatching reachable IDEs disabled while keeping matching and mode rows selectable", () => {
+    const rows = targetOptions(
+      overview({
+        ides: [
+          REACHABLE_IDE,
+          {
+            id: "ide-outside",
+            name: "Another IDE",
+            host: "remote.example",
+            port: 51_235,
+            workspaceFolders: ["/work/other"],
+            workspaceMatched: false,
+          },
+        ],
+      }),
+      fallbackText,
+    );
+
+    expect(rows.map((row) => row.id)).toEqual(["ide-one", "ide-outside", "auto", "off"]);
+    expect(rows[0]).toMatchObject({ detail: "/work/app · 127.0.0.1:51234" });
+    expect(rows[0]).not.toHaveProperty("disabled");
+    expect(rows[1]).toMatchObject({
+      disabled: true,
+      detail: "/work/other · remote.example:51235 · Outside this session's workspace",
+    });
+    expect(rows.find((row) => row.id === "auto")?.disabled).toBeUndefined();
+    expect(rows.find((row) => row.id === "off")?.disabled).toBeUndefined();
   });
 
   it("marks only the row that matches the session's current target", () => {
@@ -81,13 +111,28 @@ describe("targetOptions", () => {
             host: "127.0.0.1",
             port: 1,
             workspaceFolders: [],
+            workspaceMatched: false,
           },
         ],
       }),
       fallbackText,
     );
 
-    expect(rows[0]?.detail).toBe("unknown workspace · 127.0.0.1:1");
+    expect(rows[0]?.detail).toBe(
+      "unknown workspace · 127.0.0.1:1 · Outside this session's workspace",
+    );
+    expect(rows[0]?.disabled).toBe(true);
+    expect(rows[1]?.detail).toBe("No workspace-matching IDE is reachable");
+  });
+
+  it("does not show a disabled stale automatic target", () => {
+    const rows = targetOptions(
+      overview({
+        ides: [{ ...REACHABLE_IDE, workspaceMatched: false }],
+      }),
+      fallbackText,
+    );
+
     expect(rows[1]?.detail).toBe("No workspace-matching IDE is reachable");
   });
 
@@ -153,6 +198,29 @@ describe("host requests", () => {
       { kind: "auto" },
       { kind: "off" },
     ]);
+  });
+
+  it("cancels an in-flight choice when its picker closes", async () => {
+    const controller = new AbortController();
+    const fetchMock = vi.fn(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), {
+            once: true,
+          });
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const choice = applyTargetChoice("s", "ide-one", fallbackText, controller.signal);
+    const rejected = expect(choice).rejects.toThrow("picker closed");
+    controller.abort(new Error("picker closed"));
+
+    await rejected;
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${TARGET_SELECT_URL}?session=s`,
+      expect.objectContaining({ signal: controller.signal }),
+    );
   });
 
   it("surfaces the host explanation when a choice is refused", async () => {
