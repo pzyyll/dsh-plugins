@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/pzyyll/dsh-plugins/compare/dsh-ide-selection-v0.1.2...dsh-ide-selection-v0.2.0) (2026-11-04)
+
+
+### Features
+
+* **dsh-ide-selection:** localize status pill and command copy ([ca72ed7](https://github.com/pzyyll/dsh-plugins/commit/ca72ed70639fa03e7a64099ab86ab5fbde8c06d2))
+
 ## [0.1.2](https://github.com/pzyyll/dsh-plugins/compare/dsh-ide-selection-v0.1.1...dsh-ide-selection-v0.1.2) (2026-11-04)
 
 
