@@ -1,0 +1,10 @@
+{
+  "ignorePatterns": [
+    "**/CHANGELOG.md",
+    "**/dist/**",
+    "**/coverage/**",
+    "**/node_modules/**",
+    ".worktrees/**",
+    "pnpm-lock.yaml"
+  ]
+}
