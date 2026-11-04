@@ -51,12 +51,14 @@ vi.mock("vscode", () => {
     window: {
       createOutputChannel: vi.fn(() => ({
         appendLine: (line: string) => state.outputLines.push(line),
+        show: vi.fn(),
         dispose: vi.fn(),
       })),
       showWarningMessage: vi.fn((message: string) => {
         state.warningMessages.push(message);
       }),
       setStatusBarMessage: vi.fn(),
+      createStatusBarItem: vi.fn(() => ({ show: vi.fn(), dispose: vi.fn() })),
       onDidChangeActiveTextEditor: register,
       onDidChangeTextEditorSelection: register,
       tabGroups: { onDidChangeTabs: register },
@@ -67,6 +69,7 @@ vi.mock("vscode", () => {
     commands: {
       registerCommand: vi.fn(() => ({ dispose: vi.fn() })),
     },
+    StatusBarAlignment: { Right: 2 },
     CodeActionKind: { QuickFix: "quickfix" },
     DiagnosticSeverity: { Error: 0, Warning: 1 },
     workspace: {

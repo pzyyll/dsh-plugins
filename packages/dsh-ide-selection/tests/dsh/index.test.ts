@@ -5,7 +5,7 @@ import { createServer, type Server, type Socket } from "node:net";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Context, type Fiber, type Plugin } from "@deepseek-ai/cordis";
 import { AgentRegistry, type Agent, type PreStepDecision } from "@deepseek-ai/dsh-agent";
 import { createUserMessage } from "@deepseek-ai/dsh-llm";
@@ -150,6 +150,7 @@ async function createHarness(
     },
     set selected(value: EditorSelectionSnapshot | undefined) {
       selected = value;
+      server.broadcast(value);
     },
     getSelectionCalls: () => selectionCalls,
     async dispatch(input = {}) {
@@ -215,18 +216,21 @@ describe("IDE selection context plugin", () => {
     expect(JSON.stringify(selectedMessage?.content)).toContain("const selected = 1;");
   });
 
-  it("reads a fresh snapshot for each eligible turn, including unchanged selections", async () => {
+  it("reuses the live connection across turns and consumes selection notifications", async () => {
     const harness = await createHarness();
     const first = await harness.dispatch({ turn: 1 });
+    const unchanged = await harness.dispatch({ turn: 2 });
+    expect(JSON.stringify(first)).toContain("const selected = 1;");
+    expect(JSON.stringify(unchanged)).toContain("const selected = 1;");
     harness.selected = {
       ...initialSnapshot,
       ranges: initialSnapshot.ranges.map((range) => ({ ...range, text: "const selected = 2;" })),
     };
-    const second = await harness.dispatch({ turn: 2 });
-
-    expect(harness.getSelectionCalls()).toBe(2);
-    expect(JSON.stringify(first)).toContain("const selected = 1;");
-    expect(JSON.stringify(second)).toContain("const selected = 2;");
+    await vi.waitFor(async () => {
+      const changed = await harness.dispatch({ turn: 3 });
+      expect(JSON.stringify(changed)).toContain("const selected = 2;");
+    });
+    expect(harness.getSelectionCalls()).toBe(1);
   });
 
   it.each([
@@ -278,7 +282,7 @@ describe("IDE selection context plugin", () => {
     expect((decision as { messages: unknown[] }).messages).toHaveLength(1);
   });
 
-  it("aborts an active one-shot read when the plugin is disposed", async () => {
+  it("aborts an initial connection wait when the plugin is disposed", async () => {
     let connected!: () => void;
     let disconnected!: () => void;
     const connectionAccepted = new Promise<void>((resolve) => (connected = resolve));

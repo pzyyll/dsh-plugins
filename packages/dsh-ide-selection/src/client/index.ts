@@ -19,7 +19,9 @@ import {
 } from "./targets.js";
 import { localizeRemoteCommandList } from "./command-localization.js";
 import { DiagnosticInput } from "./diagnostics-input.js";
+import { subscribeIdeEvents } from "./ide-stream.js";
 import type { InputActions } from "./diagnostics-stream.js";
+import { sendDiagnosticFix, type DiagnosticFixSessions } from "./diagnostic-fix.js";
 import { statusButtonText, statusButtonVisible } from "./status-label.js";
 import { IdeStatusControl, STATUS_ORDER, STATUS_PILL_CSS } from "./status-picker.js";
 const STATUS_STYLE_ID = "dsh-ide-selection-status";
@@ -69,20 +71,15 @@ interface SelectionStatusEvent {
   detail?: string;
 }
 
-interface StatusStream {
-  onmessage: ((event: { data: string }) => void) | null;
-  onerror: (() => void) | null;
-  close: () => void;
-}
-
-function openStatusStream(sessionId: string): StatusStream {
-  const browser = globalThis as { EventSource?: new (url: string) => StatusStream };
-  if (!browser.EventSource) throw new Error("EventSource is unavailable");
-  return new browser.EventSource(`/ide-selection/events?session=${encodeURIComponent(sessionId)}`);
-}
-
 function isStatusEvent(value: unknown): value is SelectionStatusEvent {
-  if (typeof value !== "object" || value === null || !("connected" in value)) return false;
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("type" in value) ||
+    value.type !== "status" ||
+    !("connected" in value)
+  )
+    return false;
   const event = value as {
     connected?: unknown;
     disabled?: unknown;
@@ -120,26 +117,19 @@ export function SelectionStatus({ sessionId }: { sessionId?: string }): ReactEle
   useEffect(() => {
     if (!sessionId) return undefined;
     const id = sessionId;
-    const stream = openStatusStream(id);
-    stream.onerror = () => {
-      setFailedSessionId(id);
-      setStatus({ sessionId: id, event: { connected: false } });
-    };
-    stream.onmessage = (message) => {
-      try {
-        const parsed: unknown = JSON.parse(message.data);
-        if (!isStatusEvent(parsed)) return;
+    return subscribeIdeEvents(
+      id,
+      "status",
+      (event) => {
+        if (!isStatusEvent(event)) return;
         setFailedSessionId((current) => (current === id ? undefined : current));
-        setStatus({ sessionId: id, event: parsed });
-      } catch {
-        // Ignore a malformed event and keep the last accepted status.
-      }
-    };
-    return () => {
-      stream.onmessage = null;
-      stream.onerror = null;
-      stream.close();
-    };
+        setStatus({ sessionId: id, event });
+      },
+      () => {
+        setFailedSessionId(id);
+        setStatus({ sessionId: id, event: { connected: false } });
+      },
+    );
   }, [sessionId]);
   const t = useMemo(() => translateAt(localeRevision), [localeRevision]);
   const event = status?.sessionId === sessionId ? status?.event : undefined;
@@ -159,6 +149,7 @@ export function SelectionStatus({ sessionId }: { sessionId?: string }): ReactEle
 interface SlotComponentProps {
   sessionId?: string;
   inputActions?: InputActions;
+  sendFix?: (sessionId: string, text: string, signal: AbortSignal) => Promise<void>;
 }
 
 interface ClientSlots {
@@ -219,17 +210,29 @@ export function apply(ctx: ClientContext): void {
       ctx.slots.register({ name, id: "ide-selection", order: STATUS_ORDER }, SelectionStatus),
     );
   }
-  ctx.slots.inject("conversation.composer.dock", () =>
-    ctx.slots.register(
-      { name: "conversation.composer.dock", id: "ide-diagnostics-input", order: STATUS_ORDER + 1 },
-      (props) =>
-        createElement(DiagnosticInput, {
-          ...props,
-          key: props.sessionId,
-          t: (key) => activeTranslate()(key),
-        }),
-    ),
-  );
+  ctx.inject(["sessions"], (scope) => {
+    const sessions = scope.get("sessions") as DiagnosticFixSessions | undefined;
+    if (!sessions) return;
+    const sendFix = (sessionId: string, text: string, signal: AbortSignal) =>
+      sendDiagnosticFix(sessions, sessionId, text, signal);
+    // The shared input overlay also mounts in the blank-session Hero; the dock does not.
+    scope.slots.inject("conversation.input.overlay", () =>
+      scope.slots.register(
+        {
+          name: "conversation.input.overlay",
+          id: "ide-diagnostics-input",
+          order: STATUS_ORDER + 1,
+        },
+        (props) =>
+          createElement(DiagnosticInput, {
+            ...props,
+            sendFix,
+            key: props.sessionId,
+            t: (key) => activeTranslate()(key),
+          }),
+      ),
+    );
+  });
   ctx.inject(["locale"], (scope) => {
     const locale = scope.locale;
     if (!locale) return;

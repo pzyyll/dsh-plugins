@@ -1,12 +1,13 @@
-// ABOUTME: Stream connected IDE selection status to one browser session.
-// ABOUTME: Share watches by workspace and IDE target without sending selected text.
+// ABOUTME: Stream classified IDE status and actions through one authenticated browser connection.
+// ABOUTME: Subscribe to the shared Host transport and keep selected text out of status events.
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Context } from "@deepseek-ai/cordis";
 import type {} from "@deepseek-ai/dsh-host-webserver";
 import type {} from "@deepseek-ai/dsh-client-connection";
 import { SessionId } from "@deepseek-ai/dsh-session";
 import { selectionStatusText } from "../shared/status.js";
-import { followSelection, type FollowUpdate } from "../shared/watch.js";
+import type { FollowUpdate } from "../shared/watch.js";
+import { diagnosticInputEvent, type DiagnosticInputEvent } from "./diagnostics-stream.js";
 import type { IdeConnections } from "./ide-connections.js";
 
 export const SELECTION_EVENTS_PATH = "/ide-selection/events";
@@ -15,107 +16,12 @@ export type SelectionStatusEvent =
   | { connected: false; disabled?: true }
   | { connected: true; text: string; lines: number; detail?: string };
 
+export type IdeEvent = ({ type: "status" } & SelectionStatusEvent) | DiagnosticInputEvent;
+
 export interface SelectionHubOptions {
   lockDir: string;
   maxAgeMs: number;
   signal: AbortSignal;
-}
-
-/** Fan out one live IDE watch to every browser subscribed to the same workspace. */
-export class SelectionHub {
-  private readonly groups = new Map<string, SelectionGroup>();
-
-  constructor(private readonly options: SelectionHubOptions) {
-    options.signal.addEventListener(
-      "abort",
-      () => {
-        for (const group of this.groups.values()) group.stop();
-        this.groups.clear();
-      },
-      { once: true },
-    );
-  }
-
-  subscribe(
-    cwd: string,
-    listener: (event: SelectionStatusEvent) => void,
-    ideId?: string,
-  ): () => void {
-    if (this.options.signal.aborted) return () => undefined;
-    const key = JSON.stringify([cwd, ideId]);
-    let group = this.groups.get(key);
-    if (!group) {
-      group = new SelectionGroup(cwd, this.options, () => this.groups.delete(key), ideId);
-      this.groups.set(key, group);
-    }
-    return group.add(listener);
-  }
-
-  subscribeSession(
-    sessionId: SessionId,
-    cwd: string,
-    connections: IdeConnections,
-    listener: (event: SelectionStatusEvent) => void,
-  ): () => void {
-    let stopWatch = () => {};
-    const stopTarget = connections.subscribe(sessionId, (target) => {
-      stopWatch();
-      const disabled = target.kind === "off";
-      listener(disabled ? { connected: false, disabled: true } : { connected: false });
-      stopWatch = disabled
-        ? () => {}
-        : this.subscribe(cwd, listener, target.kind === "manual" ? target.ideId : undefined);
-    });
-    return () => {
-      stopTarget();
-      stopWatch();
-    };
-  }
-}
-
-class SelectionGroup {
-  private readonly listeners = new Set<(event: SelectionStatusEvent) => void>();
-  private readonly controller = new AbortController();
-  private current: SelectionStatusEvent = { connected: false };
-
-  constructor(
-    cwd: string,
-    options: SelectionHubOptions,
-    private readonly onEmpty: () => void,
-    ideId?: string,
-  ) {
-    followSelection({
-      cwd,
-      ...(ideId === undefined ? {} : { ideId }),
-      lockDir: options.lockDir,
-      maxAgeMs: options.maxAgeMs,
-      signal: options.signal.aborted
-        ? AbortSignal.abort()
-        : AbortSignal.any([options.signal, this.controller.signal]),
-      onUpdate: (update) => this.publish(statusFromUpdate(update)),
-    });
-  }
-
-  add(listener: (event: SelectionStatusEvent) => void): () => void {
-    this.listeners.add(listener);
-    listener(this.current);
-    return () => {
-      this.listeners.delete(listener);
-      if (this.listeners.size === 0) this.stop();
-    };
-  }
-
-  stop(): void {
-    this.controller.abort();
-    this.listeners.clear();
-    this.onEmpty();
-  }
-
-  private publish(event: SelectionStatusEvent): void {
-    if (JSON.stringify(event) === JSON.stringify(this.current)) return;
-    this.current = event;
-    for (const listener of this.listeners) listener(event);
-  }
 }
 
 export function statusFromUpdate(update: FollowUpdate): SelectionStatusEvent {
@@ -135,32 +41,61 @@ export interface SelectionStreamDependencies<Event = SelectionStatusEvent> {
   signal?: AbortSignal;
 }
 
-/** Publish the session's workspace selection while the web server is available. */
+/** One stream per mounted session serves both the status pill and diagnostic receiver. */
 export function registerSelectionStatus(
   ctx: Context,
   options: SelectionHubOptions & { connections: IdeConnections },
 ): void {
   ctx.inject(["webServer", "connection", "sessions"], (scope) => {
-    const { webServer, connection } = scope;
     const controller = new AbortController();
     const signal = AbortSignal.any([options.signal, controller.signal]);
-    const hub = new SelectionHub({ ...options, signal });
-    const dispose = webServer.register({
+    const dispose = scope.webServer.register({
       kind: "exact",
       path: SELECTION_EVENTS_PATH,
-      handler: (request, response) =>
-        handleSelectionStream(request, response, {
-          authorize: (incoming) => connection.requestRejection({ headers: incoming.headers }),
-          subscribe: (sessionId, listener) => {
-            const cwd = scope.sessions.get(SessionId(sessionId))?.header.cwd;
-            if (!cwd) {
-              listener({ connected: false });
+      handler: (request, response) => {
+        if (request.method !== "GET") {
+          response.writeHead(405, { allow: "GET" }).end();
+          return;
+        }
+        handleSelectionStream<IdeEvent>(request, response, {
+          authorize: (incoming) => scope.connection.requestRejection({ headers: incoming.headers }),
+          subscribe: (id, listener) => {
+            const sessionId = SessionId(id);
+            const session = scope.sessions.get(sessionId);
+            const cwd = session?.header.cwd;
+            if (!cwd || session.header.origin === "subagent") {
+              listener({ type: "status", connected: false });
               return () => undefined;
             }
-            return hub.subscribeSession(SessionId(sessionId), cwd, options.connections, listener);
+            const stopWatch = options.connections.watch(
+              sessionId,
+              cwd,
+              (update) => {
+                const disabled = options.connections.getTarget(sessionId).kind === "off";
+                listener({
+                  type: "status",
+                  ...(disabled ? { connected: false, disabled: true } : statusFromUpdate(update)),
+                });
+              },
+              (context) => listener(diagnosticInputEvent(context)),
+            );
+            const stopSession = scope.on(
+              "session/disposed",
+              (disposed) => {
+                if (disposed.id !== sessionId) return;
+                stopWatch();
+                response.end();
+              },
+              { global: true },
+            );
+            return () => {
+              stopSession();
+              stopWatch();
+            };
           },
           signal,
-        }),
+        });
+      },
     });
     scope.effect(() => () => {
       controller.abort();
@@ -169,7 +104,7 @@ export function registerSelectionStatus(
   });
 }
 
-/** Write `text/event-stream` updates for `?session=<id>` after authorization. */
+/** Write authenticated, session-addressed event updates until the consumer disconnects. */
 export function handleSelectionStream<Event = SelectionStatusEvent>(
   request: IncomingMessage,
   response: ServerResponse,

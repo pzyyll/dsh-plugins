@@ -1,5 +1,6 @@
 // ABOUTME: Validate bounded diagnostic payloads and format explicit input context.
 // ABOUTME: Keep diagnostic text separate from automatic selection snapshots and status events.
+// Fix prompt adapted from pi-x-ide/src/pi/diagnostics.ts under Apache-2.0.
 import type { DiagnosticContext, IdeDiagnostic, Position } from "./protocol.js";
 
 export const MAX_DIAGNOSTIC_PAYLOAD_CHARS = 64_000;
@@ -62,6 +63,7 @@ export function parseDiagnosticContext(value: unknown): DiagnosticContext | unde
   if (
     !isRecord(value) ||
     value.source !== "vscode" ||
+    (value.action !== undefined && value.action !== "send-diagnostic" && value.action !== "fix") ||
     !isPath(value.filePath) ||
     (value.workspaceFolder !== undefined && !isPath(value.workspaceFolder)) ||
     !isIndex(value.documentVersion) ||
@@ -73,6 +75,15 @@ export function parseDiagnosticContext(value: unknown): DiagnosticContext | unde
   )
     return undefined;
   return value as unknown as DiagnosticContext;
+}
+
+/** Build a separate repair prompt without including any composer draft text. */
+export function formatDiagnosticFixPrompt(context: DiagnosticContext): string {
+  return [
+    "Analyze the errors and warnings at the following location, and try to fix them:",
+    "",
+    formatDiagnosticContext(context),
+  ].join("\n");
 }
 
 /** Render only the explicitly requested diagnostics; never read files from disk. */

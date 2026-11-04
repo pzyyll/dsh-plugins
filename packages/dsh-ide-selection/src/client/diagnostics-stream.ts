@@ -1,9 +1,9 @@
-// ABOUTME: Bind the diagnostics SSE wire stream to the composer's insertion API.
+// ABOUTME: Dispatch diagnostic actions from the shared IDE stream to the composer or session.
 // ABOUTME: Validate event bounds and preserve refused text for an explicit retry.
 import { MAX_DIAGNOSTIC_PAYLOAD_CHARS } from "../shared/diagnostics.js";
+import { subscribeIdeEvents, type SubscribeIdeEvents } from "./ide-stream.js";
 
 export const MAX_FORMATTED_DIAGNOSTIC_CHARS = 2 * MAX_DIAGNOSTIC_PAYLOAD_CHARS;
-export const DIAGNOSTICS_STREAM_URL = "/ide-selection/diagnostics";
 
 export interface InsertionSpan {
   start: number;
@@ -17,23 +17,22 @@ export interface InputActions {
   persistDraft(): void;
 }
 
-interface DiagnosticEventSource {
-  onmessage: ((event: { data: string }) => void) | null;
-  onerror: (() => void) | null;
-  close(): void;
-}
+export type SendDiagnosticFix = (
+  sessionId: string,
+  text: string,
+  signal: AbortSignal,
+) => Promise<void>;
+export type DiagnosticFallback = (
+  text: string,
+  retry: () => boolean,
+  metadata?: { action: "fix"; error: string },
+) => void;
 
-function openDiagnosticStream(sessionId: string): DiagnosticEventSource {
-  const browser = globalThis as { EventSource?: new (url: string) => DiagnosticEventSource };
-  if (!browser.EventSource) throw new Error("EventSource is unavailable");
-  return new browser.EventSource(
-    `${DIAGNOSTICS_STREAM_URL}?session=${encodeURIComponent(sessionId)}`,
-  );
-}
-
-function diagnosticText(value: unknown): string | undefined {
+function diagnosticText(
+  value: unknown,
+): { action: "send-diagnostic" | "fix" | undefined; text: string } | undefined {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
-  const event = value as { type?: unknown; text?: unknown };
+  const event = value as { type?: unknown; action?: unknown; text?: unknown };
   if (event.type === "ready") return undefined;
   if (
     event.type !== "diagnostic" ||
@@ -42,18 +41,21 @@ function diagnosticText(value: unknown): string | undefined {
     event.text.length > MAX_FORMATTED_DIAGNOSTIC_CHARS
   )
     return undefined;
-  return event.text;
+  if (event.action !== undefined && event.action !== "send-diagnostic" && event.action !== "fix")
+    return undefined;
+  return { action: event.action as "send-diagnostic" | "fix" | undefined, text: event.text };
 }
 
 /** Bind one session's SSE stream; returned cleanup invalidates callbacks before closing. */
 export function bindDiagnosticInput(
   sessionId: string,
   inputActions: InputActions,
-  onFallback: (text: string, retry: () => boolean) => void,
-  createStream: (sessionId: string) => DiagnosticEventSource = openDiagnosticStream,
+  onFallback: DiagnosticFallback,
+  sendFix?: SendDiagnosticFix,
+  subscribe: SubscribeIdeEvents = subscribeIdeEvents,
 ): () => void {
-  const stream = createStream(sessionId);
   let active = true;
+  const abortController = new AbortController();
   const insert = (text: string): boolean => {
     if (!active) return false;
     let inserted: boolean;
@@ -71,23 +73,45 @@ export function bindDiagnosticInput(
     }
     return true;
   };
-  stream.onmessage = (message) => {
+  const unsubscribe = subscribe(sessionId, "diagnostic", (event) => {
     if (!active) return;
     let text: string | undefined;
     try {
-      text = diagnosticText(JSON.parse(message.data));
+      const parsed = diagnosticText(event);
+      if (parsed) {
+        if (parsed.action === "fix") {
+          if (!sendFix) return;
+          void Promise.resolve()
+            .then(() => {
+              if (!active) return;
+              return sendFix(sessionId, parsed.text, abortController.signal);
+            })
+            .then(
+              () => {},
+              (error: unknown) => {
+                if (!active) return;
+                const messageText = error instanceof Error ? error.message : String(error);
+                onFallback(parsed.text, () => insert(parsed.text), {
+                  action: "fix",
+                  error: messageText,
+                });
+              },
+            );
+          return;
+        }
+        text = parsed.text;
+      }
     } catch {
       // Ignore malformed host events; do not alter the draft.
       return;
     }
     if (text === undefined || insert(text)) return;
     onFallback(text, () => insert(text));
-  };
+  });
   return () => {
     if (!active) return;
     active = false;
-    stream.onmessage = null;
-    stream.onerror = null;
-    stream.close();
+    abortController.abort();
+    unsubscribe();
   };
 }

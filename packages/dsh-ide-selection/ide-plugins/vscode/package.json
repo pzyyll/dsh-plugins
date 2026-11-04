@@ -25,12 +25,24 @@
   "contributes": {
     "commands": [
       {
+        "command": "dsh-ide-selection.showConnectionStatus",
+        "title": "DSH: Show IDE Connection Status"
+      },
+      {
+        "command": "dsh-ide-selection.fixDiagnostic",
+        "title": "DSH: Fix it"
+      },
+      {
         "command": "dsh-ide-selection.sendDiagnostic",
         "title": "DSH: Send diagnostic"
       }
     ],
     "menus": {
       "commandPalette": [
+        {
+          "command": "dsh-ide-selection.fixDiagnostic",
+          "when": "false"
+        },
         {
           "command": "dsh-ide-selection.sendDiagnostic",
           "when": "false"

@@ -56,8 +56,11 @@ export interface IdeDiagnostic {
   contextLines: DiagnosticContextLine[];
 }
 
+export type DiagnosticAction = "send-diagnostic" | "fix";
+
 export interface DiagnosticContext {
   source: "vscode";
+  action?: DiagnosticAction;
   filePath: string;
   workspaceFolder?: string;
   documentVersion: number;
@@ -68,7 +71,6 @@ export interface InitializeParams {
   protocolVersion: number;
   client?: { name?: string; version?: string };
   cwd?: string;
-  capabilities?: { diagnostics?: boolean };
 }
 
 export interface InitializeResult {

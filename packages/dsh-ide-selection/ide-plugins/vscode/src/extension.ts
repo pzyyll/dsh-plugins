@@ -10,6 +10,7 @@ import type { IdeLockFile } from "../../../src/shared/protocol.js";
 import { IdeServer } from "../../../src/shared/server.js";
 import { getActiveSelectionSnapshot } from "./selection.js";
 import { registerDiagnosticQuickFixes } from "./diagnostics.js";
+import { IdeStatusBar } from "./status.js";
 
 const AUTH_TOKEN_BYTES = 32;
 const HEARTBEAT_INTERVAL_MS = 60_000;
@@ -19,6 +20,7 @@ let server: IdeServer | undefined;
 let lockFilePath: string | undefined;
 let lockFile: IdeLockFile | undefined;
 let output: vscode.OutputChannel | undefined;
+let status: IdeStatusBar | undefined;
 let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
 let heartbeatChain: Promise<void> = Promise.resolve();
 let broadcastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -93,6 +95,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     await writeLock(path, initialLock);
     heartbeatTimer = setInterval(queueHeartbeat, HEARTBEAT_INTERVAL_MS);
 
+    status = new IdeStatusBar(ideServer, output);
+    context.subscriptions.push(status);
     registerDiagnosticQuickFixes(context, () => server);
     context.subscriptions.push(
       vscode.window.onDidChangeActiveTextEditor(scheduleSelectionBroadcast),
@@ -122,7 +126,9 @@ function scheduleSelectionBroadcast(): void {
     broadcastTimer = undefined;
     if (!server) return;
     try {
-      server.broadcast(getActiveSelectionSnapshot());
+      const snapshot = getActiveSelectionSnapshot();
+      server.broadcast(snapshot);
+      status?.updateSelection(snapshot);
     } catch (error) {
       reportError("selection broadcast", error);
     }
@@ -138,6 +144,8 @@ function cleanup(): Promise<void> {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     heartbeatTimer = undefined;
     await heartbeatChain;
+    status?.dispose();
+    status = undefined;
 
     const path = lockFilePath;
     lockFilePath = undefined;

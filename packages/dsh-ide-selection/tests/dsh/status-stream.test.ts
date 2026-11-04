@@ -17,11 +17,15 @@ import type { EditorSelectionSnapshot } from "../../src/shared/protocol.js";
 import { IdeServer } from "../../src/shared/server.js";
 import {
   SELECTION_EVENTS_PATH,
-  SelectionHub,
+  statusFromUpdate,
+  type IdeEvent,
   handleSelectionStream,
   registerSelectionStatus,
 } from "../../src/dsh/status-stream.js";
 
+const TIMEOUT_MS = 1_000;
+const MAX_AGE_MS = 60_000;
+const WORKSPACE = "/work/app";
 const roots: string[] = [];
 const closers: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -158,19 +162,19 @@ describe("selection status stream", () => {
     await writeLock(join(dir, "local.lock"), createLock(localPort, "a".repeat(64), ["/work/app"]));
     await writeLock(join(dir, "manual.lock"), manualLock);
     const options = { lockDir: dir, maxAgeMs: 60_000, signal: lifetime.signal };
-    const hub = new SelectionHub(options);
-    const connections = new IdeConnections({ ...options, timeoutMs: 1_000 });
+    const connections = new IdeConnections({ ...options, timeoutMs: TIMEOUT_MS });
     const first: unknown[] = [];
     const second: unknown[] = [];
     const sessionOne = SessionId("status-session-one");
-    const stopFirst = hub.subscribeSession(sessionOne, "/work/app", connections, (event) =>
-      first.push(event),
+    const stopFirst = connections.watch(sessionOne, WORKSPACE, (update) =>
+      first.push(
+        connections.getTarget(sessionOne).kind === "off"
+          ? { connected: false, disabled: true }
+          : statusFromUpdate(update),
+      ),
     );
-    const stopSecond = hub.subscribeSession(
-      SessionId("status-session-two"),
-      "/work/app",
-      connections,
-      (event) => second.push(event),
+    const stopSecond = connections.watch(SessionId("status-session-two"), WORKSPACE, (update) =>
+      second.push(statusFromUpdate(update)),
     );
     closers.push(async () => {
       stopFirst();
@@ -224,12 +228,20 @@ describe("selection status stream", () => {
     await writeLock(join(dir, "vscode.lock"), createLock(port, "b".repeat(64), ["/work/app"]));
     const lifetime = new AbortController();
     closers.push(async () => lifetime.abort());
-    const hub = new SelectionHub({ lockDir: dir, maxAgeMs: 60_000, signal: lifetime.signal });
+    const connections = new IdeConnections({
+      lockDir: dir,
+      maxAgeMs: MAX_AGE_MS,
+      timeoutMs: TIMEOUT_MS,
+      signal: lifetime.signal,
+    });
     const http = createServer((request, response) => {
       request.resume();
-      handleSelectionStream(request, response, {
+      handleSelectionStream<IdeEvent>(request, response, {
         authorize: () => undefined,
-        subscribe: (_sessionId, listener) => hub.subscribe("/work/app", listener),
+        subscribe: (sessionId, listener) =>
+          connections.watch(SessionId(sessionId), WORKSPACE, (update) =>
+            listener({ type: "status", ...statusFromUpdate(update) }),
+          ),
         signal: lifetime.signal,
       });
     });
@@ -247,7 +259,7 @@ describe("selection status stream", () => {
     });
     const text = await readUntil(reader, "Lines Selected");
     expect(text).toContain(
-      '{"connected":true,"text":"⧉ 3 Lines Selected","lines":3,"detail":"src/example.ts #L10-L12"}',
+      '{"type":"status","connected":true,"text":"⧉ 3 Lines Selected","lines":3,"detail":"src/example.ts #L10-L12"}',
     );
     expect(text).not.toContain("secret selection");
     ide.broadcast({
@@ -263,7 +275,14 @@ describe("selection status stream", () => {
     expect(changed).toContain("2 Lines Selected");
     expect(changed).not.toContain("another secret");
     lifetime.abort();
-    expect((await reader.read()).done).toBe(true);
+    // Shutdown can emit a final disconnected status before ending the response.
+    let ended = false;
+    while (!ended) {
+      const chunk = await reader.read();
+      ended = chunk.done;
+      if (chunk.value) expect(new TextDecoder().decode(chunk.value)).not.toContain("secret");
+    }
+    expect(ended).toBe(true);
   });
 });
 

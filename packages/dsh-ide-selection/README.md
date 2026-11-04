@@ -40,7 +40,7 @@ The extension runs in a trusted local workspace. It does not start dsh. If it do
 2. Start dsh in the workspace root that contains the VS Code folder.
 3. Send a message.
 
-The selection current at send time is included with the message and kept in the session. It is not added for a subagent. You can still send a message when VS Code is not connected. Do not select secrets.
+The latest selection received over the live IDE connection is included with the message and kept in the session. It is not added for a subagent. You can still send a message when VS Code is not connected. Do not select secrets.
 
 The Web UI composer always shows the IDE status:
 
@@ -59,11 +59,32 @@ When VS Code is disconnected, the status remains visible with a dimmed icon; whe
 2. In VS Code, put the cursor on an error or warning. Open **Quick Fix** (`Ctrl+.` on Windows/Linux, `Cmd+.` on macOS).
 3. Select **DSH: Send diagnostic**.
 
-The diagnostic, file path, document version, and nearby code are inserted at the dsh input cursor. Existing text and reference chips outside the input selection stay unchanged. Review the draft, then send it yourself. This action does not start an agent turn. Do not send code that contains secrets.
+The blank-session Hero and the normal chat input both receive diagnostics. The diagnostic, file path, document version, and nearby code are inserted at the dsh input cursor. Existing text and reference chips outside the input selection stay unchanged. Review the draft, then send it yourself. This action does not start an agent turn. Do not send code that contains secrets.
 
-Diagnostics follow the session's IDE choice. Disabling IDE integration stops diagnostic delivery too. If several matching composers are open, the first connected composer receives the action; delivery is not broadcast. Close other matching composers to choose the receiver. Diagnostics are not queued or replayed after a reconnect. If the input is locked, the Web UI keeps the text in a retry panel.
+Diagnostics follow the session's IDE choice. Disabling IDE integration stops diagnostic delivery too. If several matching composers are open, the first connected composer receives the action; delivery is not broadcast. Close other matching composers to choose the receiver. The bridge does not retain undelivered actions or replay them after a reconnect. If the input is locked, the Web UI keeps the text in a retry panel.
 
 Update both the dsh plugin and the VS Code extension to use this feature. It works in the Web UI, not a headless session.
+
+### Fix a diagnostic
+
+Open Quick Fix on an error or warning and select **DSH: Fix it**. This sends a separate repair prompt with the diagnostic context to the connected session. It starts a turn when the agent is idle, or queues a new turn when the agent is busy. It does not interrupt the current turn or send the composer's existing draft, references, or attachments. The repair request appears as a normal user message.
+
+Unlike **Send diagnostic**, this action runs the agent and can change files under the session's permissions. If sending fails, the Web UI keeps the prompt and shows the error. **Insert fix prompt** puts that text into the input for manual review; it does not send it again.
+
+Keep an updated dsh composer open for both diagnostic actions. Status, selection updates, and diagnostic actions share one WebSocket per dsh Host and IDE. The status pill and input receiver also share one browser event stream. Each diagnostic action goes to one matching receiver, not every session.
+
+### VS Code connection status
+
+The VS Code status bar shows the bridge state:
+
+| Label            | Meaning                        |
+| ---------------- | ------------------------------ |
+| `DSH: waiting`   | No bridge client is connected. |
+| `DSH: connected` | A dsh Host is connected.       |
+
+Hover for connection counts. Click the item, or run **DSH: Show IDE Connection Status**, to open the output channel. The state updates when clients connect or disconnect; no selection gesture is required.
+
+Quick Fix needs a trusted local file, an Error or Warning diagnostic in the requested range, and a connected dsh Host. Both DSH actions use the same connection. Information and Hint diagnostics do not qualify. A selection alone, or another extension's generic Fix action, does not qualify. Keep the matching composer open to receive the action.
 
 ### Choose an IDE
 

@@ -1,5 +1,5 @@
 // ABOUTME: Offers explicit VS Code quick fixes that forward bounded diagnostics to DSH.
-// ABOUTME: Adapted from pi-x-ide diagnostics.ts under Apache-2.0; only send-diagnostic behavior is retained.
+// ABOUTME: Adapted from pi-x-ide diagnostics.ts under Apache-2.0.
 import * as vscode from "vscode";
 import {
   MAX_DIAGNOSTIC_CONTEXT_LINES,
@@ -14,8 +14,12 @@ import {
 import type { DiagnosticContext, IdeDiagnostic, Position } from "../../../src/shared/protocol.js";
 import type { IdeServer } from "../../../src/shared/server.js";
 
+export const FIX_DIAGNOSTIC_COMMAND = "dsh-ide-selection.fixDiagnostic";
+export const FIX_DIAGNOSTIC_TITLE = "DSH: Fix it";
 export const SEND_DIAGNOSTIC_COMMAND = "dsh-ide-selection.sendDiagnostic";
 export const SEND_DIAGNOSTIC_TITLE = "DSH: Send diagnostic";
+const FIX_ACTION: NonNullable<DiagnosticContext["action"]> = "fix";
+const SEND_DIAGNOSTIC_ACTION: NonNullable<DiagnosticContext["action"]> = "send-diagnostic";
 const DIAGNOSTIC_CONTEXT_RADIUS = 2;
 const DIAGNOSTIC_STATUS_DURATION_MS = 2_500;
 const TRUNCATED = "\n...[truncated]";
@@ -29,18 +33,11 @@ export function registerDiagnosticQuickFixes(
     vscode.languages.registerCodeActionsProvider({ scheme: "file" }, provider, {
       providedCodeActionKinds: [vscode.CodeActionKind.QuickFix],
     }),
+    vscode.commands.registerCommand(FIX_DIAGNOSTIC_COMMAND, (payload: DiagnosticContext) => {
+      forwardDiagnostic(getServer(), payload, FIX_ACTION);
+    }),
     vscode.commands.registerCommand(SEND_DIAGNOSTIC_COMMAND, (payload: DiagnosticContext) => {
-      const server = getServer();
-      if (!server || !server.sendDiagnostics(payload)) {
-        void vscode.window.showWarningMessage(
-          "DSH could not forward the diagnostic: no matching composer is connected.",
-        );
-        return;
-      }
-      vscode.window.setStatusBarMessage(
-        "DSH forwarded diagnostic to the composer",
-        DIAGNOSTIC_STATUS_DURATION_MS,
-      );
+      forwardDiagnostic(getServer(), payload, SEND_DIAGNOSTIC_ACTION);
     }),
   );
 }
@@ -55,22 +52,58 @@ export class DiagnosticCodeActionProvider implements vscode.CodeActionProvider<v
   ): vscode.CodeAction[] {
     if (context.only && !context.only.contains(vscode.CodeActionKind.QuickFix)) return [];
     if (!vscode.workspace.isTrusted || document.uri.scheme !== "file") return [];
-    if ((this.getServer()?.diagnosticClientCount ?? 0) < 1) return [];
+    const server = this.getServer();
+    if ((server?.clientCount ?? 0) < 1) return [];
 
     const diagnostics = context.diagnostics.filter(isSendableDiagnostic).slice(0, MAX_DIAGNOSTICS);
     if (diagnostics.length === 0) return [];
     const payload = createDiagnosticContext(document, diagnostics);
     if (!payload) return [];
 
-    const action = new vscode.CodeAction(SEND_DIAGNOSTIC_TITLE, vscode.CodeActionKind.QuickFix);
-    action.diagnostics = diagnostics;
-    action.command = {
-      command: SEND_DIAGNOSTIC_COMMAND,
-      title: SEND_DIAGNOSTIC_TITLE,
-      arguments: [payload],
-    };
-    return [action];
+    return [
+      createCodeAction(
+        diagnostics,
+        { ...payload, action: FIX_ACTION },
+        FIX_DIAGNOSTIC_COMMAND,
+        FIX_DIAGNOSTIC_TITLE,
+      ),
+      createCodeAction(
+        diagnostics,
+        { ...payload, action: SEND_DIAGNOSTIC_ACTION },
+        SEND_DIAGNOSTIC_COMMAND,
+        SEND_DIAGNOSTIC_TITLE,
+      ),
+    ];
   }
+}
+
+function createCodeAction(
+  diagnostics: vscode.Diagnostic[],
+  payload: DiagnosticContext,
+  command: string,
+  title: string,
+): vscode.CodeAction {
+  const action = new vscode.CodeAction(title, vscode.CodeActionKind.QuickFix);
+  action.diagnostics = diagnostics;
+  action.command = { command, title, arguments: [payload] };
+  return action;
+}
+
+function forwardDiagnostic(
+  server: IdeServer | undefined,
+  payload: DiagnosticContext,
+  action: NonNullable<DiagnosticContext["action"]>,
+): void {
+  if (!server || !server.sendDiagnostics({ ...payload, action })) {
+    void vscode.window.showWarningMessage(
+      "DSH could not forward the diagnostic: no client is connected.",
+    );
+    return;
+  }
+  vscode.window.setStatusBarMessage(
+    "DSH forwarded diagnostic to the composer",
+    DIAGNOSTIC_STATUS_DURATION_MS,
+  );
 }
 
 function isSendableDiagnostic(diagnostic: vscode.Diagnostic): boolean {
@@ -129,9 +162,8 @@ function normalizeDiagnostic(
   };
 }
 
-function normalizeDiagnosticCode(code: unknown): string | number | undefined {
-  if (typeof code === "number") return code;
-  return typeof code === "string" ? code.slice(0, MAX_DIAGNOSTIC_METADATA_CHARS) : undefined;
+function normalizeDiagnosticCode(code: string | number): string | number {
+  return typeof code === "string" ? code.slice(0, MAX_DIAGNOSTIC_METADATA_CHARS) : code;
 }
 
 function readSelectedText(document: vscode.TextDocument, range: vscode.Range): string {

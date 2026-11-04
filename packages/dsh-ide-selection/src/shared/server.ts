@@ -46,11 +46,15 @@ function isRequest(
   );
 }
 
+export interface IdeConnectionStatus {
+  clientCount: number;
+}
+
 export class IdeServer {
   private http: Server | undefined;
   private websocket: WebSocketServer | undefined;
   private readonly clients = new Set<WebSocket>();
-  private readonly diagnosticClients = new Map<WebSocket, string>();
+  private readonly connectionListeners = new Set<(status: IdeConnectionStatus) => void>();
   private started = false;
 
   constructor(
@@ -67,10 +71,8 @@ export class IdeServer {
     this.http.on("upgrade", (request, socket, head) => this.handleUpgrade(request, socket, head));
     this.websocket.on("connection", (socket) => {
       this.clients.add(socket);
-      const forget = () => {
-        this.clients.delete(socket);
-        this.diagnosticClients.delete(socket);
-      };
+      this.publishConnections();
+      const forget = () => this.forgetClient(socket);
       socket.once("close", forget);
       socket.once("error", forget);
       socket.on("message", (raw) => {
@@ -99,20 +101,32 @@ export class IdeServer {
     return address && typeof address !== "string" ? address.port : 0;
   }
 
-  get diagnosticClientCount(): number {
-    return [...this.diagnosticClients.keys()].filter(
-      (client) => client.readyState === WebSocket.OPEN,
-    ).length;
+  get clientCount(): number {
+    return [...this.clients].filter((client) => client.readyState === WebSocket.OPEN).length;
   }
 
-  /** Forward an explicit action to one matching composer, never status or polling clients. */
+  /** Observe the number of authenticated, open bridge sockets. */
+  subscribeConnections(listener: (status: IdeConnectionStatus) => void): () => void {
+    this.connectionListeners.add(listener);
+    listener(this.connectionStatus());
+    return () => {
+      this.connectionListeners.delete(listener);
+    };
+  }
+
+  /** Forward an explicit action once; the Host routes it to the matching session. */
   sendDiagnostics(context: DiagnosticContext): boolean {
-    if (!parseDiagnosticContext(context) || !isAbsolute(context.filePath)) return false;
-    for (const [client, cwd] of this.diagnosticClients) {
-      if (client.readyState !== WebSocket.OPEN || !inside(cwd, context.filePath)) continue;
+    if (
+      !parseDiagnosticContext(context) ||
+      !isAbsolute(context.filePath) ||
+      (context.workspaceFolder !== undefined && !isAbsolute(context.workspaceFolder))
+    )
+      return false;
+    for (const client of this.clients) {
+      if (client.readyState !== WebSocket.OPEN) continue;
       this.send(client, {
         jsonrpc: "2.0",
-        method: "diagnostic_requested",
+        method: "diagnostic_fix_requested",
         params: context,
       });
       return true;
@@ -151,7 +165,7 @@ export class IdeServer {
     this.started = false;
     for (const client of websocket?.clients ?? this.clients) client.terminate();
     this.clients.clear();
-    this.diagnosticClients.clear();
+    this.publishConnections();
     await Promise.all([
       new Promise<void>((resolve) => websocket?.close(() => resolve()) ?? resolve()),
       new Promise<void>((resolve) => http?.close(() => resolve()) ?? resolve()),
@@ -197,20 +211,10 @@ export class IdeServer {
       snapshot = this.getSelection();
     } catch (error) {
       this.reportError("Selection provider failed", error);
-      this.clients.delete(socket);
+      this.forgetClient(socket);
       socket.close(1011, "Selection provider failed");
       return;
     }
-    const params = parsed.params;
-    if (
-      isRecord(params) &&
-      isRecord(params.capabilities) &&
-      params.capabilities.diagnostics === true &&
-      typeof params.cwd === "string" &&
-      isAbsolute(params.cwd) &&
-      !params.cwd.includes("\0")
-    )
-      this.diagnosticClients.set(socket, params.cwd);
     this.broadcastTo(socket, this.selectionNotification(snapshot));
   }
 
@@ -242,13 +246,35 @@ export class IdeServer {
       client.send(JSON.stringify(value), (error) => {
         if (!error) return;
         this.reportError("WebSocket send failed", error);
-        this.clients.delete(client);
+        this.forgetClient(client);
         client.close(1011, "Send failed");
       });
     } catch (error) {
       this.reportError("WebSocket send failed", error);
-      this.clients.delete(client);
+      this.forgetClient(client);
       client.close(1011, "Send failed");
+    }
+  }
+
+  private forgetClient(client: WebSocket): void {
+    this.clients.delete(client);
+    this.publishConnections();
+  }
+
+  private connectionStatus(): IdeConnectionStatus {
+    return {
+      clientCount: this.clientCount,
+    };
+  }
+
+  private publishConnections(): void {
+    const status = this.connectionStatus();
+    for (const listener of this.connectionListeners) {
+      try {
+        listener(status);
+      } catch (error) {
+        this.reportError("Connection status listener failed", error);
+      }
     }
   }
 
@@ -256,11 +282,6 @@ export class IdeServer {
     const message = error instanceof Error ? error.message : String(error);
     process.emitWarning(`DSH IDE Selection ${label}: ${message}`);
   }
-}
-
-function inside(base: string, target: string): boolean {
-  const rel = relative(base, target);
-  return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
 }
 
 function formatRangeMention(snapshot: EditorSelectionSnapshot): string {

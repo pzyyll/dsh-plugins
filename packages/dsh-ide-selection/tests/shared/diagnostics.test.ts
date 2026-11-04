@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatDiagnosticContext,
+  formatDiagnosticFixPrompt,
   MAX_DIAGNOSTIC_CONTEXT_LINES,
   MAX_DIAGNOSTIC_MESSAGE_CHARS,
   MAX_DIAGNOSTIC_PAYLOAD_CHARS,
@@ -41,7 +42,21 @@ describe("diagnostic context", () => {
     expect(text).toMatch(/^<ide-diagnostics>[\s\S]*<\/ide-diagnostics>$/);
   });
 
+  it("requires an explicit Fix action and builds the upstream repair instruction", () => {
+    expect(parseDiagnosticContext(context)?.action).toBeUndefined();
+    expect(parseDiagnosticContext({ ...context, action: "send-diagnostic" })?.action).toBe(
+      "send-diagnostic",
+    );
+    const fix = parseDiagnosticContext({ ...context, action: "fix" });
+    expect(fix?.action).toBe("fix");
+    expect(formatDiagnosticFixPrompt(fix!)).toBe(
+      `Analyze the errors and warnings at the following location, and try to fix them:\n\n${formatDiagnosticContext(context)}`,
+    );
+  });
+
   it.each([
+    { action: "run" },
+    { action: null },
     { source: "browser" },
     { filePath: "bad\0path" },
     { workspaceFolder: "bad\0path" },

@@ -60,7 +60,10 @@ function inside(base: string, target: string): boolean {
   return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
 }
 
-function validateSnapshot(value: unknown, lock: IdeLockFile): EditorSelectionSnapshot | undefined {
+export function validateSnapshot(
+  value: unknown,
+  lock: IdeLockFile,
+): EditorSelectionSnapshot | undefined {
   if (
     !isRecord(value) ||
     value.source !== "vscode" ||

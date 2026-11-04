@@ -2,7 +2,7 @@
 
 ## pi-x-ide
 
-Selection handling, diagnostic quick fixes, and the extension lifecycle are adapted from [pi-x-ide](https://github.com/balaenis/pi-x-ide), commit `83c2e6978035363c87a0ebf11144167fcc13a134`, under the Apache License, Version 2.0. See `LICENSE` in this directory and `packages/dsh-ide-selection/LICENSES/pi-x-ide-Apache-2.0.txt`.
+Selection handling, diagnostic quick fixes, the status bar, and the extension lifecycle are adapted from [pi-x-ide](https://github.com/balaenis/pi-x-ide), commit `83c2e6978035363c87a0ebf11144167fcc13a134`, under the Apache License, Version 2.0. See `LICENSE` in this directory and `packages/dsh-ide-selection/LICENSES/pi-x-ide-Apache-2.0.txt`.
 
 ## ws
 

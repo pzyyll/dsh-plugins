@@ -1,5 +1,5 @@
-// ABOUTME: Add fresh VS Code context to accepted human turns through dsh's durable message path.
-// ABOUTME: Use the published dsh 0.2.1-rc.5 hook and cancel pending IDE reads on plugin unload.
+// ABOUTME: Add live VS Code context to accepted human turns through dsh's durable message path.
+// ABOUTME: Share the IDE connection with browser events and stop it when the plugin unloads.
 import type { Context } from "@deepseek-ai/cordis";
 import type { PreStepDecision } from "@deepseek-ai/dsh-agent";
 import { createUserMessage, type ContextFormed } from "@deepseek-ai/dsh-llm";
@@ -8,7 +8,6 @@ import { isAbsolute } from "node:path";
 import { formatEditorContext } from "../shared/format.js";
 import { defaultLockDir } from "../shared/lock.js";
 import { registerSelectionStatus } from "./status-stream.js";
-import { registerDiagnosticInput } from "./diagnostics-stream.js";
 import { registerTargetApi } from "./target-api.js";
 import { IdeConnections } from "./ide-connections.js";
 import { registerSelectIdeCommand } from "./commands.js";
@@ -71,7 +70,6 @@ export function apply(ctx: Context, config: Config = {}): void {
   const connections = new IdeConnections({ lockDir, timeoutMs, maxAgeMs, signal: lifetime.signal });
   ctx.on("session/disposed", (session) => connections.forget(session.id), { global: true });
   registerSelectionStatus(ctx, { lockDir, maxAgeMs, signal: lifetime.signal, connections });
-  registerDiagnosticInput(ctx, { lockDir, maxAgeMs, signal: lifetime.signal, connections });
   registerSelectIdeCommand(ctx, connections, lifetime.signal);
   registerTargetApi(ctx, { connections, signal: lifetime.signal });
   ctx.on(
