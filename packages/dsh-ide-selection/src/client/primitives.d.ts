@@ -5,6 +5,7 @@ declare module "@deepseek-ai/dsh-client-ui-primitives" {
     label: string;
     side?: "top";
     delayMs?: number;
+    disabled?: boolean;
     portal?: boolean;
     children?: import("react").ReactElement;
   }): import("react").ReactElement;

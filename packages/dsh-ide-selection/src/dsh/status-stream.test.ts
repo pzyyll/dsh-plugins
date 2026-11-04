@@ -145,8 +145,8 @@ describe("selection status stream", () => {
     const local = new IdeServer("a".repeat(64), () => selected);
     const manual = new IdeServer("b".repeat(64), () => ({
       ...selected,
-      filePath: "/other/manual.ts",
-      workspaceFolder: "/other",
+      filePath: "/work/app/other/manual.ts",
+      workspaceFolder: "/work/app/other",
     }));
     closers.push(
       () => local.stop(),
@@ -154,7 +154,7 @@ describe("selection status stream", () => {
     );
     const localPort = await local.start();
     const manualPort = await manual.start();
-    const manualLock = createLock(manualPort, "b".repeat(64), ["/other"]);
+    const manualLock = createLock(manualPort, "b".repeat(64), ["/work/app/other"]);
     await writeLock(join(dir, "local.lock"), createLock(localPort, "a".repeat(64), ["/work/app"]));
     await writeLock(join(dir, "manual.lock"), manualLock);
     const options = { lockDir: dir, maxAgeMs: 60_000, signal: lifetime.signal };

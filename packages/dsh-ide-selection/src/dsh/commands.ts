@@ -50,7 +50,7 @@ export function registerSelectIdeCommand(
             const selected = await connections.select(agent.id, args, cwd, requestSignal);
             if (!selected || requestSignal.aborted)
               return error(
-                "That IDE is no longer reachable. Your existing IDE choice was preserved; run /select-ide to choose again.",
+                "That IDE is no longer reachable or does not match this workspace. Your existing IDE choice was preserved; run /select-ide to choose again.",
               );
             return {
               kind: "success",
@@ -90,7 +90,8 @@ async function listIde(
 
 function describeIde(ide: AvailableIde, index: number): string {
   const workspaces = ide.workspaceFolders.join(", ") || "unknown workspace";
-  return `${index + 1}. ${ide.name} — ${workspaces} — ${ide.host}:${ide.port}`;
+  const availability = ide.workspaceMatched ? "" : " — unavailable: outside this workspace";
+  return `${index + 1}. ${ide.name} — ${workspaces} — ${ide.host}:${ide.port}${availability}`;
 }
 
 function error(text: string): CommandResult {

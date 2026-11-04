@@ -65,14 +65,14 @@ describe("session IDE choices", () => {
   it("keeps a manual target local to its session and reads fresh snapshots", async () => {
     const { connections, lockDir, signal } = await setup();
     const local = await addIde(lockDir, "/work/app");
-    const manual = await addIde(lockDir, "/other/project");
+    const manual = await addIde(lockDir, "/work/app/other");
     expect(await connections.select(SESSION_ONE, manual.id, "/work/app", signal)).toMatchObject({
       id: manual.id,
     });
     expect(connections.getTarget(SESSION_ONE)).toEqual({ kind: "manual", ideId: manual.id });
     expect(connections.getTarget(SESSION_TWO)).toEqual({ kind: "auto" });
     expect((await connections.read(SESSION_ONE, "/work/app", signal))?.filePath).toBe(
-      "/other/project/selected.ts",
+      "/work/app/other/selected.ts",
     );
     expect((await connections.read(SESSION_TWO, "/work/app", signal))?.filePath).toBe(
       "/work/app/selected.ts",
@@ -92,7 +92,7 @@ describe("session IDE choices", () => {
 
   it("rejects unavailable, cancelled, and superseded selections without changing the current mode", async () => {
     const { connections, lockDir, signal } = await setup();
-    const manual = await addIde(lockDir, "/other/project");
+    const manual = await addIde(lockDir, "/work/app/other");
     connections.setMode(SESSION_ONE, "off");
     expect(
       await connections.select(SESSION_ONE, manual.id, "/work/app", AbortSignal.abort()),
@@ -105,9 +105,41 @@ describe("session IDE choices", () => {
     expect(connections.getTarget(SESSION_ONE)).toEqual({ kind: "off" });
   });
 
+  it("rejects mismatching targets and a manual child that becomes outside after cwd changes", async () => {
+    const { connections, lockDir, signal } = await setup();
+    const local = await addIde(lockDir, "/work/app");
+    const child = await addIde(lockDir, "/work/app/other");
+    const unrelated = await addIde(lockDir, "/other/project");
+
+    const listed = await connections.listTargets("/work/app", signal);
+    expect(listed.ides).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: child.id, workspaceMatched: true }),
+        expect.objectContaining({ id: unrelated.id, workspaceMatched: false }),
+      ]),
+    );
+    await expect(
+      connections.select(SESSION_ONE, child.id, "/work/app", signal),
+    ).resolves.toMatchObject({
+      id: child.id,
+      workspaceMatched: true,
+    });
+    expect(
+      await connections.select(SESSION_ONE, unrelated.id, "/work/app", signal),
+    ).toBeUndefined();
+    expect(connections.getTarget(SESSION_ONE)).toEqual({ kind: "manual", ideId: child.id });
+
+    expect(await connections.read(SESSION_ONE, "/work/app/other/deeper", signal)).toBeUndefined();
+    expect(
+      await connections.select(SESSION_ONE, child.id, "/work/app/other/deeper", signal),
+    ).toBeUndefined();
+    expect(connections.getTarget(SESSION_ONE)).toEqual({ kind: "manual", ideId: child.id });
+    expect(local.id).not.toBe(child.id);
+  });
+
   it("publishes target changes and forgets disposed session choices", async () => {
     const { connections, lockDir, signal } = await setup();
-    const manual = await addIde(lockDir, "/other/project");
+    const manual = await addIde(lockDir, "/work/app/other");
     const targets: string[] = [];
     const stop = connections.subscribe(SESSION_ONE, (target) => targets.push(target.kind));
     await connections.select(SESSION_ONE, manual.id, "/work/app", signal);

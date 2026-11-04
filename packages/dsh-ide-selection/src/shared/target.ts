@@ -20,6 +20,7 @@ export interface IdeTargetRow {
   readonly host: string;
   readonly port: number;
   readonly workspaceFolders: readonly string[];
+  readonly workspaceMatched: boolean;
 }
 
 /** Everything the browser picker needs to open its option list in one response. */
@@ -38,6 +39,7 @@ export function toTargetRow(ide: AvailableIde): IdeTargetRow {
     host: ide.host,
     port: ide.port,
     workspaceFolders: [...ide.workspaceFolders],
+    workspaceMatched: ide.workspaceMatched,
   };
 }
 
@@ -71,7 +73,8 @@ function parseTargetRow(value: unknown): IdeTargetRow | undefined {
     typeof value.host !== "string" ||
     typeof value.port !== "number" ||
     !Number.isSafeInteger(value.port) ||
-    !isWorkspaceFolders(value.workspaceFolders)
+    !isWorkspaceFolders(value.workspaceFolders) ||
+    typeof value.workspaceMatched !== "boolean"
   )
     return undefined;
   return {
@@ -80,6 +83,7 @@ function parseTargetRow(value: unknown): IdeTargetRow | undefined {
     host: value.host,
     port: value.port,
     workspaceFolders: [...value.workspaceFolders],
+    workspaceMatched: value.workspaceMatched,
   };
 }
 
@@ -100,7 +104,10 @@ export function parseTargetOverview(value: unknown): IdeTargetOverview | undefin
   }
   const automaticId = value.automaticId;
   if (automaticId === undefined) return { selection, ides };
-  if (typeof automaticId !== "string" || !ides.some((ide) => ide.id === automaticId))
+  if (
+    typeof automaticId !== "string" ||
+    !ides.some((ide) => ide.id === automaticId && ide.workspaceMatched)
+  )
     return undefined;
   return { selection, ides, automaticId };
 }

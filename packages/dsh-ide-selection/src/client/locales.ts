@@ -7,25 +7,40 @@ export const LOCALE_NS = "ide-selection";
 /** English dictionary; also the fallback when no locale service is mounted. */
 export const en = {
   "command.description": "Choose which local IDE supplies selection context for this session",
+  "status.connected": "IDE connected",
+  "status.disconnected": "No IDE connected",
+  "picker.title": "Select IDE",
+  "picker.loading": "Loading IDEs…",
+  "picker.empty": "No IDEs are reachable",
+  "picker.session": "Open a session to choose an IDE",
+  "picker.retry": "Retry",
   "status.selected": "Selected",
   "status.lines": "{count} Lines Selected",
   "error.list": "the IDE list request failed",
   "error.payload": "the IDE list returned an unexpected payload",
   "error.choice": "the IDE choice failed",
-  "group.ides": "Connected IDEs",
+  "group.ides": "Available IDEs",
   "group.mode": "This session",
   "ide.detail": "{workspace} · {host}:{port}",
+  "ide.workspaceMismatch": "Outside this session's workspace",
   "workspace.unknown": "unknown workspace",
   "auto.label": "Automatic (workspace match)",
   "auto.target": "Connects to {name} — {workspace}",
   "auto.none": "No workspace-matching IDE is reachable",
   "off.label": "Disable IDE integration",
-  "off.detail": "Stop reading IDE selections and hide the status pill for this session",
+  "off.detail": "Stop reading IDE selections for this session",
 } as const;
 
 /** Simplified Chinese dictionary. */
 export const zh = {
   "command.description": "选择本会话由哪个本地 IDE 提供选区",
+  "status.connected": "IDE 已连接",
+  "status.disconnected": "尚未连接任何 IDE",
+  "picker.title": "选择 IDE",
+  "picker.loading": "正在读取 IDE 列表…",
+  "picker.empty": "当前没有可连接的 IDE",
+  "picker.session": "请打开一个会话以选择 IDE",
+  "picker.retry": "重试",
   "status.selected": "已选中",
   "status.lines": "已选中 {count} 行",
   "error.list": "读取 IDE 列表失败",
@@ -34,12 +49,13 @@ export const zh = {
   "group.ides": "可连接的 IDE",
   "group.mode": "本会话",
   "ide.detail": "{workspace} · {host}:{port}",
+  "ide.workspaceMismatch": "不在本会话工作区内",
   "workspace.unknown": "未知工作区",
   "auto.label": "自动（按工作区匹配）",
   "auto.target": "将连接 {name} — {workspace}",
   "auto.none": "当前没有匹配工作区的 IDE",
   "off.label": "关闭 IDE 集成",
-  "off.detail": "本会话不再读取 IDE 选区，并隐藏状态栏",
+  "off.detail": "本会话不再读取 IDE 选区",
 } as const;
 
 /**

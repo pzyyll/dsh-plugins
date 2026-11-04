@@ -71,20 +71,28 @@ describe("readSelection", () => {
   it("tries the next ranked lock after connection failure", async () => {
     const dir = await mkdtemp(join(tmpdir(), "dsh-client-fallback-"));
     roots.push(dir);
-    const server = new IdeServer("e".repeat(64), () => snapshot);
-    servers.push(server);
-    const port = await server.start();
-    await writeLock(join(dir, "dead.lock"), createLock(1, "f".repeat(64), ["/work/app/src"]));
-    await writeLock(join(dir, "live.lock"), createLock(port, "e".repeat(64), ["/work/app"]));
+    const descendantSnapshot = {
+      ...snapshot,
+      filePath: "/work/app/src/file.ts",
+      workspaceFolder: "/work/app/src",
+    };
+    const descendant = new IdeServer("e".repeat(64), () => descendantSnapshot);
+    servers.push(descendant);
+    const descendantPort = await descendant.start();
+    await writeLock(join(dir, "dead.lock"), createLock(1, "f".repeat(64), ["/work/app"]));
+    await writeLock(
+      join(dir, "live.lock"),
+      createLock(descendantPort, "e".repeat(64), ["/work/app/src"]),
+    );
     await expect(
       readSelection({
-        cwd: "/work/app/src/file.ts",
+        cwd: "/work/app",
         lockDir: dir,
         timeoutMs: 250,
         maxAgeMs: 60_000,
         signal: new AbortController().signal,
       }),
-    ).resolves.toEqual(expect.objectContaining(snapshot));
+    ).resolves.toEqual(expect.objectContaining(descendantSnapshot));
   });
   it("ignores snapshots with unsafe paths or invalid range positions", async () => {
     const badSnapshots: unknown[] = [
@@ -128,42 +136,52 @@ describe("readSelection", () => {
     roots.push(dir);
     const token = "a".repeat(64);
     const invalid = new IdeServer(token, () => ({ ...snapshot, filePath: "/outside/file.ts" }));
-    const valid = new IdeServer(token, () => snapshot);
+    const descendantSnapshot = {
+      ...snapshot,
+      filePath: "/work/app/src/file.ts",
+      workspaceFolder: "/work/app/src",
+    };
+    const valid = new IdeServer(token, () => descendantSnapshot);
     servers.push(invalid, valid);
     const invalidPort = await invalid.start();
     const validPort = await valid.start();
-    await writeLock(join(dir, "invalid.lock"), createLock(invalidPort, token, ["/work/app/src"]));
-    await writeLock(join(dir, "valid.lock"), createLock(validPort, token, ["/work/app"]));
+    await writeLock(join(dir, "invalid.lock"), createLock(invalidPort, token, ["/work/app"]));
+    await writeLock(join(dir, "valid.lock"), createLock(validPort, token, ["/work/app/src"]));
     await expect(
       readSelection({
-        cwd: "/work/app/src",
+        cwd: "/work/app",
         lockDir: dir,
         timeoutMs: 1_000,
         maxAgeMs: 60_000,
         signal: new AbortController().signal,
       }),
-    ).resolves.toEqual(expect.objectContaining(snapshot));
+    ).resolves.toEqual(expect.objectContaining(descendantSnapshot));
   });
   it("treats a valid clear as authoritative instead of falling through to another lock", async () => {
     const dir = await mkdtemp(join(tmpdir(), "dsh-client-cleared-"));
     roots.push(dir);
     const clearServer = new IdeServer("1".repeat(64), () => undefined);
     servers.push(clearServer);
-    const liveServer = new IdeServer("2".repeat(64), () => snapshot);
+    const descendantSnapshot = {
+      ...snapshot,
+      filePath: "/work/app/src/file.ts",
+      workspaceFolder: "/work/app/src",
+    };
+    const liveServer = new IdeServer("2".repeat(64), () => descendantSnapshot);
     servers.push(liveServer);
     const clearPort = await clearServer.start();
     const livePort = await liveServer.start();
     await writeLock(
       join(dir, "deep-clear.lock"),
-      createLock(clearPort, "1".repeat(64), ["/work/app/src"]),
+      createLock(clearPort, "1".repeat(64), ["/work/app"]),
     );
     await writeLock(
       join(dir, "shallow-live.lock"),
-      createLock(livePort, "2".repeat(64), ["/work/app"]),
+      createLock(livePort, "2".repeat(64), ["/work/app/src"]),
     );
     await expect(
       readSelection({
-        cwd: "/work/app/src/file.ts",
+        cwd: "/work/app",
         lockDir: dir,
         timeoutMs: 500,
         maxAgeMs: 60_000,
@@ -228,13 +246,17 @@ describe("listIdeTargets", () => {
     const dir = await mkdtemp(join(tmpdir(), "dsh-client-targets-"));
     roots.push(dir);
     const local = new IdeServer("5".repeat(64), () => undefined);
+    const descendant = new IdeServer("8".repeat(64), () => undefined);
     const remote = new IdeServer("6".repeat(64), () => undefined);
-    servers.push(local, remote);
+    servers.push(local, descendant, remote);
     const localPort = await local.start();
+    const descendantPort = await descendant.start();
     const remotePort = await remote.start();
-    const localLock = createLock(localPort, "5".repeat(64), ["/work/app"]);
+    const localLock = createLock(localPort, "5".repeat(64), ["/work/app/src"]);
+    const descendantLock = createLock(descendantPort, "8".repeat(64), ["/work/app/src/nested"]);
     const remoteLock = createLock(remotePort, "6".repeat(64), ["/other/project"]);
     await writeLock(join(dir, "local.lock"), localLock);
+    await writeLock(join(dir, "descendant.lock"), descendantLock);
     await writeLock(join(dir, "remote.lock"), remoteLock);
 
     const targets = await listIdeTargets({
@@ -246,7 +268,14 @@ describe("listIdeTargets", () => {
     });
 
     expect(targets.ides.map((ide) => ide.id).sort()).toEqual(
-      [ideLockId(localLock), ideLockId(remoteLock)].sort(),
+      [ideLockId(localLock), ideLockId(descendantLock), ideLockId(remoteLock)].sort(),
+    );
+    expect(targets.ides).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: ideLockId(localLock), workspaceMatched: true }),
+        expect.objectContaining({ id: ideLockId(descendantLock), workspaceMatched: true }),
+        expect.objectContaining({ id: ideLockId(remoteLock), workspaceMatched: false }),
+      ]),
     );
     expect(targets.automaticId).toBe(ideLockId(localLock));
   });
@@ -268,6 +297,10 @@ describe("listIdeTargets", () => {
     });
 
     expect(targets.ides).toHaveLength(1);
+    expect(targets.ides[0]).toMatchObject({
+      workspaceFolders: ["/other/project"],
+      workspaceMatched: false,
+    });
     expect(targets.automaticId).toBeUndefined();
   });
 });

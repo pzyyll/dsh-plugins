@@ -1,7 +1,13 @@
 // ABOUTME: Show the live IDE connection in the dsh composer status dock and blank-session Hero row.
-// ABOUTME: Decorate /select-ide with the same popup picker /model uses.
-import { createElement, useEffect, useLayoutEffect, useState, type ReactElement } from "react";
-import { Tooltip } from "@deepseek-ai/dsh-client-ui-primitives";
+// ABOUTME: Open a compact IDE picker from the status button and keep /select-ide available.
+import {
+  createElement,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  type ReactElement,
+} from "react";
 import type { CommandUiContract } from "./command-ui.js";
 import { LOCALE_NS, en, zh } from "./locales.js";
 import {
@@ -11,24 +17,11 @@ import {
   targetOptions,
   type Translate,
 } from "./targets.js";
-import { localizeRemoteCommandList, statusButtonText } from "./ui-copy.js";
-
-/** Same hover delay as the composer context meter. */
-const TOOLTIP_DELAY_MS = 200;
+import { localizeRemoteCommandList } from "./command-localization.js";
+import { statusButtonText } from "./status-label.js";
+import { IdeStatusControl, STATUS_ORDER, STATUS_PILL_CSS } from "./status-picker.js";
 const STATUS_STYLE_ID = "dsh-ide-selection-status";
-/** Keep the IDE pill after the built-in statistics and subscription usage. */
-const STATUS_ORDER = 1000;
 const SELECT_IDE_COMMAND = "select-ide";
-
-/**
- * Same statistics-button skin as the composer dock: transparent control, shared
- * radius, and a hover fill. Injected once because this client bundle has no CSS loader.
- */
-const STATUS_PILL_CSS = [
-  `[data-composer-stat="ide-selection"]{display:inline-flex;order:${STATUS_ORDER};min-width:0;font-size:calc(var(--dsh-content-font-size-secondary, 13px) - 1px);line-height:calc(20px + var(--dsh-content-font-delta-secondary, 0px))}`,
-  '[data-composer-stat="ide-selection"] button{display:inline-flex;align-items:center;box-sizing:border-box;max-width:100%;padding:1px 8px;border:none;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-variant-numeric:tabular-nums;line-height:inherit;white-space:nowrap;cursor:pointer}',
-  '@media (hover: hover){[data-composer-stat="ide-selection"] button:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-secondary)}}',
-].join("");
 
 interface StyleRoot {
   getElementById(id: string): unknown;
@@ -54,6 +47,7 @@ interface SelectionStatusEvent {
 
 interface StatusStream {
   onmessage: ((event: { data: string }) => void) | null;
+  onerror: (() => void) | null;
   close: () => void;
 }
 
@@ -84,8 +78,10 @@ function isStatusEvent(value: unknown): value is SelectionStatusEvent {
 }
 
 /** Composer or Hero pill for the session's current VS Code selection. */
-export function SelectionStatus({ sessionId }: { sessionId?: string }): ReactElement | null {
-  const [event, setEvent] = useState<SelectionStatusEvent | undefined>(undefined);
+export function SelectionStatus({ sessionId }: { sessionId?: string }): ReactElement {
+  const [status, setStatus] = useState<
+    { sessionId: string; event: SelectionStatusEvent } | undefined
+  >(undefined);
   const [localeRevision, setLocaleRevision] = useState(0);
   useLayoutEffect(() => {
     installStatusStyle();
@@ -97,28 +93,32 @@ export function SelectionStatus({ sessionId }: { sessionId?: string }): ReactEle
   useEffect(() => {
     if (!sessionId) return undefined;
     const stream = openStatusStream(sessionId);
+    stream.onerror = () => setStatus({ sessionId, event: { connected: false } });
     stream.onmessage = (message) => {
       try {
         const parsed: unknown = JSON.parse(message.data);
-        if (isStatusEvent(parsed)) setEvent(parsed);
+        if (isStatusEvent(parsed)) setStatus({ sessionId, event: parsed });
       } catch {
         // Ignore a malformed event and keep the last accepted status.
       }
     };
-    return () => stream.close();
+    return () => {
+      stream.onmessage = null;
+      stream.onerror = null;
+      stream.close();
+    };
   }, [sessionId]);
-  if (!event?.connected || !event.text) return null;
-  const label = statusButtonText(event, translateAt(localeRevision)) ?? event.text;
-  const button = createElement("button", { type: "button" }, label);
-  const control =
-    event.detail === undefined
-      ? button
-      : createElement(
-          Tooltip,
-          { label: event.detail, side: "top", delayMs: TOOLTIP_DELAY_MS, portal: true },
-          button,
-        );
-  return createElement("span", { "data-composer-stat": "ide-selection" }, control);
+  const t = useMemo(() => translateAt(localeRevision), [localeRevision]);
+  const event = status?.sessionId === sessionId ? status?.event : undefined;
+  const connected = event?.connected === true;
+  return createElement(IdeStatusControl, {
+    key: sessionId ?? "no-session",
+    sessionId,
+    connected,
+    label: statusButtonText(event, t),
+    detail: connected ? (event.detail ?? t("status.connected")) : t("status.disconnected"),
+    t,
+  });
 }
 
 interface ClientSlots {
@@ -208,10 +208,12 @@ export function apply(ctx: ClientContext): void {
           options: async (session, signal) => {
             const t = activeTranslate();
             const overview = await loadTargetOverview(session.sessionId, signal, t);
-            return targetOptions(overview, t);
+            return targetOptions(overview, t).filter((option) => !option.disabled);
           },
-          onSelect: (option, session) =>
-            applyTargetChoice(session.sessionId, option.id, activeTranslate()),
+          onSelect: (option, session) => {
+            if (option.disabled) return;
+            return applyTargetChoice(session.sessionId, option.id, activeTranslate());
+          },
         },
       }),
     );

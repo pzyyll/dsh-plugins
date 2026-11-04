@@ -67,7 +67,9 @@ export class IdeConnections {
       const available = await this.list(cwd, signal);
       if (signal.aborted || this.options.signal.aborted || this.pending.get(sessionId) !== ticket)
         return undefined;
-      const ide = available.find((candidate) => candidate.id === ideId);
+      const ide = available.find(
+        (candidate) => candidate.id === ideId && candidate.workspaceMatched,
+      );
       if (!ide) return undefined;
       this.publish(sessionId, { kind: "manual", ideId });
       return ide;

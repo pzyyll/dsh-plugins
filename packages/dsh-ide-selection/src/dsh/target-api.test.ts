@@ -11,6 +11,7 @@ import { SessionStore } from "@deepseek-ai/dsh-session";
 import { ideLockId } from "../shared/ide.js";
 import { createLock, writeLock } from "../shared/lock.js";
 import { IdeServer } from "../shared/server.js";
+import type { IdeTargetOverview } from "../shared/target.js";
 import * as selectionPlugin from "./index.js";
 import { TARGET_OVERVIEW_PATH, TARGET_SELECT_PATH } from "./target-api.js";
 
@@ -33,14 +34,14 @@ interface Harness {
   url(path: string, sessionId?: string): string;
 }
 
-async function createHarness(): Promise<Harness> {
+async function createHarness(options: { ideWorkspace?: string } = {}): Promise<Harness> {
   const dir = await mkdtemp(join(tmpdir(), "dsh-target-scope-"));
   roots.push(dir);
   const token = "b".repeat(64);
   const server = new IdeServer(token, () => undefined);
   servers.push(server);
   const port = await server.start();
-  const lock = createLock(port, token, ["/work/app"]);
+  const lock = createLock(port, token, [options.ideWorkspace ?? "/work/app"]);
   await writeLock(join(dir, "vscode.lock"), lock);
 
   const ctx = new Context();
@@ -84,11 +85,7 @@ async function overview(harness: Harness) {
   harness.authorize();
   const response = await fetch(harness.url(TARGET_OVERVIEW_PATH));
   expect(response.status).toBe(200);
-  return (await response.json()) as {
-    selection: { kind: string; ideId?: string };
-    automaticId?: string;
-    ides: Array<{ id: string; name: string; host: string; port: number }>;
-  };
+  return (await response.json()) as IdeTargetOverview;
 }
 
 async function select(harness: Harness, body: unknown) {
@@ -132,8 +129,34 @@ describe("IDE target routes", () => {
         host: "127.0.0.1",
         port: expect.any(Number),
         workspaceFolders: ["/work/app"],
+        workspaceMatched: true,
       },
     ]);
+  });
+
+  it("lists outside IDEs but refuses their selection without changing the current mode", async () => {
+    const harness = await createHarness({ ideWorkspace: "/other/project" });
+    await select(harness, { kind: "off" });
+    const payload = await overview(harness);
+    expect(payload.automaticId).toBeUndefined();
+    expect(payload.ides).toMatchObject([{ id: harness.ideId, workspaceMatched: false }]);
+
+    const response = await select(harness, { kind: "manual", ideId: harness.ideId });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      error: expect.stringMatching(/does not match/i),
+    });
+    expect((await overview(harness)).selection).toEqual({ kind: "off" });
+  });
+
+  it("allows an IDE rooted in a descendant of the dsh workspace", async () => {
+    const harness = await createHarness({ ideWorkspace: "/work/app/packages/plugin" });
+    expect((await overview(harness)).ides).toMatchObject([
+      { id: harness.ideId, workspaceMatched: true },
+    ]);
+    const response = await select(harness, { kind: "manual", ideId: harness.ideId });
+    expect(response.status).toBe(200);
+    expect(await selectionOf(response)).toEqual({ kind: "manual", ideId: harness.ideId });
   });
 
   it("applies manual, automatic, and disabled choices to the session", async () => {

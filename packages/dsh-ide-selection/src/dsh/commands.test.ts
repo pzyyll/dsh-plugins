@@ -161,6 +161,20 @@ describe("/select-ide", () => {
     expect(harness.connections.getTarget(harness.agent.id)).toEqual({ kind: "off" });
   });
 
+  it("lists an outside-workspace IDE as unavailable and rejects its id", async () => {
+    const harness = await createHarness({ cwd: "/other" });
+    const [available] = await harness.connections.list("/other", new AbortController().signal);
+    if (!available) throw new Error("fixture IDE was not reachable");
+    expect(available.workspaceMatched).toBe(false);
+    expect((await run(harness.ctx, harness.agent)).text).toContain("outside this workspace");
+    harness.connections.setMode(harness.agent.id, "off");
+
+    const result = await run(harness.ctx, harness.agent, ` ${available.id}`);
+    expect(result.kind).toBe("error");
+    expect(result.text).toMatch(/does not match this workspace/i);
+    expect(harness.connections.getTarget(harness.agent.id)).toEqual({ kind: "off" });
+  });
+
   it("reports a Session without a workspace directory", async () => {
     const harness = await createHarness({ cwd: undefined });
 

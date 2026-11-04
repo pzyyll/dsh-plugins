@@ -13,6 +13,9 @@ import { followSelection, type FollowUpdate } from "./watch.js";
 const roots: string[] = [];
 const servers: IdeServer[] = [];
 const controllers: AbortController[] = [];
+const WATCH_RETRY_MS = 20;
+const MISMATCH_OBSERVATION_MS = 250;
+const ABORT_SETTLE_MS = 10;
 afterEach(async () => {
   for (const controller of controllers.splice(0)) controller.abort();
   await Promise.all(servers.splice(0).map((server) => server.stop()));
@@ -32,20 +35,20 @@ const selected: EditorSelectionSnapshot = {
 };
 
 describe("followSelection", () => {
-  it("follows an explicit IDE outside the session workspace without leaking text", async () => {
+  it("follows an explicit descendant IDE without leaking text", async () => {
     const dir = await mkdtemp(join(tmpdir(), "dsh-watch-manual-"));
     roots.push(dir);
     const local = new IdeServer("a".repeat(64), () => selected);
     const manualSnapshot = {
       ...selected,
-      filePath: "/other/selected.ts",
-      workspaceFolder: "/other",
+      filePath: "/work/app/other/selected.ts",
+      workspaceFolder: "/work/app/other",
     };
     const manual = new IdeServer("b".repeat(64), () => manualSnapshot);
     servers.push(local, manual);
     const localPort = await local.start();
     const manualPort = await manual.start();
-    const manualLock = createLock(manualPort, "b".repeat(64), ["/other"]);
+    const manualLock = createLock(manualPort, "b".repeat(64), ["/work/app/other"]);
     await writeLock(join(dir, "local.lock"), createLock(localPort, "a".repeat(64), ["/work/app"]));
     await writeLock(join(dir, "manual.lock"), manualLock);
     const updates: FollowUpdate[] = [];
@@ -65,6 +68,49 @@ describe("followSelection", () => {
     });
   });
 
+  it("does not connect an explicit mismatching target when another IDE matches", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "dsh-watch-mismatch-"));
+    roots.push(dir);
+    let localReads = 0;
+    let remoteReads = 0;
+    const local = new IdeServer("c".repeat(64), () => {
+      localReads++;
+      return selected;
+    });
+    const remoteSnapshot = {
+      ...selected,
+      filePath: "/other/selected.ts",
+      workspaceFolder: "/other",
+    };
+    const remote = new IdeServer("d".repeat(64), () => {
+      remoteReads++;
+      return remoteSnapshot;
+    });
+    servers.push(local, remote);
+    const localPort = await local.start();
+    const remotePort = await remote.start();
+    const remoteLock = createLock(remotePort, "d".repeat(64), ["/other"]);
+    await writeLock(join(dir, "local.lock"), createLock(localPort, "c".repeat(64), ["/work/app"]));
+    await writeLock(join(dir, "remote.lock"), remoteLock);
+    const controller = new AbortController();
+    controllers.push(controller);
+    followSelection({
+      cwd: "/work/app",
+      lockDir: dir,
+      maxAgeMs: 60_000,
+      retryMs: WATCH_RETRY_MS,
+      ideId: ideLockId(remoteLock),
+      signal: controller.signal,
+      onUpdate: () => undefined,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, MISMATCH_OBSERVATION_MS));
+    controller.abort();
+    await new Promise((resolve) => setTimeout(resolve, ABORT_SETTLE_MS));
+    expect(remoteReads).toBe(0);
+    expect(localReads).toBe(0);
+  });
+
   it("follows the initial editor, later changes, and a disconnect", async () => {
     const dir = await mkdtemp(join(tmpdir(), "dsh-watch-"));
     roots.push(dir);
@@ -80,7 +126,7 @@ describe("followSelection", () => {
       cwd: "/work/app",
       lockDir: dir,
       maxAgeMs: 60_000,
-      retryMs: 20,
+      retryMs: WATCH_RETRY_MS,
       signal: controller.signal,
       onUpdate: (update) => updates.push(update),
     });

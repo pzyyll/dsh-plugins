@@ -9,6 +9,8 @@ export interface AvailableIde {
   host: "127.0.0.1";
   port: number;
   workspaceFolders: string[];
+  /** At least one IDE folder is equal to or inside the Session workspace. */
+  workspaceMatched: boolean;
 }
 
 /** Keep a manual choice bound to one IDE process, not a reused listening port. */

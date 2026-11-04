@@ -4,7 +4,13 @@ import { mkdtemp, readFile, readdir, rm, stat, utimes, writeFile } from "node:fs
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createLock, defaultLockDir, discoverLocks, writeLock } from "./lock.js";
+import {
+  createLock,
+  defaultLockDir,
+  discoverLocks,
+  workspaceMatchDistance,
+  writeLock,
+} from "./lock.js";
 
 const roots: string[] = [];
 async function tempDir(): Promise<string> {
@@ -63,7 +69,7 @@ describe("lock", () => {
     await expect(discoverLocks(dir, "/work/app", 30_000, controller.signal)).resolves.toEqual([]);
   });
 
-  it("filters invalid, stale, and non-matching locks and sorts deepest match then fresh", async () => {
+  it("filters invalid, stale, and non-matching locks and sorts nearest match then fresh", async () => {
     const dir = await tempDir();
     const now = Date.now();
     const deep = lock(43211, ["/work/app/sub"], new Date(now).toISOString());
@@ -82,7 +88,30 @@ describe("lock", () => {
       writeFile(join(dir, "malformed.lock"), "{}"),
     ]);
     await utimes(join(dir, "stale.lock"), new Date(now - 100_000), new Date(now - 100_000));
-    const found = await discoverLocks(dir, "/work/app/sub/file.ts", 30_000);
-    expect(found.map((item) => item.port)).toEqual([43211, 43212]);
+    const found = await discoverLocks(dir, "/work/app", 30_000);
+    expect(found.map((item) => item.port)).toEqual([43212, 43211]);
+  });
+});
+
+describe("workspaceMatchDistance", () => {
+  it.each([
+    { name: "same directory", folders: ["/work/app"], distance: 0 },
+    { name: "child directory", folders: ["/work/app/src"], distance: 1 },
+    { name: "nested directory", folders: ["/work/app/packages/plugin"], distance: 2 },
+    { name: "parent directory", folders: ["/work"], distance: Infinity },
+    { name: "sibling directory", folders: ["/work/other"], distance: Infinity },
+    { name: "shared path prefix", folders: ["/work/app-other"], distance: Infinity },
+    { name: "escaped directory", folders: ["/work/app/../other"], distance: Infinity },
+    { name: "empty workspace", folders: [], distance: Infinity },
+    { name: "one matching multi-root folder", folders: ["/other", "/work/app/src"], distance: 1 },
+    { name: "normalized directory", folders: ["/work/app/src/.."], distance: 0 },
+  ])("matches $name", ({ folders, distance }) => {
+    expect(workspaceMatchDistance(lock(43210, folders), "/work/app")).toBe(distance);
+  });
+
+  it("matches Windows paths without case sensitivity but rejects another drive", () => {
+    if (process.platform !== "win32") return;
+    expect(workspaceMatchDistance(lock(43210, ["c:/WORK/App/src"]), "C:/work/app")).toBe(1);
+    expect(workspaceMatchDistance(lock(43210, ["D:/work/app"]), "C:/work/app")).toBe(Infinity);
   });
 });

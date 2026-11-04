@@ -179,7 +179,8 @@ async function applyTarget(
     return {
       ok: false,
       status: 409,
-      error: "that IDE is no longer reachable; the previous choice was kept",
+      error:
+        "that IDE is no longer reachable or does not match this workspace; the previous choice was kept",
     };
   }
   return { ok: true, selection: { kind: "manual", ideId: selected.id } };

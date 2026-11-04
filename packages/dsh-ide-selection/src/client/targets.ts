@@ -39,6 +39,7 @@ export async function applyTargetChoice(
   sessionId: string,
   optionId: string,
   t: Translate = fallbackText,
+  signal?: AbortSignal,
 ): Promise<void> {
   const target =
     optionId === AUTO_TARGET_ID
@@ -48,6 +49,7 @@ export async function applyTargetChoice(
         : { kind: "manual", ideId: optionId };
   const response = await fetch(`${TARGET_SELECT_URL}?session=${encodeURIComponent(sessionId)}`, {
     method: "POST",
+    ...(signal === undefined ? {} : { signal }),
     headers: { "content-type": "application/json", accept: "application/json" },
     credentials: "same-origin",
     body: JSON.stringify(target),
@@ -64,12 +66,16 @@ export function targetOptions(overview: IdeTargetOverview, t: Translate): Select
   const rows: SelectOption[] = overview.ides.map((ide) => ({
     id: ide.id,
     label: ide.name,
-    detail: t("ide.detail", {
-      workspace: workspaceText(ide, t),
-      host: ide.host,
-      port: String(ide.port),
-    }),
+    detail: [
+      t("ide.detail", {
+        workspace: workspaceText(ide, t),
+        host: ide.host,
+        port: String(ide.port),
+      }),
+      ...(ide.workspaceMatched ? [] : [t("ide.workspaceMismatch")]),
+    ].join(" · "),
     group: { name: "ides", label: t("group.ides") },
+    ...(ide.workspaceMatched ? {} : { disabled: true }),
     ...(overview.selection.kind === "manual" && overview.selection.ideId === ide.id
       ? { active: true }
       : {}),
@@ -102,7 +108,7 @@ export function resolveTranslate(text: Translate | undefined): Translate {
 
 function automaticRow(overview: IdeTargetOverview): IdeTargetRow | undefined {
   if (overview.automaticId === undefined) return undefined;
-  return overview.ides.find((ide) => ide.id === overview.automaticId);
+  return overview.ides.find((ide) => ide.id === overview.automaticId && ide.workspaceMatched);
 }
 
 function workspaceText(ide: IdeTargetRow, t: Translate): string {
