@@ -14,7 +14,7 @@
         "${workspaceFolder}/packages/dsh-ide-selection/ide-plugins/vscode/out/extension.js"
       ],
       "sourceMaps": true,
-      "preLaunchTask": "mise: compile:vsix"
+      "preLaunchTask": "mise: build:vsix"
     }
   ]
 }

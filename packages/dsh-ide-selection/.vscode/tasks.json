@@ -2,9 +2,9 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "mise: compile:vsix",
+      "label": "mise: build:vsix",
       "type": "shell",
-      "command": "mise run compile:vsix",
+      "command": "mise run build:vsix",
       "options": {
         "cwd": "${workspaceFolder}"
       },

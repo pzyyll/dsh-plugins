@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# ABOUTME: Build the dsh plugin and browser client.
+# ABOUTME: Keep the default build separate from the VS Code extension task.
 #MISE description="Build the dsh plugin and browser client"
 #MISE depends=["install"]
 set -euo pipefail

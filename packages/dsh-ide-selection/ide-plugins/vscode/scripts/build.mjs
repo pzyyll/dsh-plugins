@@ -9,7 +9,7 @@ const EXTENSION_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const NODE_TARGET = "node24";
 const PRODUCTION = process.argv.includes("--production");
 const BUNDLE_HEADER =
-  "// ABOUTME: Generated VS Code extension bundle.\n// ABOUTME: Rebuild with mise run compile:vsix; see source and third-party notices for details.";
+  "// ABOUTME: Generated VS Code extension bundle.\n// ABOUTME: Rebuild with mise run build:vsix; see source and third-party notices for details.";
 
 await rm(join(EXTENSION_ROOT, "out"), { recursive: true, force: true });
 await build({

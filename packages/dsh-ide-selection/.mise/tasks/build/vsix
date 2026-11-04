@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# ABOUTME: Build the VS Code extension for local debugging.
+# ABOUTME: Install workspace dependencies before compiling the extension.
 #MISE description="Build the VS Code extension for local debugging"
 #MISE depends=["install"]
 set -euo pipefail
