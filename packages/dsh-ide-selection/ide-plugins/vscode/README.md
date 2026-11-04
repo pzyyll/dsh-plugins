@@ -1,46 +1,42 @@
 # DSH IDE Selection (VS Code)
 
-Shares the active VS Code file and text selections with a local dsh IDE bridge.
+Shares the file and text you select in VS Code with dsh on the same computer.
 
-This package is the editor side only. Install the built dsh plugin from `packages/dsh-ide-selection` as well. The two sides meet through a private loopback discovery file. They do not start each other.
+This extension is only the editor side. Install the matching dsh plugin as well. The two sides find each other through a private lock file on this computer. Neither one starts the other.
 
 ## Requirements
 
 - VS Code 1.144 or later
 - A trusted local workspace
-- The matching dsh plugin from this repository
+- The matching dsh plugin
 
 ## Install
 
 From `packages/dsh-ide-selection`:
 
 ```sh
-mise run install
 mise run package:vsix
 cd ide-plugins/vscode && code --install-extension dist/dsh-ide-selection-vscode-$(node -p "require('./package.json').version").vsix
 ```
 
-You can also use **Extensions: Install from VSIX...** in VS Code.
+You can also use **Extensions: Install from VSIX...** and choose that file.
 
-Reload the window after installation. The extension starts when startup finishes. It does not start dsh.
+Reload the window after installation. The extension starts when startup finishes, and only in a trusted workspace. It does not start dsh. If it does not start, open the **DSH IDE Selection** output channel.
+
+## Use
+
+1. In VS Code, select the text you want dsh to see. Every non-empty selection in the active editor is kept. If nothing is selected, dsh receives only the open file path.
+2. Start dsh from a directory inside that workspace.
+3. Send a message. dsh includes the selection that is current at send time.
+
+Run `/select-ide` in dsh to pick a VS Code window, match this workspace automatically, or turn IDE integration off. Do not select secrets.
+
+How the selection appears in the Web UI is described in the [dsh plugin guide](../../README.md).
 
 ## Settings
 
-| Key                       | Default | Purpose                                                           |
-| ------------------------- | ------- | ----------------------------------------------------------------- |
-| `dshIdeSelection.lockDir` | empty   | Absolute lock-directory override. Leave empty to use the default. |
+| Key | Default | Purpose |
+| --- | --- | --- |
+| `dshIdeSelection.lockDir` | empty | Absolute lock-directory override. Leave empty to use `.dsh/ide-selection/lock` in your home directory. |
 
-Set the same absolute `lockDir` on the dsh plugin when you override it. Do not use a shared or publicly readable directory.
-
-## Development
-
-Build and package commands run from `packages/dsh-ide-selection`:
-
-| Command                 | Action                                                      |
-| ----------------------- | ----------------------------------------------------------- |
-| `mise run compile:vsix` | Build `out/extension.js` for local debugging.               |
-| `mise run package:vsix` | Build the production bundle and write a VSIX under `dist/`. |
-
-Press F5 in the `dsh-plugins` repository root to build the extension and open an Extension Development Host.
-
-Local packaging does not publish the extension. Releases attach the VSIX to GitHub Release `dsh-ide-selection-vscode-v<version>`, then publish that file to the Visual Studio Marketplace. See [RELEASE.md](../../../../RELEASE.md).
+Set the same absolute path on the dsh plugin when you override it. Use a directory only you can read. A relative path is rejected, and the extension does not start.
