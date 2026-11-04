@@ -10,7 +10,6 @@ Install the dsh plugin and the VS Code extension. One does not start the other.
 
 <img width="1497" height="430" alt="image" src="https://github.com/user-attachments/assets/c9fecce4-821a-4fcf-b0ba-ee8b3272ceb3" />
 
-
 ## Install
 
 ### dsh plugin
