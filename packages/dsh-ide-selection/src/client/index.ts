@@ -18,28 +18,50 @@ import {
   type Translate,
 } from "./targets.js";
 import { localizeRemoteCommandList } from "./command-localization.js";
-import { statusButtonText } from "./status-label.js";
+import { statusButtonText, statusButtonVisible } from "./status-label.js";
 import { IdeStatusControl, STATUS_ORDER, STATUS_PILL_CSS } from "./status-picker.js";
 const STATUS_STYLE_ID = "dsh-ide-selection-status";
 const SELECT_IDE_COMMAND = "select-ide";
 
+interface StyleElement {
+  id: string;
+  textContent: string;
+  remove(): void;
+}
+
 interface StyleRoot {
-  getElementById(id: string): unknown;
-  createElement(tag: "style"): { id: string; textContent: string };
+  getElementById(id: string): StyleElement | null;
+  createElement(tag: "style"): StyleElement;
   head: { appendChild(node: unknown): void };
 }
 
-function installStatusStyle(): void {
+let styleUsers = 0;
+
+/** Install the pill stylesheet while at least one status control is mounted. */
+function retainStatusStyle(): () => void {
   const root = (globalThis as { document?: StyleRoot }).document;
-  if (!root || root.getElementById(STATUS_STYLE_ID)) return;
-  const style = root.createElement("style");
-  style.id = STATUS_STYLE_ID;
-  style.textContent = STATUS_PILL_CSS;
-  root.head.appendChild(style);
+  if (!root) return () => {};
+  styleUsers += 1;
+  if (!root.getElementById(STATUS_STYLE_ID)) {
+    const style = root.createElement("style");
+    style.id = STATUS_STYLE_ID;
+    style.textContent = STATUS_PILL_CSS;
+    root.head.appendChild(style);
+  }
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    styleUsers -= 1;
+    if (styleUsers > 0) return;
+    styleUsers = 0;
+    root.getElementById(STATUS_STYLE_ID)?.remove();
+  };
 }
 
 interface SelectionStatusEvent {
   connected: boolean;
+  disabled?: boolean;
   text?: string;
   lines?: number;
   detail?: string;
@@ -61,14 +83,18 @@ function isStatusEvent(value: unknown): value is SelectionStatusEvent {
   if (typeof value !== "object" || value === null || !("connected" in value)) return false;
   const event = value as {
     connected?: unknown;
+    disabled?: unknown;
     text?: unknown;
     lines?: unknown;
     detail?: unknown;
   };
+  const disabled =
+    event.disabled === undefined || (event.disabled === true && event.connected === false);
   const lines =
     event.lines === undefined ||
     (typeof event.lines === "number" && Number.isSafeInteger(event.lines) && event.lines >= 0);
   return (
+    disabled &&
     lines &&
     (event.connected === false ||
       (event.connected === true &&
@@ -78,26 +104,31 @@ function isStatusEvent(value: unknown): value is SelectionStatusEvent {
 }
 
 /** Composer or Hero pill for the session's current VS Code selection. */
-export function SelectionStatus({ sessionId }: { sessionId?: string }): ReactElement {
+export function SelectionStatus({ sessionId }: { sessionId?: string }): ReactElement | null {
   const [status, setStatus] = useState<
     { sessionId: string; event: SelectionStatusEvent } | undefined
   >(undefined);
+  const [failedSessionId, setFailedSessionId] = useState<string | undefined>(undefined);
   const [localeRevision, setLocaleRevision] = useState(0);
-  useLayoutEffect(() => {
-    installStatusStyle();
-  }, []);
+  useLayoutEffect(() => retainStatusStyle(), []);
   useEffect(() => {
     const locale = clientContext?.get("locale") as LocaleService | undefined;
     return locale?.subscribe?.(() => setLocaleRevision((revision) => revision + 1));
   }, []);
   useEffect(() => {
     if (!sessionId) return undefined;
-    const stream = openStatusStream(sessionId);
-    stream.onerror = () => setStatus({ sessionId, event: { connected: false } });
+    const id = sessionId;
+    const stream = openStatusStream(id);
+    stream.onerror = () => {
+      setFailedSessionId(id);
+      setStatus({ sessionId: id, event: { connected: false } });
+    };
     stream.onmessage = (message) => {
       try {
         const parsed: unknown = JSON.parse(message.data);
-        if (isStatusEvent(parsed)) setStatus({ sessionId, event: parsed });
+        if (!isStatusEvent(parsed)) return;
+        setFailedSessionId((current) => (current === id ? undefined : current));
+        setStatus({ sessionId: id, event: parsed });
       } catch {
         // Ignore a malformed event and keep the last accepted status.
       }
@@ -110,6 +141,8 @@ export function SelectionStatus({ sessionId }: { sessionId?: string }): ReactEle
   }, [sessionId]);
   const t = useMemo(() => translateAt(localeRevision), [localeRevision]);
   const event = status?.sessionId === sessionId ? status?.event : undefined;
+  const streamFailed = failedSessionId !== undefined && failedSessionId === sessionId;
+  if (!statusButtonVisible(event, streamFailed)) return null;
   const connected = event?.connected === true;
   return createElement(IdeStatusControl, {
     key: sessionId ?? "no-session",

@@ -12,7 +12,7 @@ import type { IdeConnections } from "./ide-connections.js";
 export const SELECTION_EVENTS_PATH = "/ide-selection/events";
 
 export type SelectionStatusEvent =
-  | { connected: false }
+  | { connected: false; disabled?: true }
   | { connected: true; text: string; lines: number; detail?: string };
 
 export interface SelectionHubOptions {
@@ -60,11 +60,11 @@ export class SelectionHub {
     let stopWatch = () => {};
     const stopTarget = connections.subscribe(sessionId, (target) => {
       stopWatch();
-      listener({ connected: false });
-      stopWatch =
-        target.kind === "off"
-          ? () => {}
-          : this.subscribe(cwd, listener, target.kind === "manual" ? target.ideId : undefined);
+      const disabled = target.kind === "off";
+      listener(disabled ? { connected: false, disabled: true } : { connected: false });
+      stopWatch = disabled
+        ? () => {}
+        : this.subscribe(cwd, listener, target.kind === "manual" ? target.ideId : undefined);
     });
     return () => {
       stopTarget();

@@ -1,8 +1,8 @@
 // ABOUTME: Check IDE status labels in English and Chinese.
-// ABOUTME: Preserve the original icon through connection and selection changes.
+// ABOUTME: Hide the icon when integration is disabled or the plugin stream is gone.
 import { describe, expect, it } from "vitest";
 import { fallbackText, zh } from "../../src/client/locales.js";
-import { statusButtonText } from "../../src/client/status-label.js";
+import { statusButtonText, statusButtonVisible } from "../../src/client/status-label.js";
 
 const chinese = (key: string, params?: Record<string, unknown>) => {
   const template = zh[key as keyof typeof zh] ?? key;
@@ -13,6 +13,15 @@ const chinese = (key: string, params?: Record<string, unknown>) => {
 };
 
 describe("IDE status labels", () => {
+  it("hides the icon when integration is disabled or the plugin stream is gone", () => {
+    expect(statusButtonVisible(undefined)).toBe(true);
+    expect(statusButtonVisible({ connected: false })).toBe(true);
+    expect(statusButtonVisible({ connected: true, lines: 1 })).toBe(true);
+    expect(statusButtonVisible({ connected: false, disabled: true })).toBe(false);
+    expect(statusButtonVisible({ connected: false }, true)).toBe(false);
+    expect(statusButtonVisible(undefined, true)).toBe(false);
+  });
+
   it("keeps the original icon visible before connecting and after disconnecting", () => {
     expect(statusButtonText(undefined, fallbackText)).toBe("⧉");
     expect(statusButtonText({}, fallbackText)).toBe("⧉");

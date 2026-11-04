@@ -183,7 +183,7 @@ describe("selection status stream", () => {
     await vi.waitFor(() => expect(first.at(-1)).toMatchObject({ detail: "manual.ts #L10-L12" }));
     expect(second.at(-1)).toMatchObject({ detail: "src/example.ts #L10-L12" });
     connections.setMode(sessionOne, "off");
-    expect(first.at(-1)).toEqual({ connected: false });
+    expect(first.at(-1)).toEqual({ connected: false, disabled: true });
     connections.setMode(sessionOne, "auto");
     await vi.waitFor(() =>
       expect(first.at(-1)).toMatchObject({ detail: "src/example.ts #L10-L12" }),
