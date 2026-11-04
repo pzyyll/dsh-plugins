@@ -26,6 +26,7 @@ const PICKER_Z_INDEX = 1100;
 const VIEWPORT_INSET_PX = PICKER_MARGIN_PX * 2;
 const PICKER_SPACING_PX = 8;
 const PICKER_HEADING_INSET_PX = 4;
+const PICKER_DIVIDER_WIDTH_PX = 1;
 const PICKER_FONT_SIZE_PX = 13;
 const PICKER_SECONDARY_FONT_SIZE_PX = 12;
 const PICKER_LINE_HEIGHT_PX = 20;
@@ -39,7 +40,7 @@ export const STATUS_PILL_CSS = [
   `.dsh-ide-trigger[data-connected="false"]{opacity:${DISCONNECTED_OPACITY}}`,
   '.dsh-ide-trigger:hover,.dsh-ide-trigger[aria-expanded="true"]{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-secondary)}',
   `.dsh-ide-picker{position:fixed;inset:auto;margin:0;z-index:${PICKER_Z_INDEX};box-sizing:border-box;width:min(${PICKER_WIDTH_PX}px,calc(100vw - ${VIEWPORT_INSET_PX}px));max-height:min(${PICKER_MAX_HEIGHT_PX}px,calc(100dvh - ${VIEWPORT_INSET_PX}px));overflow-y:auto;padding:${PICKER_SPACING_PX}px;border:0;border-radius:var(--dsw-radius-lg);background:var(--dsw-specific-menu);backdrop-filter:var(--dsw-menu-backdrop-filter);--dsw-elevation-stroke-color:var(--dsw-alias-border-l1);box-shadow:var(--dsw-elevation-prominent);color:var(--dsw-alias-label-secondary);font-family:inherit;font-size:${PICKER_FONT_SIZE_PX}px;line-height:${PICKER_LINE_HEIGHT_PX}px}`,
-  `.dsh-ide-picker-title{margin:0;padding:${PICKER_HEADING_INSET_PX}px ${PICKER_SPACING_PX}px ${PICKER_SPACING_PX}px;color:var(--dsw-alias-label-primary);font:inherit;font-weight:500}`,
+  `.dsh-ide-picker-title{margin:0 0 ${PICKER_SPACING_PX}px;padding:${PICKER_HEADING_INSET_PX}px ${PICKER_SPACING_PX}px ${PICKER_SPACING_PX}px;border-bottom:${PICKER_DIVIDER_WIDTH_PX}px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-primary);font:inherit;font-weight:500}`,
   `.dsh-ide-picker-message{margin:0;padding:0 ${PICKER_SPACING_PX}px ${PICKER_HEADING_INSET_PX}px;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:${PICKER_SECONDARY_FONT_SIZE_PX}px}`,
   ".dsh-ide-picker-message{overflow-wrap:anywhere}",
   `.dsh-ide-picker-option,.dsh-ide-picker-retry{display:flex;align-items:flex-start;box-sizing:border-box;gap:${PICKER_SPACING_PX}px;width:100%;padding:${PICKER_SPACING_PX}px;border:0;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-primary);font:inherit;text-align:start;cursor:pointer}`,
