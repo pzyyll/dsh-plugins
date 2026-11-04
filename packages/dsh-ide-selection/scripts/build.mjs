@@ -1,7 +1,11 @@
 // ABOUTME: Build the dsh plugin and its browser client from TypeScript.
 // ABOUTME: Keep host-owned dsh modules external. The VS Code extension builds separately.
 import { build } from "esbuild";
+import { readFile } from "node:fs/promises";
 
+const { name: packageName } = JSON.parse(
+  await readFile(new URL("../package.json", import.meta.url), "utf8"),
+);
 const NODE_TARGET = "node24";
 const BUNDLE_HEADER =
   "// ABOUTME: Generated IDE selection integration bundle.\n// ABOUTME: Rebuild with mise run build; see source and third-party notices for details.";
@@ -33,7 +37,7 @@ await Promise.all([
       "@deepseek-ai/dsh-client-ui-primitives",
     ],
     banner: {
-      js: `${BUNDLE_HEADER}\nwindow.__ModuleLoader__.load({ id: "dsh-ide-selection", factory: (require) => {\nvar module = { exports: {} };`,
+      js: `${BUNDLE_HEADER}\nwindow.__ModuleLoader__.load({ id: ${JSON.stringify(packageName)}, factory: (require) => {\nvar module = { exports: {} };`,
     },
     footer: { js: "return module.exports; } });" },
     sourcemap: true,
