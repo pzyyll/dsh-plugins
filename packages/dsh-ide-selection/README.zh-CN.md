@@ -59,11 +59,11 @@ cd ide-plugins/vscode && code --install-extension dist/dsh-ide-selection-vscode-
 
 Web UI 连上 VS Code 后，输入区显示：
 
-| 选区 | 状态 |
-| --- | --- |
-| 已连接，没有选中文本 | `⧉` |
-| 一行 | `⧉ Selected` |
-| 多行 | `⧉ N Lines Selected` |
+| 选区                 | 状态                 |
+| -------------------- | -------------------- |
+| 已连接，没有选中文本 | `⧉`                  |
+| 一行                 | `⧉ Selected`         |
+| 多行                 | `⧉ N Lines Selected` |
 
 `N` 是选中的行数。悬停状态可查看文件和行范围，例如 `#L10-L20`。第一条消息发出之前，同一状态显示在工作区和预设控件旁边。VS Code 断开后状态消失，状态中不显示选中的文本。状态文字保持英文。
 
