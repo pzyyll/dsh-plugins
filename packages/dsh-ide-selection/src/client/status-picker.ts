@@ -163,7 +163,7 @@ export function IdeStatusControl({
     }
   };
 
-  const options = overview === undefined ? [] : pickerOptions(overview, t);
+  const options = overview === undefined ? [] : pickerOptions(overview, t, connected);
   const button = createElement(
     "button",
     {

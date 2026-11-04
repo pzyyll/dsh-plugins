@@ -27,7 +27,7 @@ function overview(
 
 describe("pickerOptions", () => {
   it("shows only matching IDEs without mode actions or group labels", () => {
-    const rows = pickerOptions(overview(), fallbackText);
+    const rows = pickerOptions(overview(), fallbackText, true);
 
     expect(rows.map((row) => row.id)).toEqual(["ide-one"]);
     expect(rows[0]).toMatchObject({
@@ -40,12 +40,38 @@ describe("pickerOptions", () => {
     expect(rows[0]?.group).toBeUndefined();
   });
 
+  it.each<IdeSelectionTarget>([{ kind: "auto" }, { kind: "manual", ideId: "ide-one" }])(
+    "does not mark a reachable $kind target connected before the live connection starts",
+    (selection) => {
+      const rows = pickerOptions(overview([REACHABLE_IDE], selection), fallbackText, false);
+
+      expect(rows[0]).toMatchObject({ active: false, targetId: REACHABLE_IDE.id });
+    },
+  );
+
+  it("updates an open list when the live connection drops and reconnects", () => {
+    const targets = overview();
+
+    expect(pickerOptions(targets, fallbackText, true)[0]).toMatchObject({
+      active: true,
+      targetId: "off",
+    });
+    expect(pickerOptions(targets, fallbackText, false)[0]).toMatchObject({
+      active: false,
+      targetId: REACHABLE_IDE.id,
+    });
+    expect(pickerOptions(targets, fallbackText, true)[0]).toMatchObject({
+      active: true,
+      targetId: "off",
+    });
+  });
+
   it.each<IdeSelectionTarget>([
     { kind: "auto" },
     { kind: "manual", ideId: "ide-one" },
     { kind: "off" },
   ])("keeps exactly the current $kind choice selected", (selection) => {
-    const rows = pickerOptions(overview([REACHABLE_IDE], selection), fallbackText);
+    const rows = pickerOptions(overview([REACHABLE_IDE], selection), fallbackText, true);
     const expectedIds = selection.kind === "off" ? [] : [REACHABLE_IDE.id];
 
     expect(rows.filter((row) => row.active).map((row) => row.id)).toEqual(expectedIds);
@@ -54,17 +80,18 @@ describe("pickerOptions", () => {
 
   it("disconnects the current IDE, switches to another, and reconnects after turning off", () => {
     const ides = [REACHABLE_IDE, { ...REACHABLE_IDE, id: "ide-two" }];
-    const initial = pickerOptions(overview(ides), fallbackText);
+    const initial = pickerOptions(overview(ides), fallbackText, true);
     expect(initial.map((row) => row.targetId)).toEqual(["off", "ide-two"]);
 
     const switched = pickerOptions(
       overview(ides, { kind: "manual", ideId: "ide-two" }),
       fallbackText,
+      true,
     );
     expect(switched.map((row) => row.active)).toEqual([false, true]);
     expect(switched.map((row) => row.targetId)).toEqual(["ide-one", "off"]);
 
-    const disconnected = pickerOptions(overview(ides, { kind: "off" }), fallbackText);
+    const disconnected = pickerOptions(overview(ides, { kind: "off" }), fallbackText, false);
     expect(disconnected.map((row) => row.active)).toEqual([false, false]);
     expect(disconnected.map((row) => row.targetId)).toEqual(["ide-one", "ide-two"]);
   });
@@ -74,6 +101,7 @@ describe("pickerOptions", () => {
     const rows = pickerOptions(
       overview([{ ...REACHABLE_IDE, workspaceFolders: workspaces }]),
       fallbackText,
+      true,
     );
 
     expect(rows[0]?.detail).toBe("…/work/app, /work/app, /, C:\\");
@@ -98,6 +126,7 @@ describe("pickerOptions", () => {
         },
       ]),
       fallbackText,
+      true,
     );
 
     expect(rows[0]?.detail).toBe("…\\my\\dsh-plugins · 127.0.0.1:51234");
@@ -110,6 +139,7 @@ describe("pickerOptions", () => {
     const rows = pickerOptions(
       overview([REACHABLE_IDE, { ...REACHABLE_IDE, id: "outside", workspaceMatched: false }]),
       fallbackText,
+      true,
     );
 
     expect(rows.map((row) => row.id)).toEqual(["ide-one"]);
@@ -119,7 +149,7 @@ describe("pickerOptions", () => {
   it.each([{ ides: [] }, { ides: [{ ...REACHABLE_IDE, workspaceMatched: false }] }])(
     "returns no rows when no IDE matches the workspace: $ides",
     ({ ides }) => {
-      const rows = pickerOptions(overview(ides), fallbackText);
+      const rows = pickerOptions(overview(ides), fallbackText, false);
 
       expect(rows).toEqual([]);
     },
@@ -133,6 +163,7 @@ describe("pickerOptions", () => {
           automaticId: "outside",
         },
         fallbackText,
+        true,
       );
 
       expect(rows.some((row) => row.active)).toBe(false);
@@ -143,16 +174,21 @@ describe("pickerOptions", () => {
     const rows = pickerOptions(
       overview([{ ...REACHABLE_IDE, workspaceFolders: [] }]),
       fallbackText,
+      true,
     );
 
     expect(rows[0]?.detail).toBe("unknown workspace");
   });
 
   it("uses the supplied locale for the compact labels", () => {
-    const rows = pickerOptions(overview(), (key, params) => {
-      const template = zh[key as keyof typeof zh];
-      return template.replace(/\{(\w+)\}/g, (_match, name: string) => String(params?.[name]));
-    });
+    const rows = pickerOptions(
+      overview(),
+      (key, params) => {
+        const template = zh[key as keyof typeof zh];
+        return template.replace(/\{(\w+)\}/g, (_match, name: string) => String(params?.[name]));
+      },
+      true,
+    );
 
     expect(rows[0]?.label).toBe("Visual Studio Code");
     expect(rows[0]?.group).toBeUndefined();

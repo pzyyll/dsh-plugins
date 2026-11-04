@@ -1,5 +1,5 @@
 // ABOUTME: Present compact status-picker rows without changing the slash command's options.
-// ABOUTME: Keep full connection details in hints and distinguish ambiguous workspace labels.
+// ABOUTME: Use live connection state for badges and actions, and keep full details in hints.
 import { AUTO_TARGET_ID, OFF_TARGET_ID, type IdeTargetOverview } from "../shared/target.js";
 import type { SelectOption } from "./command-ui.js";
 import { targetOptions, type Translate } from "./targets.js";
@@ -12,8 +12,12 @@ export interface PickerOption extends SelectOption {
   readonly targetId: string;
 }
 
-/** Show matching IDEs; clicking the effective target disconnects instead of selecting it. */
-export function pickerOptions(overview: IdeTargetOverview, t: Translate): PickerOption[] {
+/** Show matching IDEs; only a live target is marked connected and offers disconnection. */
+export function pickerOptions(
+  overview: IdeTargetOverview,
+  t: Translate,
+  connected: boolean,
+): PickerOption[] {
   const matchingIdes = overview.ides.filter((ide) => ide.workspaceMatched);
   const options = targetOptions({ ...overview, ides: matchingIdes }, t);
   const ides = new Map(matchingIdes.map((ide) => [ide.id, ide]));
@@ -35,9 +39,10 @@ export function pickerOptions(overview: IdeTargetOverview, t: Translate): Picker
           other.id !== ide.id && other.name === ide.name && workspaces.get(other.id) === workspace,
       );
       const active =
-        overview.selection.kind === "auto"
+        connected &&
+        (overview.selection.kind === "auto"
           ? overview.automaticId === ide.id
-          : option.active === true;
+          : option.active === true);
       return {
         ...row,
         detail: [workspace, ...(ambiguous ? [`${ide.host}:${ide.port}`] : [])].join(" · "),
