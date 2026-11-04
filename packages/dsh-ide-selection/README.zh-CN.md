@@ -6,7 +6,9 @@
 
 需要同时安装 dsh 插件和 VS Code 扩展。一方不会启动另一方。
 
-**要求：** dsh `0.2.1-rc.5`、24.x 系列中 24.9 或更高版本的 Node.js，以及 VS Code 1.144 或更高版本。
+<img width="1499" height="807" alt="image" src="https://github.com/user-attachments/assets/b3183386-b595-4414-95d7-ce0051d5b1b2" />
+
+<img width="1497" height="430" alt="image" src="https://github.com/user-attachments/assets/c9fecce4-821a-4fcf-b0ba-ee8b3272ceb3" />
 
 ## 安装
 
