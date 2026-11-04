@@ -12,40 +12,23 @@ Install the dsh plugin and the VS Code extension. One does not start the other.
 
 ### dsh plugin
 
-From the `dsh-plugins` repository root:
+Install [@balaenis/dsh-ide-selection](https://www.npmjs.com/package/@balaenis/dsh-ide-selection) from npm:
 
 ```sh
-mise trust
-mise install
+dsh plugin --profile <profile> add @balaenis/dsh-ide-selection
 ```
 
-From `packages/dsh-ide-selection`:
-
-```sh
-mise run install
-mise run build
-```
-
-This build does not install the VS Code extension.
-
-Install this package directory, not the repository root. From the repository root:
-
-```sh
-dsh plugin --profile <profile> add ./packages/dsh-ide-selection
-```
-
-You can also install that directory from the Web UI.
+Replace `<profile>` with your dsh profile name.
 
 ### VS Code extension
 
-From `packages/dsh-ide-selection`:
+Install [DSH IDE Selection](https://marketplace.visualstudio.com/items?itemName=balaenis.dsh-ide-selection-vscode) from the VS Code Marketplace, or run:
 
 ```sh
-mise run package:vsix
-cd ide-plugins/vscode && code --install-extension dist/dsh-ide-selection-vscode-$(node -p "require('./package.json').version").vsix
+code --install-extension balaenis.dsh-ide-selection-vscode
 ```
 
-You can also use **Extensions: Install from VSIX...**. Reload VS Code after installation.
+Reload VS Code after installation.
 
 The extension runs in a trusted local workspace. It does not start dsh. If it does not start, check the **DSH IDE Selection** output channel.
 

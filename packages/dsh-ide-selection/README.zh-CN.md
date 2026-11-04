@@ -12,40 +12,23 @@
 
 ### dsh 插件
 
-在 `dsh-plugins` 仓库根目录执行：
+从 npm 安装 [@balaenis/dsh-ide-selection](https://www.npmjs.com/package/@balaenis/dsh-ide-selection)：
 
 ```sh
-mise trust
-mise install
+dsh plugin --profile <profile> add @balaenis/dsh-ide-selection
 ```
 
-在 `packages/dsh-ide-selection` 中执行：
-
-```sh
-mise run install
-mise run build
-```
-
-这一步不会安装 VS Code 扩展。
-
-安装本包目录，不要安装仓库根目录。在仓库根目录执行：
-
-```sh
-dsh plugin --profile <profile> add ./packages/dsh-ide-selection
-```
-
-也可以在 Web UI 中安装该目录。
+将 `<profile>` 替换为你的 dsh 配置名称。
 
 ### VS Code 扩展
 
-在 `packages/dsh-ide-selection` 中执行：
+从 VS Code Marketplace 安装 [DSH IDE Selection](https://marketplace.visualstudio.com/items?itemName=balaenis.dsh-ide-selection-vscode)，或执行：
 
 ```sh
-mise run package:vsix
-cd ide-plugins/vscode && code --install-extension dist/dsh-ide-selection-vscode-$(node -p "require('./package.json').version").vsix
+code --install-extension balaenis.dsh-ide-selection-vscode
 ```
 
-也可以使用 **扩展: 从 VSIX 安装...**（Extensions: Install from VSIX...）。安装后重新加载 VS Code。
+安装后重新加载 VS Code。
 
 扩展在受信任的本地工作区中运行，不会启动 dsh。如果没有启动，请查看 **DSH IDE Selection** 输出通道。
 
