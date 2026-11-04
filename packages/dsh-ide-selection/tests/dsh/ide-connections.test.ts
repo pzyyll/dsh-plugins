@@ -5,11 +5,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SessionId } from "@deepseek-ai/dsh-session";
 import { afterEach, describe, expect, it } from "vitest";
-import { ideLockId } from "../shared/ide.js";
-import { createLock, writeLock } from "../shared/lock.js";
-import type { EditorSelectionSnapshot } from "../shared/protocol.js";
-import { IdeServer } from "../shared/server.js";
-import { IdeConnections } from "./ide-connections.js";
+import { ideLockId } from "../../src/shared/ide.js";
+import { createLock, writeLock } from "../../src/shared/lock.js";
+import type { EditorSelectionSnapshot } from "../../src/shared/protocol.js";
+import { IdeServer } from "../../src/shared/server.js";
+import { IdeConnections } from "../../src/dsh/ide-connections.js";
 
 const SESSION_ONE = SessionId("picker-session-one");
 const SESSION_TWO = SessionId("picker-session-two");

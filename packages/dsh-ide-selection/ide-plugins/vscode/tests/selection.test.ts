@@ -79,7 +79,7 @@ beforeEach(() => {
 
 describe("getActiveSelectionSnapshot", () => {
   it("returns no snapshot without an active editor or for a non-file document", async () => {
-    const { getActiveSelectionSnapshot } = await import("./selection.js");
+    const { getActiveSelectionSnapshot } = await import("../src/selection.js");
     expect(getActiveSelectionSnapshot()).toBeUndefined();
 
     state.activeTextEditor = {
@@ -106,7 +106,7 @@ describe("getActiveSelectionSnapshot", () => {
       { empty: true, text: "", start: { line: 3, character: 0 }, end: { line: 3, character: 0 } },
     ]);
     state.activeTextEditor = active;
-    const { getActiveSelectionSnapshot } = await import("./selection.js");
+    const { getActiveSelectionSnapshot } = await import("../src/selection.js");
 
     expect(getActiveSelectionSnapshot()).toEqual({
       source: "vscode",
@@ -134,7 +134,7 @@ describe("getActiveSelectionSnapshot", () => {
         end: { line: 0, character: 6 },
       },
     ]);
-    const { getActiveSelectionSnapshot } = await import("./selection.js");
+    const { getActiveSelectionSnapshot } = await import("../src/selection.js");
     const initial = getActiveSelectionSnapshot();
     expect(initial?.filePath).toBe("/work/file.ts");
 

@@ -16,10 +16,10 @@ import {
   SessionStore,
   type SessionEvent,
 } from "@deepseek-ai/dsh-session";
-import { createLock, writeLock } from "../shared/lock.js";
-import { IdeServer } from "../shared/server.js";
-import type { EditorSelectionSnapshot } from "../shared/protocol.js";
-import { apply, Config, inject, name } from "./index.js";
+import { createLock, writeLock } from "../../src/shared/lock.js";
+import { IdeServer } from "../../src/shared/server.js";
+import type { EditorSelectionSnapshot } from "../../src/shared/protocol.js";
+import { apply, Config, inject, name } from "../../src/dsh/index.js";
 
 const roots: string[] = [];
 const servers: IdeServer[] = [];

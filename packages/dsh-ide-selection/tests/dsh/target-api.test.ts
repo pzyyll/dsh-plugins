@@ -8,12 +8,12 @@ import { Context, type Plugin } from "@deepseek-ai/cordis";
 import { AgentRegistry } from "@deepseek-ai/dsh-agent";
 import { WebServer } from "@deepseek-ai/dsh-host-webserver";
 import { SessionStore } from "@deepseek-ai/dsh-session";
-import { ideLockId } from "../shared/ide.js";
-import { createLock, writeLock } from "../shared/lock.js";
-import { IdeServer } from "../shared/server.js";
-import type { IdeTargetOverview } from "../shared/target.js";
-import * as selectionPlugin from "./index.js";
-import { TARGET_OVERVIEW_PATH, TARGET_SELECT_PATH } from "./target-api.js";
+import { ideLockId } from "../../src/shared/ide.js";
+import { createLock, writeLock } from "../../src/shared/lock.js";
+import { IdeServer } from "../../src/shared/server.js";
+import type { IdeTargetOverview } from "../../src/shared/target.js";
+import * as selectionPlugin from "../../src/dsh/index.js";
+import { TARGET_OVERVIEW_PATH, TARGET_SELECT_PATH } from "../../src/dsh/target-api.js";
 
 const roots: string[] = [];
 const closers: Array<() => Promise<void>> = [];

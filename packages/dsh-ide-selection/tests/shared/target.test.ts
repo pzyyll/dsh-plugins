@@ -1,7 +1,7 @@
 // ABOUTME: Verify workspace eligibility survives the host-to-browser target payload.
 // ABOUTME: Reject missing eligibility flags and automatic targets outside the workspace.
 import { describe, expect, it } from "vitest";
-import { parseTargetOverview, toTargetRow, type IdeTargetRow } from "./target.js";
+import { parseTargetOverview, toTargetRow, type IdeTargetRow } from "../../src/shared/target.js";
 
 const IDE_PORT = 51_234;
 const MATCHED_IDE: IdeTargetRow = {

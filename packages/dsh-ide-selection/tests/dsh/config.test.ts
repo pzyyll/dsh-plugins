@@ -2,7 +2,7 @@
 // ABOUTME: Keep invalid timeouts, text budgets, and ambiguous lock paths out of dsh turns.
 import { Context } from "@deepseek-ai/cordis";
 import { describe, expect, it } from "vitest";
-import { apply } from "./index.js";
+import { apply } from "../../src/dsh/index.js";
 
 describe("IDE selection configuration", () => {
   it.each([

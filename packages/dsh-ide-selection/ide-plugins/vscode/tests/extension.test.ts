@@ -77,7 +77,7 @@ vi.mock("vscode", () => {
 
 import type * as vscode from "vscode";
 import { IdeServer } from "../../../src/shared/server.js";
-import { activate, deactivate } from "./extension.js";
+import { activate, deactivate } from "../src/extension.js";
 
 let tempRoot: string;
 let lockDir: string;

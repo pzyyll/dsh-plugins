@@ -2,9 +2,9 @@
 // ABOUTME: Simulate pending filesystem discovery without adding fake production transports.
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("./lock.js", () => ({ discoverLocks: vi.fn(() => new Promise(() => {})) }));
-import { discoverLocks } from "./lock.js";
-import { readSelection } from "./client.js";
+vi.mock("../../src/shared/lock.js", () => ({ discoverLocks: vi.fn(() => new Promise(() => {})) }));
+import { discoverLocks } from "../../src/shared/lock.js";
+import { readSelection } from "../../src/shared/client.js";
 
 const TIMEOUT_MS = 100;
 const options = {

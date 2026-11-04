@@ -6,7 +6,7 @@ import {
   PROTOCOL_VERSION,
   type EditorSelectionSnapshot,
   type IdeLockFile,
-} from "./protocol.js";
+} from "../../src/shared/protocol.js";
 
 describe("protocol", () => {
   it("exports the upstream v1 protocol and auth header", () => {

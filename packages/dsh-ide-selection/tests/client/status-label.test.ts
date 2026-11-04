@@ -1,8 +1,8 @@
 // ABOUTME: Check IDE status labels in English and Chinese.
 // ABOUTME: Preserve the original icon through connection and selection changes.
 import { describe, expect, it } from "vitest";
-import { fallbackText, zh } from "./locales.js";
-import { statusButtonText } from "./status-label.js";
+import { fallbackText, zh } from "../../src/client/locales.js";
+import { statusButtonText } from "../../src/client/status-label.js";
 
 const chinese = (key: string, params?: Record<string, unknown>) => {
   const template = zh[key as keyof typeof zh] ?? key;

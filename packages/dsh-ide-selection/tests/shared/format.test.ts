@@ -1,8 +1,8 @@
 // ABOUTME: Check selected-context rendering for open files and selected ranges.
 // ABOUTME: Cover upstream-compatible line labels and shared selection text limits.
 import { describe, expect, it } from "vitest";
-import { formatEditorContext } from "./format.js";
-import type { EditorSelectionSnapshot } from "./protocol.js";
+import { formatEditorContext } from "../../src/shared/format.js";
+import type { EditorSelectionSnapshot } from "../../src/shared/protocol.js";
 
 const snapshot: EditorSelectionSnapshot = {
   source: "vscode",

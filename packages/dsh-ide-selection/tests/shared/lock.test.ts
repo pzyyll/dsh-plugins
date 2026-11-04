@@ -10,7 +10,7 @@ import {
   discoverLocks,
   workspaceMatchDistance,
   writeLock,
-} from "./lock.js";
+} from "../../src/shared/lock.js";
 
 const roots: string[] = [];
 async function tempDir(): Promise<string> {

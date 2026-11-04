@@ -9,11 +9,11 @@ import { Context, type Fiber, type Plugin } from "@deepseek-ai/cordis";
 import { AgentRegistry, type Agent } from "@deepseek-ai/dsh-agent";
 import { CommandRuntime } from "@deepseek-ai/dsh-commands";
 import { SessionId, SessionStore } from "@deepseek-ai/dsh-session";
-import { en } from "../client/locales.js";
-import { createLock, writeLock } from "../shared/lock.js";
-import { IdeServer } from "../shared/server.js";
-import { registerSelectIdeCommand } from "./commands.js";
-import { IdeConnections } from "./ide-connections.js";
+import { en } from "../../src/client/locales.js";
+import { createLock, writeLock } from "../../src/shared/lock.js";
+import { IdeServer } from "../../src/shared/server.js";
+import { registerSelectIdeCommand } from "../../src/dsh/commands.js";
+import { IdeConnections } from "../../src/dsh/ide-connections.js";
 
 const fibers: Fiber[] = [];
 const roots: string[] = [];

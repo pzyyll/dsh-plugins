@@ -9,18 +9,18 @@ import { Context, type Plugin } from "@deepseek-ai/cordis";
 import { WebServer } from "@deepseek-ai/dsh-host-webserver";
 import { SessionId, SessionStore } from "@deepseek-ai/dsh-session";
 import { AgentRegistry } from "@deepseek-ai/dsh-agent";
-import * as selectionPlugin from "./index.js";
-import { IdeConnections } from "./ide-connections.js";
-import { ideLockId } from "../shared/ide.js";
-import { createLock, writeLock } from "../shared/lock.js";
-import type { EditorSelectionSnapshot } from "../shared/protocol.js";
-import { IdeServer } from "../shared/server.js";
+import * as selectionPlugin from "../../src/dsh/index.js";
+import { IdeConnections } from "../../src/dsh/ide-connections.js";
+import { ideLockId } from "../../src/shared/ide.js";
+import { createLock, writeLock } from "../../src/shared/lock.js";
+import type { EditorSelectionSnapshot } from "../../src/shared/protocol.js";
+import { IdeServer } from "../../src/shared/server.js";
 import {
   SELECTION_EVENTS_PATH,
   SelectionHub,
   handleSelectionStream,
   registerSelectionStatus,
-} from "./status-stream.js";
+} from "../../src/dsh/status-stream.js";
 
 const roots: string[] = [];
 const closers: Array<() => Promise<void>> = [];

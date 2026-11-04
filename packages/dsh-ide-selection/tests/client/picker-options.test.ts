@@ -1,9 +1,13 @@
 // ABOUTME: Verify compact IDE labels preserve selection rules and full connection details.
 // ABOUTME: Cover path shortening, ambiguous windows, localization, and unavailable IDEs.
 import { describe, expect, it } from "vitest";
-import type { IdeSelectionTarget, IdeTargetOverview, IdeTargetRow } from "../shared/target.js";
-import { fallbackText, zh } from "./locales.js";
-import { pickerOptions } from "./picker-options.js";
+import type {
+  IdeSelectionTarget,
+  IdeTargetOverview,
+  IdeTargetRow,
+} from "../../src/shared/target.js";
+import { fallbackText, zh } from "../../src/client/locales.js";
+import { pickerOptions } from "../../src/client/picker-options.js";
 
 const REACHABLE_IDE: IdeTargetRow = {
   id: "ide-one",

@@ -1,7 +1,11 @@
 // ABOUTME: Check that the IDE picker stays anchored and inside small or scrolled viewports.
 // ABOUTME: Cover top-edge flipping and viewport clamping independently of browser layout.
 import { describe, expect, it } from "vitest";
-import { PICKER_GAP_PX, PICKER_MARGIN_PX, pickerPosition } from "./picker-position.js";
+import {
+  PICKER_GAP_PX,
+  PICKER_MARGIN_PX,
+  pickerPosition,
+} from "../../src/client/picker-position.js";
 
 const VIEWPORT = { width: 800, height: 600 };
 const PANEL = { width: 320, height: 240 };

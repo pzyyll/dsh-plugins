@@ -1,5 +1,6 @@
 src/**
 scripts/**
+tests/**
 out/**/*.map
 dist/**
 node_modules/**

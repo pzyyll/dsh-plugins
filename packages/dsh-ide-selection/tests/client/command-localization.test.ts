@@ -1,8 +1,8 @@
 // ABOUTME: Verify live localization of select-ide command descriptions.
 // ABOUTME: Preserve other commands, failed requests, and invalid catalog responses.
 import { describe, expect, it } from "vitest";
-import { fallbackText, zh } from "./locales.js";
-import { localizeRemoteCommandList } from "./command-localization.js";
+import { fallbackText, zh } from "../../src/client/locales.js";
+import { localizeRemoteCommandList } from "../../src/client/command-localization.js";
 
 describe("IDE command localization", () => {
   it("localizes only select-ide, keeps cached descriptions live, and wraps once", async () => {

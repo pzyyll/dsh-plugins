@@ -1,8 +1,8 @@
 // ABOUTME: Check the compact composer label and its hover detail.
 // ABOUTME: Cover an idle connection, one line, one range, and multiple ranges.
 import { describe, expect, it } from "vitest";
-import type { EditorSelectionSnapshot } from "./protocol.js";
-import { selectionStatusText } from "./status.js";
+import type { EditorSelectionSnapshot } from "../../src/shared/protocol.js";
+import { selectionStatusText } from "../../src/shared/status.js";
 
 const snapshot: EditorSelectionSnapshot = {
   source: "vscode",

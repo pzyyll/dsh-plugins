@@ -2,8 +2,8 @@
 // ABOUTME: Exercises origin rejection, initialize snapshots, broadcasts, attach, and shutdown.
 import WebSocket from "ws";
 import { afterEach, describe, expect, it } from "vitest";
-import { AUTH_HEADER, type EditorSelectionSnapshot } from "./protocol.js";
-import { IdeServer } from "./server.js";
+import { AUTH_HEADER, type EditorSelectionSnapshot } from "../../src/shared/protocol.js";
+import { IdeServer } from "../../src/shared/server.js";
 
 const servers: IdeServer[] = [];
 afterEach(async () => Promise.all(servers.splice(0).map((server) => server.stop())));

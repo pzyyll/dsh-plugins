@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 
-const packageRoot = new URL("../", import.meta.url);
+const packageRoot = new URL("../../", import.meta.url);
 const manifest = JSON.parse(await readFile(new URL("package.json", packageRoot), "utf8")) as {
   name: string;
   exports: { "./client": string };

@@ -4,11 +4,11 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createLock, writeLock } from "./lock.js";
-import { ideLockId } from "./ide.js";
-import type { EditorSelectionSnapshot } from "./protocol.js";
-import { IdeServer } from "./server.js";
-import { followSelection, type FollowUpdate } from "./watch.js";
+import { createLock, writeLock } from "../../src/shared/lock.js";
+import { ideLockId } from "../../src/shared/ide.js";
+import type { EditorSelectionSnapshot } from "../../src/shared/protocol.js";
+import { IdeServer } from "../../src/shared/server.js";
+import { followSelection, type FollowUpdate } from "../../src/shared/watch.js";
 
 const roots: string[] = [];
 const servers: IdeServer[] = [];

@@ -5,11 +5,11 @@ import { createServer, type Server, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { listAvailableIde, readSelection } from "./client.js";
-import { ideLockId } from "./ide.js";
-import { createLock, writeLock } from "./lock.js";
-import type { EditorSelectionSnapshot } from "./protocol.js";
-import { IdeServer } from "./server.js";
+import { listAvailableIde, readSelection } from "../../src/shared/client.js";
+import { ideLockId } from "../../src/shared/ide.js";
+import { createLock, writeLock } from "../../src/shared/lock.js";
+import type { EditorSelectionSnapshot } from "../../src/shared/protocol.js";
+import { IdeServer } from "../../src/shared/server.js";
 
 const TIMEOUT_MS = 1_000;
 const MAX_AGE_MS = 60_000;

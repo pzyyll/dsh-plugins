@@ -1,15 +1,19 @@
 // ABOUTME: Verify the picker's option rows and its host requests against fixed payloads.
 // ABOUTME: Keep the browser-facing contract honest without mounting the Web shell.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { IdeSelectionTarget, IdeTargetOverview, IdeTargetRow } from "../shared/target.js";
-import { fallbackText } from "./locales.js";
+import type {
+  IdeSelectionTarget,
+  IdeTargetOverview,
+  IdeTargetRow,
+} from "../../src/shared/target.js";
+import { fallbackText } from "../../src/client/locales.js";
 import {
   TARGET_OVERVIEW_URL,
   TARGET_SELECT_URL,
   applyTargetChoice,
   loadTargetOverview,
   targetOptions,
-} from "./targets.js";
+} from "../../src/client/targets.js";
 
 afterEach(() => {
   vi.unstubAllGlobals();
