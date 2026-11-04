@@ -4,9 +4,9 @@ pnpm workspace for local dsh plugins. Dependency versions are in the root catalo
 
 ## Packages
 
-| Package | Path | Role |
-| --- | --- | --- |
-| `dsh-xai-auth` | `packages/dsh-xai-auth` | xAI SuperGrok sign-in |
+| Package             | Path                         | Role                      |
+| ------------------- | ---------------------------- | ------------------------- |
+| `dsh-xai-auth`      | `packages/dsh-xai-auth`      | xAI SuperGrok sign-in     |
 | `dsh-ide-selection` | `packages/dsh-ide-selection` | VS Code selection context |
 
 ## Requirements

@@ -4,10 +4,10 @@ Independently versioned packages. Each configured package has its own version, c
 
 Ship targets:
 
-| Package | Tag | Latest publish |
-| --- | --- | --- |
-| `packages/dsh-xai-auth` | `dsh-xai-auth-vX.Y.Z` | npm package `@balaenis/dsh-xai-auth` |
-| `packages/dsh-ide-selection` | `dsh-ide-selection-vX.Y.Z` | npm package `@balaenis/dsh-ide-selection` |
+| Package                                         | Tag                               | Latest publish                                                  |
+| ----------------------------------------------- | --------------------------------- | --------------------------------------------------------------- |
+| `packages/dsh-xai-auth`                         | `dsh-xai-auth-vX.Y.Z`             | npm package `@balaenis/dsh-xai-auth`                            |
+| `packages/dsh-ide-selection`                    | `dsh-ide-selection-vX.Y.Z`        | npm package `@balaenis/dsh-ide-selection`                       |
 | `packages/dsh-ide-selection/ide-plugins/vscode` | `dsh-ide-selection-vscode-vX.Y.Z` | VSIX on that GitHub Release, then the Visual Studio Marketplace |
 
 `next` (npm dist-tag only) is staged when a release PR opens or updates. The VS Code extension has no `next` publish: Marketplace releases are `latest` only.
@@ -42,10 +42,10 @@ Tags include the component and a `v` prefix: `dsh-xai-auth-v0.1.0`, `dsh-ide-sel
 
 ## Channels
 
-| Channel | Trigger | Result |
-| --- | --- | --- |
-| `latest` | release PR merged | release-please GitHub Release, then `publish.yml` stages the version |
-| `next` | release PR opened or updated | stage npm `<last-release>-next.<commits>` for plugin packages; VS Code extension skipped |
+| Channel  | Trigger                      | Result                                                                                   |
+| -------- | ---------------------------- | ---------------------------------------------------------------------------------------- |
+| `latest` | release PR merged            | release-please GitHub Release, then `publish.yml` stages the version                     |
+| `next`   | release PR opened or updated | stage npm `<last-release>-next.<commits>` for plugin packages; VS Code extension skipped |
 
 `next` does not create a component tag. The count is commits since that package's last `component-v*` tag.
 

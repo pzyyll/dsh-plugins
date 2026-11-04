@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE description="Format the workspace"
+#MISE depends=["install"]
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+pnpm exec oxfmt .

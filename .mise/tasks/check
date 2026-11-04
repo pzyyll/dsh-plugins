@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+#MISE description="Check workspace formatting, then run each package's check task"
+#MISE depends=["install"]
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+mise run --skip-deps format:check
+
+for pkg in "$ROOT"/packages/*/; do
+	[ -f "$pkg/.mise/tasks/check" ] || continue
+	echo " > check ${pkg#"$ROOT"/}"
+	(cd "$pkg" && mise run --skip-deps check)
+done

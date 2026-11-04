@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       path:
-        description: 'Package directory, e.g. packages/dsh-xai-auth'
+        description: "Package directory, e.g. packages/dsh-xai-auth"
         required: true
       tag:
-        description: 'Channel (latest or next)'
+        description: "Channel (latest or next)"
         required: true
         type: choice
         options:

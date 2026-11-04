@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE description="Check workspace formatting"
+#MISE depends=["install"]
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+pnpm exec oxfmt --check .
