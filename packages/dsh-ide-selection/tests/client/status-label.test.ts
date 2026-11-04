@@ -1,5 +1,5 @@
 // ABOUTME: Check IDE status labels in English and Chinese.
-// ABOUTME: Hide the icon when integration is disabled or the plugin stream is gone.
+// ABOUTME: Preserve the reconnect entry after disconnecting and hide it on stream failure.
 import { describe, expect, it } from "vitest";
 import { fallbackText, zh } from "../../src/client/locales.js";
 import { statusButtonText, statusButtonVisible } from "../../src/client/status-label.js";
@@ -13,11 +13,11 @@ const chinese = (key: string, params?: Record<string, unknown>) => {
 };
 
 describe("IDE status labels", () => {
-  it("hides the icon when integration is disabled or the plugin stream is gone", () => {
+  it("keeps the reconnect entry when integration is disabled and hides it on stream failure", () => {
     expect(statusButtonVisible(undefined)).toBe(true);
     expect(statusButtonVisible({ connected: false })).toBe(true);
     expect(statusButtonVisible({ connected: true, lines: 1 })).toBe(true);
-    expect(statusButtonVisible({ connected: false, disabled: true })).toBe(false);
+    expect(statusButtonVisible({ connected: false, disabled: true })).toBe(true);
     expect(statusButtonVisible({ connected: false }, true)).toBe(false);
     expect(statusButtonVisible(undefined, true)).toBe(false);
   });

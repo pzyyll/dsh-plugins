@@ -9,56 +9,43 @@ const WORKSPACE_TAIL_SEGMENTS = 2;
 /** A compact popup row with the full description available on hover and to assistive tools. */
 export interface PickerOption extends SelectOption {
   readonly title?: string;
+  readonly targetId: string;
 }
 
-/** Put automatic selection first, manual IDEs next, and the single-line off action last. */
+/** Show matching IDEs; clicking the effective target disconnects instead of selecting it. */
 export function pickerOptions(overview: IdeTargetOverview, t: Translate): PickerOption[] {
-  const options = targetOptions(overview, t);
-  const ides = new Map(overview.ides.map((ide) => [ide.id, ide]));
+  const matchingIdes = overview.ides.filter((ide) => ide.workspaceMatched);
+  const options = targetOptions({ ...overview, ides: matchingIdes }, t);
+  const ides = new Map(matchingIdes.map((ide) => [ide.id, ide]));
   const workspaces = new Map(
-    overview.ides.map((ide) => [
+    matchingIdes.map((ide) => [
       ide.id,
       ide.workspaceFolders.map(compactWorkspace).join(", ") || t("workspace.unknown"),
     ]),
   );
-  const automatic = overview.automaticId === undefined ? undefined : ides.get(overview.automaticId);
-  return [
-    ...options.filter((option) => option.id === AUTO_TARGET_ID),
-    ...options.filter((option) => option.id !== AUTO_TARGET_ID),
-  ].map((option): PickerOption => {
-    const { detail, group: _group, ...row } = option;
-    const title = detail ?? option.label;
-    if (option.id === AUTO_TARGET_ID) {
+  return options
+    .filter((option) => option.id !== AUTO_TARGET_ID && option.id !== OFF_TARGET_ID)
+    .map((option): PickerOption => {
+      const { detail, group: _group, ...row } = option;
+      const title = detail ?? option.label;
+      const ide = ides.get(option.id)!;
+      const workspace = workspaces.get(ide.id);
+      const ambiguous = matchingIdes.some(
+        (other) =>
+          other.id !== ide.id && other.name === ide.name && workspaces.get(other.id) === workspace,
+      );
+      const active =
+        overview.selection.kind === "auto"
+          ? overview.automaticId === ide.id
+          : option.active === true;
       return {
         ...row,
-        label: t("picker.auto"),
-        detail: automatic?.workspaceMatched
-          ? t("picker.autoTarget", { name: automatic.name })
-          : (detail ?? t("auto.none")),
+        detail: [workspace, ...(ambiguous ? [`${ide.host}:${ide.port}`] : [])].join(" · "),
+        active,
+        targetId: active ? OFF_TARGET_ID : ide.id,
         title,
       };
-    }
-    if (option.id === OFF_TARGET_ID) {
-      return { ...row, title };
-    }
-    const ide = ides.get(option.id);
-    if (ide === undefined) return { ...option, title };
-    const workspace = workspaces.get(ide.id);
-    const ambiguous = overview.ides.some(
-      (other) =>
-        other.id !== ide.id && other.name === ide.name && workspaces.get(other.id) === workspace,
-    );
-    return {
-      ...option,
-      detail: [
-        workspace,
-        ...(ambiguous ? [`${ide.host}:${ide.port}`] : []),
-        ...(ide.workspaceMatched ? [] : [t("ide.workspaceMismatch")]),
-      ].join(" · "),
-      group: { name: "ides", label: t("picker.manual") },
-      title,
-    };
-  });
+    });
 }
 
 function compactWorkspace(workspace: string): string {

@@ -1,5 +1,5 @@
 // ABOUTME: Format the IDE status label in the active UI language.
-// ABOUTME: Hide the icon when integration is off or the plugin status stream is gone.
+// ABOUTME: Keep the reconnect entry visible unless the plugin status stream is gone.
 import type { Translate } from "./targets.js";
 
 const STATUS_ICON = "⧉";
@@ -14,14 +14,13 @@ export interface StatusLabelEvent {
 
 /**
  * Keep the icon while integration can still be opened, including before an IDE connects.
- * Hide it after this session turns integration off, or when the plugin stream has failed.
+ * Keep it after a disconnect so the user can reconnect; hide it when the plugin stream fails.
  */
 export function statusButtonVisible(
-  event: StatusLabelEvent | undefined,
+  _event: StatusLabelEvent | undefined,
   streamFailed = false,
 ): boolean {
-  if (streamFailed) return false;
-  return event?.disabled !== true;
+  return !streamFailed;
 }
 
 /** Show the icon; connected events can add localized selection text. */
