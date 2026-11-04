@@ -6,3 +6,4 @@ coverage/
 AGENTS.override.md
 AGENTS.local.md
 mise.local.toml
+.tmp*
