@@ -1,6 +1,12 @@
+# ABOUTME: Publish npm packages and VSIX releases with OIDC trusted publishing.
+# ABOUTME: Accept release-please dispatches and published VS Code GitHub Releases.
 name: Publish Package
 
 on:
+  # release-please uses GITHUB_TOKEN, so release.yml dispatches those releases
+  # explicitly. This event also covers releases published by maintainers.
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       path:
@@ -19,14 +25,23 @@ permissions:
   contents: write # attach the VSIX to the GitHub Release
 
 concurrency:
-  group: publish-${{ inputs.path }}-${{ inputs.tag }}
+  group: publish-${{ inputs.path || 'packages/dsh-ide-selection/ide-plugins/vscode' }}-${{ inputs.tag || 'latest' }}
 
 jobs:
   publish:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (startsWith(github.event.release.tag_name, 'dsh-ide-selection-vscode-v') &&
+       !github.event.release.prerelease)
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PACKAGE_PATH: ${{ inputs.path || 'packages/dsh-ide-selection/ide-plugins/vscode' }}
+      PUBLISH_TAG: ${{ inputs.tag || 'latest' }}
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.release.tag_name || github.ref }}
           fetch-depth: 0
           fetch-tags: true
 
@@ -37,4 +52,4 @@ jobs:
           experimental: true
 
       - name: Publish
-        run: mise run publish --package "${{ inputs.path }}" --tag "${{ inputs.tag }}"
+        run: mise run publish --package "$PACKAGE_PATH" --tag "$PUBLISH_TAG"

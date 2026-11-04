@@ -35,8 +35,8 @@ How the selection appears in the Web UI is described in the [dsh plugin guide](.
 
 ## Settings
 
-| Key | Default | Purpose |
-| --- | --- | --- |
-| `dshIdeSelection.lockDir` | empty | Absolute lock-directory override. Leave empty to use `.dsh/ide-selection/lock` in your home directory. |
+| Key                       | Default | Purpose                                                                                                |
+| ------------------------- | ------- | ------------------------------------------------------------------------------------------------------ |
+| `dshIdeSelection.lockDir` | empty   | Absolute lock-directory override. Leave empty to use `.dsh/ide-selection/lock` in your home directory. |
 
 Set the same absolute path on the dsh plugin when you override it. Use a directory only you can read. A relative path is rejected, and the extension does not start.
