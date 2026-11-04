@@ -27,6 +27,7 @@ export function registerSelectIdeCommand(
     scope.effect(() => () => lifetime.abort());
     const dispose = scope.commands.register({
       name: COMMAND_NAME,
+      // English catalog fallback. The Web menu replaces it with command.description.
       description: "Choose which local IDE supplies selection context for this session",
       handler: async ({ agent, rawInput, signal: invocationSignal }): Promise<CommandResult> => {
         const cwd = agent.session.header.cwd;

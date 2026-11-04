@@ -18,8 +18,8 @@ const snapshot: EditorSelectionSnapshot = {
 
 describe("selection status text", () => {
   it("shows only the connected icon when no lines are selected", () => {
-    expect(selectionStatusText()).toEqual({ text: "⧉" });
-    expect(selectionStatusText({ ...snapshot, ranges: [] })).toEqual({ text: "⧉" });
+    expect(selectionStatusText()).toEqual({ text: "⧉", lines: 0 });
+    expect(selectionStatusText({ ...snapshot, ranges: [] })).toEqual({ text: "⧉", lines: 0 });
   });
 
   it("names a one-line selection without a count", () => {
@@ -32,12 +32,13 @@ describe("selection status text", () => {
         },
       ],
     });
-    expect(status).toEqual({ text: "⧉ Selected", detail: "src/example.ts #L5" });
+    expect(status).toEqual({ text: "⧉ Selected", lines: 1, detail: "src/example.ts #L5" });
   });
 
   it("counts inclusive lines and puts the file and range in the hover detail", () => {
     expect(selectionStatusText(snapshot)).toEqual({
       text: "⧉ 3 Lines Selected",
+      lines: 3,
       detail: "src/example.ts #L10-L12",
     });
   });

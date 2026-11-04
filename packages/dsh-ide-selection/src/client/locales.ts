@@ -6,6 +6,12 @@ export const LOCALE_NS = "ide-selection";
 
 /** English dictionary; also the fallback when no locale service is mounted. */
 export const en = {
+  "command.description": "Choose which local IDE supplies selection context for this session",
+  "status.selected": "Selected",
+  "status.lines": "{count} Lines Selected",
+  "error.list": "the IDE list request failed",
+  "error.payload": "the IDE list returned an unexpected payload",
+  "error.choice": "the IDE choice failed",
   "group.ides": "Connected IDEs",
   "group.mode": "This session",
   "ide.detail": "{workspace} · {host}:{port}",
@@ -19,6 +25,12 @@ export const en = {
 
 /** Simplified Chinese dictionary. */
 export const zh = {
+  "command.description": "选择本会话由哪个本地 IDE 提供选区",
+  "status.selected": "已选中",
+  "status.lines": "已选中 {count} 行",
+  "error.list": "读取 IDE 列表失败",
+  "error.payload": "IDE 列表的数据无法识别",
+  "error.choice": "切换 IDE 失败",
   "group.ides": "可连接的 IDE",
   "group.mode": "本会话",
   "ide.detail": "{workspace} · {host}:{port}",

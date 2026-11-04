@@ -65,7 +65,7 @@ When the Web UI is connected to VS Code, the composer shows:
 | One line                    | `⧉ Selected`         |
 | More than one line          | `⧉ N Lines Selected` |
 
-`N` is the number of selected lines. Hover the status to see the file and line range, such as `#L10-L20`. Before the first message, the same status appears beside the workspace and preset controls. It disappears when VS Code disconnects, and it does not show the selected text. The status words stay in English.
+`N` is the number of selected lines. Hover the status to see the file and line range, such as `#L10-L20`. Before the first message, the same status appears beside the workspace and preset controls. It disappears when VS Code disconnects, and it does not show the selected text. The status and the `/select-ide` description follow the Web UI language.
 
 ### Choose an IDE
 

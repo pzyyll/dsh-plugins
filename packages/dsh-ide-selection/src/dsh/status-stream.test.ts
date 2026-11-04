@@ -247,7 +247,7 @@ describe("selection status stream", () => {
     });
     const text = await readUntil(reader, "Lines Selected");
     expect(text).toContain(
-      '{"connected":true,"text":"⧉ 3 Lines Selected","detail":"src/example.ts #L10-L12"}',
+      '{"connected":true,"text":"⧉ 3 Lines Selected","lines":3,"detail":"src/example.ts #L10-L12"}',
     );
     expect(text).not.toContain("secret selection");
     ide.broadcast({

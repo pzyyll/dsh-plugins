@@ -13,7 +13,7 @@ export const SELECTION_EVENTS_PATH = "/ide-selection/events";
 
 export type SelectionStatusEvent =
   | { connected: false }
-  | { connected: true; text: string; detail?: string };
+  | { connected: true; text: string; lines: number; detail?: string };
 
 export interface SelectionHubOptions {
   lockDir: string;
@@ -120,11 +120,11 @@ class SelectionGroup {
 
 export function statusFromUpdate(update: FollowUpdate): SelectionStatusEvent {
   if (update.type === "disconnected") return { connected: false };
-  if (update.type === "cleared") return { connected: true, text: selectionStatusText().text };
-  const status = selectionStatusText(update.snapshot);
+  const status = selectionStatusText(update.type === "cleared" ? undefined : update.snapshot);
   return {
     connected: true,
     text: status.text,
+    lines: status.lines,
     ...(status.detail ? { detail: status.detail } : {}),
   };
 }

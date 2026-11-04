@@ -9,10 +9,11 @@ import { Context, type Fiber, type Plugin } from "@deepseek-ai/cordis";
 import { AgentRegistry, type Agent } from "@deepseek-ai/dsh-agent";
 import { CommandRuntime } from "@deepseek-ai/dsh-commands";
 import { SessionId, SessionStore } from "@deepseek-ai/dsh-session";
+import { en } from "../client/locales.js";
 import { createLock, writeLock } from "../shared/lock.js";
 import { IdeServer } from "../shared/server.js";
-import { IdeConnections } from "./ide-connections.js";
 import { registerSelectIdeCommand } from "./commands.js";
+import { IdeConnections } from "./ide-connections.js";
 
 const fibers: Fiber[] = [];
 const roots: string[] = [];
@@ -104,7 +105,7 @@ describe("/select-ide", () => {
 
     const command = harness.ctx.commands.find(harness.agent, "select-ide");
     expect(command?.input).toBeUndefined();
-    expect(command?.description).toMatch(/IDE/);
+    expect(command?.description).toBe(en["command.description"]);
   });
 
   it("lists every reachable IDE as text for a bare invocation", async () => {

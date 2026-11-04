@@ -11,6 +11,7 @@ import {
   targetOptions,
   type Translate,
 } from "./targets.js";
+import { localizeRemoteCommandList, statusButtonText } from "./ui-copy.js";
 
 /** Same hover delay as the composer context meter. */
 const TOOLTIP_DELAY_MS = 200;
@@ -47,6 +48,7 @@ function installStatusStyle(): void {
 interface SelectionStatusEvent {
   connected: boolean;
   text?: string;
+  lines?: number;
   detail?: string;
 }
 
@@ -63,20 +65,34 @@ function openStatusStream(sessionId: string): StatusStream {
 
 function isStatusEvent(value: unknown): value is SelectionStatusEvent {
   if (typeof value !== "object" || value === null || !("connected" in value)) return false;
-  const event = value as { connected?: unknown; text?: unknown; detail?: unknown };
+  const event = value as {
+    connected?: unknown;
+    text?: unknown;
+    lines?: unknown;
+    detail?: unknown;
+  };
+  const lines =
+    event.lines === undefined ||
+    (typeof event.lines === "number" && Number.isSafeInteger(event.lines) && event.lines >= 0);
   return (
-    event.connected === false ||
-    (event.connected === true &&
-      typeof event.text === "string" &&
-      (event.detail === undefined || typeof event.detail === "string"))
+    lines &&
+    (event.connected === false ||
+      (event.connected === true &&
+        typeof event.text === "string" &&
+        (event.detail === undefined || typeof event.detail === "string")))
   );
 }
 
 /** Composer or Hero pill for the session's current VS Code selection. */
 export function SelectionStatus({ sessionId }: { sessionId?: string }): ReactElement | null {
   const [event, setEvent] = useState<SelectionStatusEvent | undefined>(undefined);
+  const [localeRevision, setLocaleRevision] = useState(0);
   useLayoutEffect(() => {
     installStatusStyle();
+  }, []);
+  useEffect(() => {
+    const locale = clientContext?.get("locale") as LocaleService | undefined;
+    return locale?.subscribe?.(() => setLocaleRevision((revision) => revision + 1));
   }, []);
   useEffect(() => {
     if (!sessionId) return undefined;
@@ -92,7 +108,8 @@ export function SelectionStatus({ sessionId }: { sessionId?: string }): ReactEle
     return () => stream.close();
   }, [sessionId]);
   if (!event?.connected || !event.text) return null;
-  const button = createElement("button", { type: "button" }, event.text);
+  const label = statusButtonText(event, translateAt(localeRevision)) ?? event.text;
+  const button = createElement("button", { type: "button" }, label);
   const control =
     event.detail === undefined
       ? button
@@ -116,6 +133,11 @@ interface ClientSlots {
 interface LocaleService {
   register(namespace: string, locale: string, dictionary: Record<string, string>): () => void;
   bind(namespace: string): Translate;
+  subscribe?(listener: () => void): () => void;
+}
+
+interface RemoteCommands {
+  list?: (sessionId: string) => Promise<unknown>;
 }
 
 /** The client context members this bundle relies on. */
@@ -123,9 +145,22 @@ interface ClientContext {
   slots: ClientSlots;
   commandUi?: CommandUiContract;
   locale?: LocaleService;
+  remote?: { commands?: RemoteCommands };
   get(name: string): unknown;
   effect(callback: () => () => void): void;
   inject(names: readonly string[], callback: (scope: ClientContext) => void): void;
+}
+
+let clientContext: ClientContext | undefined;
+
+function activeTranslate(): Translate {
+  const locale = clientContext?.get("locale") as LocaleService | undefined;
+  return resolveTranslate(locale?.bind(LOCALE_NS));
+}
+
+/** Re-read the locale after a snapshot change. The revision forces a new render. */
+function translateAt(_revision: number): Translate {
+  return activeTranslate();
 }
 
 export const inject = ["slots"];
@@ -138,6 +173,7 @@ const STATUS_SLOTS = ["conversation.composer.dock", "conversation.hero.options"]
 
 /** Register the IDE status pill in both seats and the `/select-ide` popup picker. */
 export function apply(ctx: ClientContext): void {
+  clientContext = ctx;
   for (const name of STATUS_SLOTS) {
     ctx.slots.inject(name, () =>
       ctx.slots.register({ name, id: "ide-selection", order: STATUS_ORDER }, SelectionStatus),
@@ -155,6 +191,11 @@ export function apply(ctx: ClientContext): void {
       };
     });
   });
+  ctx.inject(["remote"], (scope) => {
+    const commands = scope.remote?.commands;
+    if (!commands) return;
+    localizeRemoteCommandList(commands, () => activeTranslate()("command.description"));
+  });
   ctx.inject(["commandUi"], (scope) => {
     const commandUi = scope.commandUi;
     if (!commandUi) return;
@@ -165,11 +206,12 @@ export function apply(ctx: ClientContext): void {
         ui: {
           kind: "popupSelect",
           options: async (session, signal) => {
-            const overview = await loadTargetOverview(session.sessionId, signal);
-            const locale = ctx.get("locale") as LocaleService | undefined;
-            return targetOptions(overview, resolveTranslate(locale?.bind(LOCALE_NS)));
+            const t = activeTranslate();
+            const overview = await loadTargetOverview(session.sessionId, signal, t);
+            return targetOptions(overview, t);
           },
-          onSelect: (option, session) => applyTargetChoice(session.sessionId, option.id),
+          onSelect: (option, session) =>
+            applyTargetChoice(session.sessionId, option.id, activeTranslate()),
         },
       }),
     );

@@ -11,13 +11,15 @@ const LINE_OFFSET = 1;
 /** Render a connected editor. No snapshot means the IDE has no active selection. */
 export function selectionStatusText(snapshot?: EditorSelectionSnapshot): {
   text: string;
+  lines: number;
   detail?: string;
 } {
   const ranges = snapshot?.ranges ?? [];
-  if (!snapshot || ranges.length === 0) return { text: CONNECTED_ICON };
+  if (!snapshot || ranges.length === 0) return { text: CONNECTED_ICON, lines: 0 };
   const selectedLines = ranges.reduce((total, range) => total + inclusiveLineCount(range), 0);
   return {
     text: `${CONNECTED_ICON} ${selectedLabel(selectedLines)}`,
+    lines: selectedLines,
     detail: `${displayPath(snapshot.filePath, snapshot.workspaceFolder)} ${describeRanges(ranges)}`,
   };
 }

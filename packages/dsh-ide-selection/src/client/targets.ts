@@ -20,6 +20,7 @@ export type Translate = (key: string, params?: Record<string, unknown>) => strin
 export async function loadTargetOverview(
   sessionId: string,
   signal: AbortSignal,
+  t: Translate = fallbackText,
 ): Promise<IdeTargetOverview> {
   const response = await fetch(`${TARGET_OVERVIEW_URL}?session=${encodeURIComponent(sessionId)}`, {
     signal,
@@ -27,14 +28,18 @@ export async function loadTargetOverview(
     credentials: "same-origin",
   });
   const payload = await readPayload(response);
-  if (!response.ok) throw new Error(failureText(payload, "the IDE list request failed"));
+  if (!response.ok) throw new Error(failureText(payload, t("error.list")));
   const overview = parseTargetOverview(payload);
-  if (!overview) throw new Error("the IDE list returned an unexpected payload");
+  if (!overview) throw new Error(t("error.payload"));
   return overview;
 }
 
 /** Apply one popup row to this session and reject with the host's explanation. */
-export async function applyTargetChoice(sessionId: string, optionId: string): Promise<void> {
+export async function applyTargetChoice(
+  sessionId: string,
+  optionId: string,
+  t: Translate = fallbackText,
+): Promise<void> {
   const target =
     optionId === AUTO_TARGET_ID
       ? { kind: "auto" }
@@ -48,7 +53,7 @@ export async function applyTargetChoice(sessionId: string, optionId: string): Pr
     body: JSON.stringify(target),
   });
   const payload = await readPayload(response);
-  if (!response.ok) throw new Error(failureText(payload, "the IDE choice failed"));
+  if (!response.ok) throw new Error(failureText(payload, t("error.choice")));
 }
 
 /**
