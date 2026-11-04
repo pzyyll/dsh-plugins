@@ -90,7 +90,11 @@ catalogs:
 
 importers:
 
-  .: {}
+  .:
+    devDependencies:
+      oxfmt:
+        specifier: 'catalog:'
+        version: 0.76.0
 
   packages/dsh-ide-selection:
     dependencies:
