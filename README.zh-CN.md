@@ -6,11 +6,11 @@
 
 ## 包
 
-| 包                  | 路径                         | 作用                 |
-| ------------------- | ---------------------------- | -------------------- |
-| `dsh-xai-auth`      | `packages/dsh-xai-auth`      | xAI SuperGrok 登录   |
-| `dsh-ide-selection` | `packages/dsh-ide-selection` | VS Code 选区上下文   |
-| `dsh-my-preset`     | `packages/dsh-my-preset`     | 我的预设             |
+| 包                  | 路径                         | 作用               |
+| ------------------- | ---------------------------- | ------------------ |
+| `dsh-xai-auth`      | `packages/dsh-xai-auth`      | xAI SuperGrok 登录 |
+| `dsh-ide-selection` | `packages/dsh-ide-selection` | VS Code 选区上下文 |
+| `dsh-my-preset`     | `packages/dsh-my-preset`     | 我的预设           |
 
 ## 环境要求
 
