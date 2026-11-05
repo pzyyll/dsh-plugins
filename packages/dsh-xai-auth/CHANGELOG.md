@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/pzyyll/dsh-plugins/compare/dsh-xai-auth-v0.1.2...dsh-xai-auth-v0.1.3) (2026-11-05)
+
+
+### Bug Fixes
+
+* **deps:** upgrade dsh to 0.2.2-rc.1 ([26145df](https://github.com/pzyyll/dsh-plugins/commit/26145dfc281772deeb5e4ff03c95279ef01858cc))
+
 ## [0.1.2](https://github.com/pzyyll/dsh-plugins/compare/dsh-xai-auth-v0.1.1...dsh-xai-auth-v0.1.2) (2026-11-04)
 
 
