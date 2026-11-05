@@ -1,4 +1,4 @@
-// ABOUTME: Plugins-page sign-in for the xAI SuperGrok subscription, at the bottom of the bundle page.
+// ABOUTME: Provides Plugins-page sign-in and sidebar subscription usage for xAI SuperGrok.
 // ABOUTME: The browser half uses the dsh web controls and never imports a Grok session file.
 
 window.__ModuleLoader__.load({
@@ -129,9 +129,15 @@ window.__ModuleLoader__.load({
         "[data-xai-supergrok] .limitTrack{display:block;height:6px;border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 12%,transparent);overflow:hidden}",
         "[data-xai-supergrok] .limitFill{display:block;height:100%;border-radius:inherit;background:var(--dsw-alias-label-primary)}",
         "[data-xai-supergrok] .note{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary)}",
-        "[data-xai-usage-pill]{display:inline-flex;flex:none;order:1}",
-        "[data-xai-usage-pill] .trigger{display:inline-flex;align-items:center;gap:6px;padding:1px 8px;border:0;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:var(--dsh-content-font-size-secondary,13px);font-variant-numeric:tabular-nums;line-height:calc(20px + var(--dsh-content-font-delta-secondary,0px));cursor:pointer}",
-        "[data-xai-usage-pill] .trigger[aria-expanded=true],[data-xai-usage-pill] .trigger:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-secondary)}",
+        "[data-xai-usage-pill]{display:flex;flex:1;min-width:0}",
+        "[data-xai-usage-pill] .trigger{display:inline-flex;align-items:center;gap:var(--dsh-sidebar-label-gap,6px);box-sizing:border-box;width:100%;min-width:0;min-height:36px;padding:7px calc(var(--dsh-sidebar-row-padding,12px) - var(--dsh-sidebar-paint-inset,3px));border:0;border-inline:var(--dsh-sidebar-paint-inset,3px) solid transparent;border-radius:var(--dsw-radius-md);background:transparent;background-clip:padding-box;color:var(--dsw-alias-label-secondary);font:inherit;font-size:13px;font-variant-numeric:tabular-nums;line-height:22px;text-align:start;cursor:pointer}",
+        "[data-xai-usage-pill] .trigger[aria-expanded=true],[data-xai-usage-pill] .trigger:hover{background-color:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}",
+        "[data-xai-usage-pill] button.trigger:focus-visible{outline:var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:-2px}",
+        "[data-xai-usage-pill] .trigger>svg{flex:none}",
+        "[data-xai-usage-pill] .label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+        "[data-xai-usage-pill][data-wide=false]{flex:none}",
+        "[data-xai-usage-pill][data-wide=false] .trigger{justify-content:center;width:36px;height:36px;padding:0;border:0}",
+        "[data-xai-usage-pending] .trigger{cursor:default}",
         "[data-xai-usage-pill] .ringTrack{fill:none;stroke:var(--dsw-alias-border-l3);stroke-width:2}",
         "[data-xai-usage-pill] .ringFill{fill:none;stroke:var(--dsw-alias-label-tertiary);stroke-width:2;stroke-linecap:round}",
         "[data-xai-usage-panel]{position:fixed;z-index:1100;box-sizing:border-box;width:min(264px,calc(100vw - 24px));padding:12px;border:0;border-radius:var(--dsw-radius-lg);background:var(--dsw-specific-menu);backdrop-filter:var(--dsw-menu-backdrop-filter);--dsw-elevation-stroke-color:var(--dsw-alias-border-l1);box-shadow:var(--dsw-elevation-prominent);font-size:12px;line-height:20px;color:var(--dsw-alias-label-secondary);cursor:default}",
@@ -328,8 +334,8 @@ window.__ModuleLoader__.load({
       );
     }
 
-    /** Session popover, laid out like the composer context-used panel. */
-    function sessionPanel(current, message, pending, t) {
+    /** Account usage details shared by the expanded sidebar and the collapsed rail. */
+    function usagePanel(current, message, pending, t) {
       if (current?.credits === undefined) {
         if (message !== "")
           return react.createElement("p", { className: "error", role: "alert" }, message);
@@ -586,104 +592,64 @@ window.__ModuleLoader__.load({
       );
     }
 
+    const RING_SIZE = 14;
+    const RING_CENTER = RING_SIZE / 2;
     const RING_RADIUS = 5.5;
     const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
-    const GROK_PROVIDER = "xai-supergrok";
+    const RING_START_ANGLE_DEG = -90;
+    const FULL_PERCENT = 100;
+    const POPOVER_GAP_PX = 8;
+    const POPOVER_MARGIN_PX = 12;
+    const TOOLTIP_DELAY_MS = 200;
+    const USAGE_SLOT_ORDER = 2;
     const useAnchoredPosition = ui.useAnchoredPosition ?? (() => null);
     const useDismissOnOutsidePointer = ui.useDismissOnOutsidePointer ?? (() => {});
 
-    // Published when the model-selection service appears. A blank Hero often
-    // mounts before that plugin, and the pill has to repaint once it can see
-    // the same route the picker shows.
-    let modelDirectories;
-    const modelDirectoryListeners = new Set();
-
-    function notifyModelDirectories() {
-      for (const listener of modelDirectoryListeners) listener();
-    }
-
-    function subscribeModelDirectories(listener) {
-      modelDirectoryListeners.add(listener);
-      return () => {
-        modelDirectoryListeners.delete(listener);
-      };
-    }
-
-    function resolvedSelectionStore(ctx, sessionId) {
-      const directories =
-        modelDirectories ??
-        (typeof ctx.get === "function" ? ctx.get("modelDirectories") : undefined);
-      if (directories === undefined || typeof sessionId !== "string" || sessionId === "")
-        return undefined;
-      if (typeof directories.directoryFor !== "function") return undefined;
-      try {
-        return directories.directoryFor(sessionId)?.store;
-      } catch {
-        // The session scope may not be bound yet. The recorded projection still works.
-        return undefined;
-      }
-    }
-
-    /** Provider recorded on the session, or null when nothing has been recorded yet. */
-    function recordedProvider(value) {
-      if (value === null || typeof value !== "object") return undefined;
-      const next = value.next;
-      if (next === null) return null;
-      if (typeof next === "object" && typeof next.provider === "string") return next.provider;
-      return undefined;
-    }
-
-    function isGrokProvider(selection) {
-      return (
-        selection !== null && typeof selection === "object" && selection.provider === GROK_PROVIDER
-      );
-    }
-
-    function SessionUsagePill(props) {
-      const { ctx, t, useProjection, sessionId } = props;
-      const useSyncExternalStore = react.useSyncExternalStore;
-      const resolved = useSyncExternalStore(
-        (listener) => {
-          const unsubscribeDirectories = subscribeModelDirectories(listener);
-          const store = resolvedSelectionStore(ctx, sessionId);
-          const unsubscribeStore =
-            typeof store?.subscribe === "function" ? store.subscribe(listener) : undefined;
-          return () => {
-            unsubscribeDirectories();
-            if (typeof unsubscribeStore === "function") unsubscribeStore();
-          };
+    function usageRing(used) {
+      return react.createElement(
+        "svg",
+        {
+          viewBox: `0 0 ${RING_SIZE} ${RING_SIZE}`,
+          width: RING_SIZE,
+          height: RING_SIZE,
+          "aria-hidden": true,
         },
-        () => resolvedSelectionStore(ctx, sessionId)?.getSnapshot?.()?.current ?? null,
+        react.createElement("circle", {
+          className: "ringTrack",
+          cx: RING_CENTER,
+          cy: RING_CENTER,
+          r: RING_RADIUS,
+        }),
+        used === undefined
+          ? null
+          : react.createElement("circle", {
+              className: "ringFill",
+              cx: RING_CENTER,
+              cy: RING_CENTER,
+              r: RING_RADIUS,
+              strokeDasharray: `${(RING_LENGTH * used) / FULL_PERCENT} ${RING_LENGTH}`,
+              transform: `rotate(${RING_START_ANGLE_DEG} ${RING_CENTER} ${RING_CENTER})`,
+            }),
       );
-      // next stays null on a blank session until a selection or request is recorded.
-      // The picker then shows the catalog default; follow that resolved route.
-      const recorded =
-        typeof useProjection === "function"
-          ? useProjection("modelSelection", recordedProvider)
-          : undefined;
-      const provider =
-        typeof recorded === "string"
-          ? recorded
-          : isGrokProvider(resolved)
-            ? GROK_PROVIDER
-            : typeof resolved?.provider === "string"
-              ? resolved.provider
-              : undefined;
-      const grok = provider === GROK_PROVIDER;
+    }
+
+    function SidebarUsagePill(props) {
+      const { ctx, t, wide } = props;
       const [status, setStatus] = react.useState(undefined);
       const [open, setOpen] = react.useState(false);
       const rootRef = react.useRef(null);
       const panelRef = react.useRef(null);
       const credits = status?.usage?.credits;
       const used = credits === undefined ? undefined : usedShare(credits.percent);
-      const available = grok && used !== undefined;
+      const signedIn = status?.signedIn === true;
+      const available = signedIn && used !== undefined;
       const position = useAnchoredPosition({
         open: open && available,
         anchorRef: rootRef,
         panelRef,
         side: "top",
-        gap: 8,
-        margin: 12,
+        gap: POPOVER_GAP_PX,
+        margin: POPOVER_MARGIN_PX,
       });
       useDismissOnOutsidePointer(rootRef, open && available, setOpen, panelRef);
 
@@ -692,7 +658,6 @@ window.__ModuleLoader__.load({
       }, []);
 
       react.useEffect(() => {
-        if (!grok) return undefined;
         let stopped = false;
         const tick = async () => {
           try {
@@ -710,7 +675,7 @@ window.__ModuleLoader__.load({
           stopped = true;
           clearInterval(timer);
         };
-      }, [grok, ctx]);
+      }, [ctx]);
 
       react.useEffect(() => {
         if (!available && open) setOpen(false);
@@ -727,15 +692,23 @@ window.__ModuleLoader__.load({
         };
       }, [open]);
 
-      if (!grok) return null;
-      // Keep a seat while the first reading is in flight. An empty Hero options
-      // row is display:none, so returning null hides the row until a later paint.
+      if (!signedIn) return null;
       if (!available) {
-        if (status !== undefined && status.usagePending !== true) return null;
+        if (status.usagePending !== true) return null;
         return react.createElement(
           "span",
-          { ref: rootRef, "data-xai-usage-pill": "", "data-xai-usage-pending": "" },
-          react.createElement("span", { className: "trigger", role: "status" }, t("usageLoading")),
+          {
+            ref: rootRef,
+            "data-xai-usage-pill": "",
+            "data-xai-usage-pending": "",
+            "data-wide": String(wide),
+          },
+          react.createElement(
+            "span",
+            { className: "trigger", role: "status", "aria-label": t("usageLoading") },
+            usageRing(undefined),
+            wide ? react.createElement("span", { className: "label" }, t("usageLoading")) : null,
+          ),
         );
       }
       const label = t("usedReading", { percent: `${used}%` });
@@ -751,22 +724,10 @@ window.__ModuleLoader__.load({
             setOpen((current) => !current);
           },
         },
-        react.createElement(
-          "svg",
-          { viewBox: "0 0 14 14", width: 14, height: 14, "aria-hidden": true },
-          react.createElement("circle", { className: "ringTrack", cx: 7, cy: 7, r: RING_RADIUS }),
-          react.createElement("circle", {
-            className: "ringFill",
-            cx: 7,
-            cy: 7,
-            r: RING_RADIUS,
-            strokeDasharray: `${(RING_LENGTH * used) / 100} ${RING_LENGTH}`,
-            transform: "rotate(-90 7 7)",
-          }),
-        ),
-        react.createElement("span", null, label),
+        usageRing(used),
+        wide ? react.createElement("span", { className: "label" }, label) : null,
       );
-      const body = sessionPanel(
+      const body = usagePanel(
         status.usage,
         status.usageError || "",
         status.usagePending === true,
@@ -794,12 +755,12 @@ window.__ModuleLoader__.load({
           ? trigger
           : react.createElement(
               ui.Tooltip,
-              { label, side: "top", delayMs: 200, disabled: open },
+              { label, side: "top", delayMs: TOOLTIP_DELAY_MS, disabled: open },
               trigger,
             );
       return react.createElement(
         "span",
-        { ref: rootRef, "data-xai-usage-pill": "" },
+        { ref: rootRef, "data-xai-usage-pill": "", "data-wide": String(wide) },
         button,
         panel,
       );
@@ -826,42 +787,17 @@ window.__ModuleLoader__.load({
               : null,
         ),
       );
-      // The composer dock mounts only after the Session leaves the blank Hero.
-      // The Hero options row is the same reading before the first message.
-      if (typeof ctx.inject === "function") {
-        ctx.inject(["modelDirectories"], function publishModelDirectories(scope) {
-          const service = scope.get("modelDirectories");
-          modelDirectories = service;
-          notifyModelDirectories();
-          scope.effect(
-            () => () => {
-              if (modelDirectories !== service) return;
-              modelDirectories = undefined;
-              notifyModelDirectories();
-            },
-            "dsh-xai-auth: model directories",
-          );
-        });
-      }
-      for (const name of ["conversation.hero.options", "conversation.composer.dock"]) {
-        ctx.slots.inject(name, () =>
-          ctx.slots.register(
-            {
-              name,
-              id: "xai-supergrok-usage",
-              order: 2,
-              locale: NS,
-            },
-            (props) =>
-              react.createElement(SessionUsagePill, {
-                ctx,
-                t: props.t,
-                useProjection: props.useProjection,
-                sessionId: props.sessionId,
-              }),
-          ),
-        );
-      }
+      ctx.slots.inject("sidebar.footer.action", () =>
+        ctx.slots.register(
+          {
+            name: "sidebar.footer.action",
+            id: "xai-supergrok-usage",
+            order: USAGE_SLOT_ORDER,
+            locale: NS,
+          },
+          (props) => react.createElement(SidebarUsagePill, { ctx, t: props.t, wide: props.wide }),
+        ),
+      );
     }
 
     exports.apply = apply;

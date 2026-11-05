@@ -45,8 +45,12 @@ Requires dsh `>=0.2.0 <0.3.0`. The default profile includes all required service
 On the plugin page:
 
 - **Refresh models** updates the model list.
-- **Usage** shows subscription credits and billing details. Readings are cached for 2 minutes. The blank-session Hero and the chat composer show the remaining percentage while an `xai-supergrok` model is the selected or default route.
+- **Usage** shows subscription credits and billing details. Readings are cached for 2 minutes.
 - **Sign out** removes local credentials; it does not revoke the token at xAI.
+
+After sign-in, **Grok usage** appears above **Settings** in the sidebar footer, for all model routes. The percentage shows used credits. Select the indicator to see details. A collapsed sidebar rail shows only the ring icon, with the percentage in its tooltip. The blank-session Hero and the chat composer have no usage indicator.
+
+The sidebar indicator requires the `sidebar.footer.action` slot, verified with dsh `0.2.2-rc.1`. Windows desktop hides the indicator when the sidebar is fully collapsed.
 
 ## Notes
 

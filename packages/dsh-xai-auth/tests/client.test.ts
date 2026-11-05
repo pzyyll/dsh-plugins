@@ -1,9 +1,10 @@
-// ABOUTME: Check browser module identity and the bundle-page sign-in slot against package metadata.
-// ABOUTME: Exercise the real client factory with isolated UI dependencies and no browser or network.
+// ABOUTME: Checks bundle-page sign-in and account usage in the sidebar footer.
+// ABOUTME: Exercises client rendering, status polling, and cleanup without a browser or network.
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { setImmediate as nextTurn } from "node:timers/promises";
 import { runInNewContext } from "node:vm";
 
 const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
@@ -38,9 +39,10 @@ interface ClientRegistration {
   factory: (require: (name: string) => unknown) => { apply: (ctx: ClientContext) => void };
 }
 
-function loadClient(): ClientRegistration {
+function loadClient(globals: Record<string, unknown> = {}): ClientRegistration {
   let registration: ClientRegistration | undefined;
   runInNewContext(client, {
+    ...globals,
     window: {
       __ModuleLoader__: {
         load: (value: ClientRegistration) => {
@@ -107,85 +109,121 @@ test("the sign-in slot renders only for this published bundle", () => {
   }
 });
 
-const HERO_SLOT = "conversation.hero.options";
-const SESSION_ID = "blank-session";
+const FOOTER_SLOT = "sidebar.footer.action";
+const USAGE_POLL_MS = 2000;
 
-interface PillElement {
-  type: (props: PillProps) => PillNode | null;
-  props: PillProps;
+interface UsageNode {
+  type: unknown;
+  props: Record<string, unknown> & { children: unknown[] };
 }
 
-interface PillProps {
-  ctx: { get(name: string): unknown };
+interface UsageProps {
+  ctx: ClientContext;
   t: (key: string, vars?: Record<string, string>) => string;
-  useProjection?: (key: string, select: (value: unknown) => unknown) => unknown;
-  sessionId?: string;
+  wide: boolean;
 }
 
-interface PillNode {
-  props: Record<string, unknown> & { children?: unknown };
+interface UsageElement {
+  type: (props: UsageProps) => UsageNode | null;
+  props: UsageProps;
+}
+
+interface RpcReply {
+  ok: boolean;
+  value?: unknown;
 }
 
 function translate(key: string, vars?: Record<string, string>): string {
-  if (key === "usedReading") return "used " + (vars?.percent ?? "");
+  if (key === "usedReading") return "Grok usage " + (vars?.percent ?? "");
   return key;
 }
 
-function pillReact(status: unknown) {
-  let useStateCalls = 0;
-  return {
-    Fragment: "fragment",
-    createElement: (
-      type: unknown,
-      props: Record<string, unknown> | null,
-      ...children: unknown[]
-    ) => ({
-      type,
-      props: { ...props, children },
-    }),
-    useState: (initial: unknown) => {
-      useStateCalls += 1;
-      return [useStateCalls === 1 ? status : initial, () => {}];
+function nodes(value: unknown): UsageNode[] {
+  if (Array.isArray(value)) return value.flatMap(nodes);
+  if (value === null || typeof value !== "object" || !("props" in value)) return [];
+  const node = value as UsageNode;
+  return [node, ...(node.props.children ?? []).flatMap(nodes)];
+}
+
+function textContent(value: unknown): string {
+  if (Array.isArray(value)) return value.map(textContent).join("");
+  if (typeof value === "string") return value;
+  if (value === null || typeof value !== "object" || !("props" in value)) return "";
+  return ((value as UsageNode).props.children ?? []).map(textContent).join("");
+}
+
+function sidebar(options: { status?: unknown; wide?: boolean } = {}) {
+  const states: unknown[] = [options.status, false];
+  let stateIndex = 0;
+  const effects: Array<() => void | (() => void)> = [];
+  const intervals = new Map<number, () => void>();
+  const listeners = new Map<string, (event: { key: string }) => void>();
+  const styles = new Map<string, { id: string; textContent: string }>();
+  const body = {};
+  const remoteCalls: Array<{ path: string; endpoint: string; args: unknown }> = [];
+  let reply: RpcReply | Promise<RpcReply> = { ok: true, value: options.status };
+  let failure: Error | undefined;
+  const document = {
+    body,
+    getElementById: (id: string) => styles.get(id),
+    createElement: () => ({ id: "", textContent: "" }),
+    head: {
+      appendChild: (style: { id: string; textContent: string }) => {
+        styles.set(style.id, style);
+      },
     },
-    useEffect: () => {},
-    useRef: (initial: unknown) => ({ current: initial }),
-    useSyncExternalStore: (_subscribe: unknown, getSnapshot: () => unknown) => getSnapshot(),
-  };
-}
-
-function directory(provider: string | null) {
-  return {
-    directoryFor(sessionId: string) {
-      assert.equal(sessionId, SESSION_ID);
-      return {
-        store: {
-          getSnapshot: () => ({
-            current: provider === null ? null : { provider, model: "grok" },
-          }),
-          subscribe: () => () => {},
-        },
-      };
+    addEventListener: (name: string, listener: (event: { key: string }) => void) => {
+      listeners.set(name, listener);
+    },
+    removeEventListener: (name: string) => {
+      listeners.delete(name);
     },
   };
-}
-
-function projection(next: unknown) {
-  return (_key: string, select: (value: unknown) => unknown) => select({ lastUsed: null, next });
-}
-
-function renderHero(options: {
-  status?: unknown;
-  next: unknown;
-  provider: string | null;
-  sessionId?: string;
-}): PillNode | null {
-  const directories = directory(options.provider);
   const dependencies: Record<string, unknown> = {
-    react: pillReact(options.status),
-    "react-dom": {},
-    "@deepseek-ai/dsh-client-ui-primitives": {},
+    react: {
+      Fragment: "fragment",
+      createElement: (
+        type: unknown,
+        props: Record<string, unknown> | null,
+        ...children: unknown[]
+      ) => ({ type, props: { ...props, children } }),
+      useState: (initial: unknown) => {
+        const index = stateIndex++;
+        if (!(index in states)) states[index] = initial;
+        return [
+          states[index],
+          (next: unknown) => {
+            states[index] = typeof next === "function" ? next(states[index]) : next;
+          },
+        ];
+      },
+      useEffect: (effect: () => void | (() => void)) => {
+        effects.push(effect);
+      },
+      useRef: (initial: unknown) => ({ current: initial }),
+    },
+    "react-dom": {
+      createPortal: (node: UsageNode, target: unknown) => {
+        assert.equal(target, body);
+        return node;
+      },
+    },
+    "@deepseek-ai/dsh-client-ui-primitives": {
+      useAnchoredPosition: () => ({ left: 12, top: 24 }),
+    },
   };
-  const plugin = loadClient().factory((name) => {
+  const plugin = loadClient({
+    document,
+    setInterval: (callback: () => void, delay: number) => {
+      assert.equal(delay, USAGE_POLL_MS);
+      const id = intervals.size + 1;
+      intervals.set(id, callback);
+      return id;
+    },
+    clearInterval: (id: number) => {
+      intervals.delete(id);
+    },
+  }).factory((name) => {
     assert.ok(Object.hasOwn(dependencies, name), "Unexpected client dependency: " + name);
     return dependencies[name];
   });
@@ -195,12 +233,22 @@ function renderHero(options: {
       register();
     },
     locale: { register: () => () => {} },
-    get: (name: string) => (name === "modelDirectories" ? directories : undefined),
+    get: () => assert.fail("Sidebar usage must not read session services"),
+    inject: () => assert.fail("Sidebar usage must not inject model-selection services"),
+    connection: {
+      rpc: {
+        call: (path: string, endpoint: string, args: unknown) => {
+          remoteCalls.push({ path, endpoint, args });
+          return failure === undefined ? Promise.resolve(reply) : Promise.reject(failure);
+        },
+      },
+    },
     slots: {
       inject: (_name: string, register: () => unknown) => {
         register();
       },
       register: (slot: { name: string }, render: RenderSlot) => {
+        assert.ok(!renderers.has(slot.name), "Duplicate slot registration: " + slot.name);
         renderers.set(slot.name, render);
         return () => {
           renderers.delete(slot.name);
@@ -208,58 +256,184 @@ function renderHero(options: {
       },
     },
   };
-  plugin.apply(ctx as ClientContext);
-  const render = renderers.get(HERO_SLOT);
-  assert.ok(render);
-  const element = render({
-    ctx,
-    t: translate,
-    useProjection: projection(options.next),
-    sessionId: options.sessionId === undefined ? SESSION_ID : options.sessionId,
-  } as DetailProps) as unknown as PillElement;
-  return element.type(element.props);
+  plugin.apply(ctx);
+  const renderSlot = renderers.get(FOOTER_SLOT);
+  assert.ok(renderSlot);
+  return {
+    renderers,
+    intervals,
+    listeners,
+    styles,
+    remoteCalls,
+    render(wide = options.wide ?? true) {
+      stateIndex = 0;
+      effects.length = 0;
+      const element = renderSlot({ t: translate, wide } as DetailProps) as unknown as UsageElement;
+      assert.equal(element.props.ctx, ctx);
+      return element.type(element.props);
+    },
+    mountEffects() {
+      const cleanups = effects.map((effect) => effect());
+      return () => {
+        for (const cleanup of cleanups) if (typeof cleanup === "function") cleanup();
+      };
+    },
+    setReply(value: RpcReply | Promise<RpcReply>) {
+      reply = value;
+    },
+    setFailure(error: Error) {
+      failure = error;
+    },
+    poll() {
+      assert.equal(intervals.size, 1);
+      for (const callback of intervals.values()) callback();
+    },
+  };
 }
 
-test("the hero pill follows the catalog default and keeps a seat while usage loads", () => {
-  const pending = renderHero({ next: null, provider: "xai-supergrok" });
-  assert.ok(pending);
-  assert.equal(pending.props["data-xai-usage-pending"], "");
-  assert.match(JSON.stringify(pending), /usageLoading/);
-
-  const recorded = renderHero({
-    next: { provider: "xai-supergrok", model: "grok" },
-    provider: null,
-  });
-  assert.ok(recorded);
-  assert.equal(recorded.props["data-xai-usage-pending"], "");
+test("usage registers only in the sidebar footer without conversation or model services", () => {
+  const view = sidebar();
+  assert.deepEqual([...view.renderers.keys()], [DETAIL_SLOT, FOOTER_SLOT]);
+  assert.equal(view.render(), null);
 });
 
-test("the hero pill hides for another route and for a finished reading with no credits", () => {
-  assert.equal(
-    renderHero({
-      next: { provider: "other", model: "other" },
-      provider: "xai-supergrok",
-    }),
-    null,
-  );
-  assert.equal(renderHero({ next: null, provider: "other" }), null);
-  assert.equal(
-    renderHero({
-      next: { provider: "xai-supergrok", model: "grok" },
-      provider: null,
-      status: { signedIn: false },
-    }),
-    null,
-  );
-});
-
-test("the hero pill shows the remaining percentage once credits arrive", () => {
-  const pill = renderHero({
-    next: null,
-    provider: "xai-supergrok",
-    status: { usage: { credits: { percent: 12 } } },
+test("the sidebar shows signed-in account usage without a session or selected model", () => {
+  const view = sidebar({
+    status: { signedIn: true, usage: { credits: { percent: 12 } } },
   });
+  const pill = view.render();
   assert.ok(pill);
-  assert.equal(pill.props["data-xai-usage-pending"], undefined);
-  assert.match(JSON.stringify(pill), /used 12%/);
+  assert.equal(pill.props["data-wide"], "true");
+  assert.equal(textContent(pill), "Grok usage 12%");
+  const trigger = nodes(pill).find((node) => node.type === "button");
+  assert.ok(trigger);
+  assert.equal(trigger.props["aria-label"], "Grok usage 12%");
+  assert.equal(trigger.props["aria-expanded"], false);
+});
+
+test("the sidebar hides a signed-out account even if stale usage is present", () => {
+  for (const status of [
+    undefined,
+    { signedIn: false },
+    { signedIn: false, usagePending: true },
+    { signedIn: false, usage: { credits: { percent: 12 } } },
+    { signedIn: true },
+  ]) {
+    assert.equal(sidebar({ status }).render(), null);
+  }
+});
+
+test("signed-in usage loading has an accessible indicator in either sidebar width", () => {
+  const view = sidebar({ status: { signedIn: true, usagePending: true } });
+  for (const wide of [true, false]) {
+    const pill = view.render(wide);
+    assert.ok(pill);
+    assert.equal(pill.props["data-xai-usage-pending"], "");
+    const status = nodes(pill).find((node) => node.props.role === "status");
+    assert.ok(status);
+    assert.equal(status.props["aria-label"], "usageLoading");
+    assert.equal(textContent(pill), wide ? "usageLoading" : "");
+    assert.ok(nodes(pill).some((node) => node.type === "svg"));
+  }
+});
+
+test("the collapsed sidebar keeps an icon and accessible label without visible text", () => {
+  const view = sidebar({
+    status: { signedIn: true, usage: { credits: { percent: 0 } } },
+  });
+  const pill = view.render(false);
+  assert.ok(pill);
+  assert.equal(pill.props["data-wide"], "false");
+  assert.equal(textContent(pill), "");
+  assert.ok(nodes(pill).some((node) => node.type === "svg"));
+  const trigger = nodes(pill).find((node) => node.type === "button");
+  assert.ok(trigger);
+  assert.equal(trigger.props["aria-label"], "Grok usage 0%");
+});
+
+test("the sidebar opens account details in a portal and closes on Escape", () => {
+  const view = sidebar({
+    status: {
+      signedIn: true,
+      usage: { credits: { percent: 12 }, tier: "SuperGrok", prepaid: "$5" },
+    },
+  });
+  for (const wide of [true, false]) {
+    const pill = view.render(wide);
+    const trigger = nodes(pill).find((node) => node.type === "button");
+    assert.ok(trigger);
+    (trigger.props.onClick as () => void)();
+    const open = view.render(wide);
+    const dialog = nodes(open).find((node) => node.props.role === "dialog");
+    assert.ok(dialog);
+    assert.equal(dialog.props["aria-label"], "Grok usage 12%");
+    assert.match(textContent(dialog), /SuperGrok/);
+    assert.match(textContent(dialog), /\$5/);
+    const meter = nodes(dialog).find((node) => node.props.role === "meter");
+    assert.ok(meter);
+    assert.equal(meter.props["aria-valuenow"], 12);
+    const unmount = view.mountEffects();
+    assert.ok(view.listeners.has("keydown"));
+    view.listeners.get("keydown")!({ key: "Escape" });
+    assert.ok(!nodes(view.render(wide)).some((node) => node.props.role === "dialog"));
+    unmount();
+    assert.equal(view.intervals.size, 0);
+    assert.equal(view.listeners.size, 0);
+  }
+});
+
+test("global status polling detects sign-in and sign-out and retains usage on failures", async () => {
+  const view = sidebar();
+  assert.equal(view.render(), null);
+  const unmount = view.mountEffects();
+  await nextTurn();
+  assert.equal(view.styles.size, 1);
+  view.setReply({
+    ok: true,
+    value: { signedIn: true, usage: { credits: { percent: 12 } } },
+  });
+  view.poll();
+  await nextTurn();
+  assert.equal(textContent(view.render()), "Grok usage 12%");
+  view.setReply({ ok: false });
+  view.poll();
+  await nextTurn();
+  assert.equal(textContent(view.render()), "Grok usage 12%");
+  view.setFailure(new Error("Connection lost"));
+  view.poll();
+  await nextTurn();
+  assert.equal(textContent(view.render()), "Grok usage 12%");
+  assert.ok(
+    view.remoteCalls.every(
+      (call) => call.path === "/api" && call.endpoint === "xaiSupergrok/status",
+    ),
+  );
+  unmount();
+  assert.equal(view.intervals.size, 0);
+
+  const signedOut = sidebar({ status: { signedIn: true, usage: { credits: { percent: 12 } } } });
+  assert.ok(signedOut.render());
+  signedOut.setReply({ ok: true, value: { signedIn: false } });
+  const stop = signedOut.mountEffects();
+  await nextTurn();
+  assert.equal(signedOut.render(), null);
+  stop();
+});
+
+test("unmount stops status polling and ignores an in-flight response", async () => {
+  const view = sidebar();
+  let resolve: (reply: RpcReply) => void = () => assert.fail("Missing pending request");
+  view.setReply(
+    new Promise<RpcReply>((complete) => {
+      resolve = complete;
+    }),
+  );
+  view.render();
+  const unmount = view.mountEffects();
+  assert.equal(view.intervals.size, 1);
+  unmount();
+  assert.equal(view.intervals.size, 0);
+  resolve({ ok: true, value: { signedIn: true, usage: { credits: { percent: 12 } } } });
+  await nextTurn();
+  assert.equal(view.render(), null);
 });
