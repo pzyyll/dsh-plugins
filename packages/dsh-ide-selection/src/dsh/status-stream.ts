@@ -6,7 +6,7 @@ import type {} from "@deepseek-ai/dsh-host-webserver";
 import type {} from "@deepseek-ai/dsh-client-connection";
 import { SessionId } from "@deepseek-ai/dsh-session";
 import { selectionStatusText } from "../shared/status.js";
-import { formatSelectionReference } from "../shared/format.js";
+import { formatSelectionReferences } from "../shared/format.js";
 import type { SelectionReference } from "../shared/selection-reference.js";
 import type { FollowUpdate } from "../shared/watch.js";
 import { diagnosticInputEvent, type DiagnosticInputEvent } from "./diagnostics-stream.js";
@@ -83,8 +83,11 @@ export function registerSelectionStatus(
                 });
               },
               (context) => listener(diagnosticInputEvent(context)),
-              (snapshot) =>
-                listener({ type: "selection", reference: formatSelectionReference(snapshot) }),
+              (snapshot) => {
+                for (const reference of formatSelectionReferences(snapshot)) {
+                  listener({ type: "selection", reference });
+                }
+              },
             );
             const stopSession = scope.on(
               "session/disposed",

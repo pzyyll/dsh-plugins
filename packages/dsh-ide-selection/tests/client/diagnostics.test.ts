@@ -7,10 +7,11 @@ import {
   type InputActions,
 } from "../../src/client/diagnostics-stream.js";
 import { IDE_EVENTS_URL, type SubscribeIdeEvents } from "../../src/client/ide-stream.js";
-import { formatSelectionReference } from "../../src/shared/format.js";
+import { formatSelectionReference, formatSelectionReferences } from "../../src/shared/format.js";
 import type { EditorSelectionSnapshot } from "../../src/shared/protocol.js";
 import type { InsertSelectionReference } from "../../src/client/selection-references.js";
-import { MAX_SELECTION_CONTEXT_CHARS } from "../../src/shared/selection-reference.js";
+import { MAX_SELECTION_REFERENCE_CHARS } from "../../src/shared/selection-reference.js";
+import { selectionReferenceSource } from "../../src/client/selection-references.js";
 
 const cleanups: Array<() => void> = [];
 function bindDiagnosticInput(...args: Parameters<typeof bindInput>): () => void {
@@ -69,7 +70,7 @@ describe("diagnostics input stream", () => {
     ],
   };
 
-  it("inserts a frozen native reference without pasting code or sending the draft", () => {
+  it("inserts each selected path as a separate reference without pasting code or sending the draft", async () => {
     vi.stubGlobal("EventSource", MockEventSource);
     const input = actions();
     const sendFix = vi.fn();
@@ -83,20 +84,85 @@ describe("diagnostics input stream", () => {
       undefined,
       insertSelection,
     );
-    const reference = formatSelectionReference(snapshot);
-    MockEventSource.instances[0]!.emit({ type: "selection", reference });
-    expect(insertSelection).toHaveBeenCalledWith("selection-session", reference, {
-      start: 5,
-      end: 5,
-      draftRev: 9,
+    const references = formatSelectionReferences({
+      ...snapshot,
+      ranges: [
+        ...snapshot.ranges,
+        {
+          text: "another selected range",
+          selection: { start: { line: 19, character: 0 }, end: { line: 20, character: 1 } },
+        },
+      ],
     });
+    for (const reference of references) {
+      MockEventSource.instances[0]!.emit({ type: "selection", reference });
+    }
+    expect(insertSelection).toHaveBeenCalledTimes(references.length);
+    const serialized = await Promise.all(
+      references.map((reference) =>
+        selectionReferenceSource().codec.serialize(reference.ref, new AbortController().signal),
+      ),
+    );
+    expect(serialized).toEqual(["@src/example.ts#L10-L12", "@src/example.ts#L20-L21"]);
+    for (const [index, reference] of references.entries()) {
+      expect(insertSelection).toHaveBeenNthCalledWith(index + 1, "selection-session", reference, {
+        start: 5,
+        end: 5,
+        draftRev: 9,
+      });
+    }
     expect(input.insertText).not.toHaveBeenCalled();
-    expect(input.persistDraft).toHaveBeenCalledOnce();
+    expect(input.persistDraft).toHaveBeenCalledTimes(references.length);
     expect(sendFix).not.toHaveBeenCalled();
     expect(fallback).not.toHaveBeenCalled();
   });
 
-  it("retries the same snapshot at a fresh span and invalidates late selection callbacks", () => {
+  it("retries only the refused range without duplicating an already inserted reference", () => {
+    vi.stubGlobal("EventSource", MockEventSource);
+    const input = actions();
+    const fallback = vi.fn();
+    const insertSelection = vi
+      .fn<InsertSelectionReference>()
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(false)
+      .mockReturnValue(true);
+    bindDiagnosticInput(
+      "selection-session",
+      input.value,
+      fallback,
+      undefined,
+      undefined,
+      insertSelection,
+    );
+    const references = formatSelectionReferences({
+      ...snapshot,
+      ranges: [
+        ...snapshot.ranges,
+        {
+          text: "refused range",
+          selection: { start: { line: 19, character: 0 }, end: { line: 20, character: 1 } },
+        },
+      ],
+    });
+    for (const reference of references) {
+      MockEventSource.instances[0]!.emit({ type: "selection", reference });
+    }
+    expect(fallback).toHaveBeenCalledExactlyOnceWith(
+      references[1]!.clipboardText,
+      expect.any(Function),
+    );
+    expect(input.persistDraft).toHaveBeenCalledOnce();
+    const retry = fallback.mock.calls[0]![1] as () => boolean;
+    expect(retry()).toBe(true);
+    expect(insertSelection.mock.calls.map((call) => call[1])).toEqual([
+      references[0],
+      references[1],
+      references[1],
+    ]);
+    expect(input.persistDraft).toHaveBeenCalledTimes(references.length);
+  });
+
+  it("retries the same reference at a fresh span and invalidates late selection callbacks", () => {
     vi.stubGlobal("EventSource", MockEventSource);
     const input = actions();
     const fallback = vi.fn();
@@ -185,11 +251,7 @@ describe("diagnostics input stream", () => {
       { ...reference, ref: "not json" },
       {
         ...reference,
-        ref: JSON.stringify({
-          version: 1,
-          mention: "@a",
-          text: "x".repeat(MAX_SELECTION_CONTEXT_CHARS + 1),
-        }),
+        ref: "x".repeat(MAX_SELECTION_REFERENCE_CHARS + 1),
       },
       { ...reference, clipboardText: "@different.ts" },
     ])

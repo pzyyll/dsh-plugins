@@ -136,11 +136,7 @@ describe("diagnostic receiver registration", () => {
     }) as {
       props: { insertSelection: InsertSelectionReference };
     };
-    const reference = createSelectionReference(
-      "@main.tsx#L33-L37",
-      "main.tsx:33–37",
-      "frozen code",
-    );
+    const reference = createSelectionReference("@main.tsx#L33-L37", "main.tsx:33–37");
     const span = { start: 4, end: 4, draftRev: 2 };
     expect(result.props.insertSelection(SESSION_ID, reference, span)).toBe(true);
     expect(sessions.scope).toHaveBeenCalledWith(SESSION_ID);

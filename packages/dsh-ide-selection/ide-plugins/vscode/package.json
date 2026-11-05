@@ -47,7 +47,7 @@
         {
           "command": "dsh-ide-selection.addToChat",
           "when": "isWorkspaceTrusted && resourceScheme == file",
-          "group": "navigation@100"
+          "group": "2_dsh_ide_selection"
         }
       ],
       "commandPalette": [

@@ -8,9 +8,9 @@ Requires the matching dsh plugin: [@balaenis/dsh-ide-selection](https://www.npmj
 
 In a trusted local VS Code file, right-click and select **Add to DSH Chat**. A text selection is optional. Keep the matching dsh Web input open.
 
-The action inserts a file reference chip, e.g. `main.tsx:33–37`, at the input cursor. The chip stores the selection as it was when you added it. When you send the draft, dsh includes that saved code, even if you later edit the file, change the selection, or disconnect VS Code. The code stays out of the visible draft text. Multiple selections stay in one chip; `(+N)` shows the additional ranges. With no selection, the chip includes only the open file path, not the file contents.
+The action inserts one file reference chip per selected range, e.g. `main.tsx:33–37` and `main.tsx:51`, at the input cursor. Each chip can be deleted separately. Sending the draft uses each chip's `@relative/path#L33-L37` text without adding a newline; the editor supplies normal spacing between chips. Chips do not store code or expand into `<system-reminder>`. With no selection, one chip refers only to `@relative/path`.
 
-You can delete the chip with the editor's normal delete action. The snapshot survives draft restoration. Copying the chip as plain text copies only the path and line reference, not its saved code. Adding a chip does not send a message or change automatic live IDE context. Review the draft, then send it yourself. Saved drafts contain the selected code; do not attach secrets.
+You can delete the chip with the editor's normal delete action. Draft restoration keeps the reference; copying it as plain text copies the path and line range. Adding a chip does not send a message or change automatic live IDE context. Review the draft, then send it yourself.
 
 Update both integrations. The action follows the session's IDE choice and goes to one matching input. Undelivered actions are not retained or replayed. If the input refuses the edit, use the retry panel.
 

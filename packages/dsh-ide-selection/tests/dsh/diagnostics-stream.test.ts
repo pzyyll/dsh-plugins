@@ -16,7 +16,7 @@ import { ideLockId } from "../../src/shared/ide.js";
 import { createLock, writeLock } from "../../src/shared/lock.js";
 import type { DiagnosticContext, EditorSelectionSnapshot } from "../../src/shared/protocol.js";
 import { IdeServer } from "../../src/shared/server.js";
-import { formatSelectionReference } from "../../src/shared/format.js";
+import { formatSelectionReference, formatSelectionReferences } from "../../src/shared/format.js";
 import { readSelectionContent } from "../../src/shared/selection-reference.js";
 
 const TOKEN = "d".repeat(64);
@@ -183,22 +183,30 @@ describe("shared diagnostic event stream", () => {
           text: "selected source",
           selection: { start: { line: 9, character: 0 }, end: { line: 11, character: 1 } },
         },
+        {
+          text: "second private range",
+          selection: { start: { line: 19, character: 0 }, end: { line: 20, character: 1 } },
+        },
       ],
     };
     expect(h.server.clientCount).toBe(1);
     expect(h.server.attach(snapshot)).toBe(true);
-    await vi.waitFor(() =>
-      expect(first.events.at(-1)).toEqual({
-        type: "selection",
-        reference: formatSelectionReference(snapshot),
-      }),
-    );
-    const event = first.events.at(-1);
-    if (event?.type !== "selection") throw new Error("missing selection reference");
-    const frozen = event.reference;
+    const selections = () => first.events.filter((event) => event.type === "selection");
+    await vi.waitFor(() => expect(selections()).toHaveLength(snapshot.ranges.length));
+    const references = selections().map((event) => event.reference);
+    expect(references).toEqual(formatSelectionReferences(snapshot));
+    expect(references.map((reference) => reference.label)).toEqual([
+      "example.ts:10–12",
+      "example.ts:20–21",
+    ]);
+    expect(references.map((reference) => readSelectionContent(reference.ref).mention)).toEqual([
+      "@example.ts#L10-L12",
+      "@example.ts#L20-L21",
+    ]);
+    expect(JSON.stringify(references)).not.toContain("selected source");
+    expect(JSON.stringify(references)).not.toContain("second private range");
     snapshot.ranges[0]!.text = "changed after attachment";
-    expect(readSelectionContent(frozen.ref).text).toContain("selected source");
-    expect(readSelectionContent(frozen.ref).text).not.toContain("changed after attachment");
+    expect(references).toEqual(formatSelectionReferences(snapshot));
     expect(second.events.some((event) => event.type === "selection")).toBe(false);
     const late = await h.open();
     expect(late.events.some((event) => event.type === "selection")).toBe(false);
@@ -216,7 +224,7 @@ describe("shared diagnostic event stream", () => {
     // An ordered status update is a barrier after the invalid notification.
     h.server.broadcast(undefined);
     await vi.waitFor(() => expect(first.events.at(-1)).toMatchObject({ type: "status" }));
-    expect(first.events.filter((event) => event.type === "selection")).toHaveLength(2);
+    expect(selections()).toHaveLength(snapshot.ranges.length + 1);
     await h.choose({ kind: "off" });
     await vi.waitFor(() => expect(h.server.clientCount).toBe(0));
     expect(h.server.attach(snapshot)).toBe(false);

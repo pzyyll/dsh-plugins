@@ -60,7 +60,7 @@ function register(server?: IdeServer) {
 }
 
 describe("Add to DSH Chat", () => {
-  it("shows the menu for trusted local files without requiring selected text", async () => {
+  it("shows a separate DSH menu group for trusted local files without requiring selected text", async () => {
     const manifest = JSON.parse(
       await readFile(new URL("../package.json", import.meta.url), "utf8"),
     );
@@ -68,6 +68,7 @@ describe("Add to DSH Chat", () => {
       (entry: { command: string }) => entry.command === ADD_TO_CHAT_COMMAND,
     );
     expect(menu.when).toBe("isWorkspaceTrusted && resourceScheme == file");
+    expect(menu.group).toBe("2_dsh_ide_selection");
     const command = manifest.contributes.commands.find(
       (entry: { command: string }) => entry.command === ADD_TO_CHAT_COMMAND,
     );

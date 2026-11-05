@@ -2,11 +2,7 @@
 // ABOUTME: Adapted from pi-x-ide (Apache-2.0); bound text across selected ranges.
 import { basename, isAbsolute, relative, sep } from "node:path";
 import type { EditorSelectionSnapshot } from "./protocol.js";
-import {
-  createSelectionReference,
-  MAX_SELECTION_CONTEXT_CHARS,
-  type SelectionReference,
-} from "./selection-reference.js";
+import { createSelectionReference, type SelectionReference } from "./selection-reference.js";
 
 const DEFAULT_MAX_CHARS = 24_000;
 const LINE_OFFSET = 1;
@@ -27,41 +23,23 @@ export function formatRangeMention(snapshot: EditorSelectionSnapshot): string {
   return `@${path}#L${start}${start === end ? "" : `-L${end}`}`;
 }
 
-/** Freeze all selected ranges in one native composer chip without reading a file. */
+/** Display one path and range as a native chip, without storing selected code. */
 export function formatSelectionReference(snapshot: EditorSelectionSnapshot): SelectionReference {
-  // VS Code ranges are half-open: a selection ending at column zero excludes that line.
-  const normalized = {
-    ...snapshot,
-    ranges: snapshot.ranges.map((range) => ({
-      ...range,
-      selection: {
-        ...range.selection,
-        end: {
-          ...range.selection.end,
-          line:
-            range.selection.end.character === 0 &&
-            range.selection.end.line > range.selection.start.line
-              ? range.selection.end.line - LINE_OFFSET
-              : range.selection.end.line,
-        },
-      },
-    })),
-  };
-  const first = normalized.ranges[0];
+  const first = snapshot.ranges[0];
   let label = basename(snapshot.filePath.replaceAll("\\", "/"));
   if (first) {
     const start = first.selection.start.line + LINE_OFFSET;
     const end = first.selection.end.line + LINE_OFFSET;
     label += `:${start}${start === end ? "" : `–${end}`}`;
-    if (normalized.ranges.length > 1) label += ` (+${normalized.ranges.length - 1})`;
   }
-  const context = formatEditorContext(normalized);
-  const tail = `${TRUNCATION_NOTICE}\n</selected-context></system-reminder>\n`;
-  const text =
-    context.length <= MAX_SELECTION_CONTEXT_CHARS
-      ? context
-      : context.slice(0, MAX_SELECTION_CONTEXT_CHARS - tail.length) + tail;
-  return createSelectionReference(formatRangeMention(normalized), label, text);
+  return createSelectionReference(formatRangeMention(snapshot), label);
+}
+
+/** Expand each selected range into its own independently editable path reference. */
+export function formatSelectionReferences(snapshot: EditorSelectionSnapshot): SelectionReference[] {
+  return snapshot.ranges.length === 0
+    ? [formatSelectionReference(snapshot)]
+    : snapshot.ranges.map((range) => formatSelectionReference({ ...snapshot, ranges: [range] }));
 }
 
 /** Render local editor context without reading any file from disk. */

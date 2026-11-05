@@ -77,7 +77,7 @@ describe("shared IDE event stream", () => {
     const source = BrowserEventSource.instances[0]!;
     const selection = {
       type: "selection",
-      reference: createSelectionReference("@src/example.ts#L2-L3", "example.ts:2–3", "saved code"),
+      reference: createSelectionReference("@src/example.ts#L2-L3", "example.ts:2–3"),
     };
     source.emit(selection);
     expect(BrowserEventSource.instances).toHaveLength(1);

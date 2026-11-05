@@ -1,12 +1,13 @@
-// ABOUTME: Store a frozen IDE selection inside a persistent dsh reference identifier.
-// ABOUTME: Validate browser events and restored references without reading files or live IDE state.
+// ABOUTME: Store only the original IDE path mention inside a persistent display reference.
+// ABOUTME: Validate browser events and restore old references without exposing their saved code.
 export const SELECTION_REFERENCE_SOURCE = "ide-selection";
-export const MAX_SELECTION_CONTEXT_CHARS = 64_000;
+const LEGACY_MAX_CONTEXT_CHARS = 64_000;
 const MAX_MENTION_CHARS = 8_192;
 const MAX_LABEL_CHARS = 1_024;
 const MAX_JSON_ESCAPE_CHARS = 6;
-const MAX_REFERENCE_CHARS =
-  MAX_JSON_ESCAPE_CHARS * (MAX_SELECTION_CONTEXT_CHARS + MAX_MENTION_CHARS);
+// Accept existing draft ids that embedded code, but never return that code to the caller.
+export const MAX_SELECTION_REFERENCE_CHARS =
+  MAX_JSON_ESCAPE_CHARS * (LEGACY_MAX_CONTEXT_CHARS + MAX_MENTION_CHARS);
 const REFERENCE_VERSION = 1;
 
 /** Structural slice of dsh 0.2.2-rc.1's public ReferenceInsert contract. */
@@ -21,16 +22,16 @@ export interface SelectionReference {
 interface SelectionContent {
   version: typeof REFERENCE_VERSION;
   mention: string;
-  text: string;
 }
 
 function boundedText(value: unknown, maxChars: number): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= maxChars;
 }
 
-/** Decode persisted content; a broken reference must block sending, not lose its code silently. */
+/** Restore the path mention; legacy code snapshots have no effect on submitted content. */
 export function readSelectionContent(ref: string): SelectionContent {
-  if (!boundedText(ref, MAX_REFERENCE_CHARS)) throw new Error("Invalid IDE selection reference");
+  if (!boundedText(ref, MAX_SELECTION_REFERENCE_CHARS))
+    throw new Error("Invalid IDE selection reference");
   const value: unknown = JSON.parse(ref);
   if (
     typeof value !== "object" ||
@@ -38,21 +39,15 @@ export function readSelectionContent(ref: string): SelectionContent {
     !("version" in value) ||
     value.version !== REFERENCE_VERSION ||
     !("mention" in value) ||
-    !boundedText(value.mention, MAX_MENTION_CHARS) ||
-    !("text" in value) ||
-    !boundedText(value.text, MAX_SELECTION_CONTEXT_CHARS)
+    !boundedText(value.mention, MAX_MENTION_CHARS)
   )
     throw new Error("Invalid IDE selection reference");
-  return { version: REFERENCE_VERSION, mention: value.mention, text: value.text };
+  return { version: REFERENCE_VERSION, mention: value.mention };
 }
 
-/** Embed the content in the chip so persistence and undo do not need an in-memory cache. */
-export function createSelectionReference(
-  mention: string,
-  label: string,
-  text: string,
-): SelectionReference {
-  const ref = JSON.stringify({ version: REFERENCE_VERSION, mention, text });
+/** Keep presentation separate from the path mention used for copying and sending. */
+export function createSelectionReference(mention: string, label: string): SelectionReference {
+  const ref = JSON.stringify({ version: REFERENCE_VERSION, mention });
   readSelectionContent(ref);
   if (!boundedText(label, MAX_LABEL_CHARS)) throw new Error("Invalid IDE selection label");
   return {

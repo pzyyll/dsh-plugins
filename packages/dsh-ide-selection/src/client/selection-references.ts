@@ -1,5 +1,5 @@
-// ABOUTME: Connect frozen IDE selection chips to dsh's native reference insertion and codec.
-// ABOUTME: Resolve the addressed session for every edit and serialize only the chip's saved content.
+// ABOUTME: Display IDE path references as native composer chips without changing sent content.
+// ABOUTME: Resolve the addressed session for every edit and serialize the original path mention.
 import type { InsertionSpan } from "./diagnostics-stream.js";
 import {
   readSelectionContent,
@@ -51,7 +51,7 @@ export function selectionReferenceSource(): SelectionReferenceSource {
       clipboardText: (ref) => readSelectionContent(ref).mention,
       serialize: async (ref, signal) => {
         signal.throwIfAborted();
-        return readSelectionContent(ref).text;
+        return readSelectionContent(ref).mention;
       },
     },
   };
