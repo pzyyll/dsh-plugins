@@ -22,6 +22,13 @@ import { DiagnosticInput } from "./diagnostics-input.js";
 import { subscribeIdeEvents } from "./ide-stream.js";
 import type { InputActions } from "./diagnostics-stream.js";
 import { sendDiagnosticFix, type DiagnosticFixSessions } from "./diagnostic-fix.js";
+import {
+  insertSelectionReference,
+  selectionReferenceSource,
+  type InsertSelectionReference,
+  type SelectionInputTriggers,
+  type SelectionReferenceSessions,
+} from "./selection-references.js";
 import { statusButtonText, statusButtonVisible } from "./status-label.js";
 import { IdeStatusControl, STATUS_ORDER, STATUS_PILL_CSS } from "./status-picker.js";
 const STATUS_STYLE_ID = "dsh-ide-selection-status";
@@ -210,9 +217,15 @@ export function apply(ctx: ClientContext): void {
       ctx.slots.register({ name, id: "ide-selection", order: STATUS_ORDER }, SelectionStatus),
     );
   }
-  ctx.inject(["sessions"], (scope) => {
-    const sessions = scope.get("sessions") as DiagnosticFixSessions | undefined;
-    if (!sessions) return;
+  ctx.inject(["sessions", "inputTriggers"], (scope) => {
+    const sessions = scope.get("sessions") as
+      | (DiagnosticFixSessions & SelectionReferenceSessions)
+      | undefined;
+    const inputTriggers = scope.get("inputTriggers") as SelectionInputTriggers | undefined;
+    if (!sessions || !inputTriggers) return;
+    scope.effect(() => inputTriggers.registerSource(selectionReferenceSource()));
+    const insertSelection: InsertSelectionReference = (sessionId, reference, span) =>
+      insertSelectionReference(sessions, sessionId, reference, span);
     const sendFix = (sessionId: string, text: string, signal: AbortSignal) =>
       sendDiagnosticFix(sessions, sessionId, text, signal);
     // The shared input overlay also mounts in the blank-session Hero; the dock does not.
@@ -227,6 +240,7 @@ export function apply(ctx: ClientContext): void {
           createElement(DiagnosticInput, {
             ...props,
             sendFix,
+            insertSelection,
             key: props.sessionId,
             t: (key) => activeTranslate()(key),
           }),

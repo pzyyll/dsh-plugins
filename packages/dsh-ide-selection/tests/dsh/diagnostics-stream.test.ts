@@ -16,6 +16,8 @@ import { ideLockId } from "../../src/shared/ide.js";
 import { createLock, writeLock } from "../../src/shared/lock.js";
 import type { DiagnosticContext, EditorSelectionSnapshot } from "../../src/shared/protocol.js";
 import { IdeServer } from "../../src/shared/server.js";
+import { formatSelectionReference } from "../../src/shared/format.js";
+import { readSelectionContent } from "../../src/shared/selection-reference.js";
 
 const TOKEN = "d".repeat(64);
 const WAIT_MS = 2_000;
@@ -188,9 +190,15 @@ describe("shared diagnostic event stream", () => {
     await vi.waitFor(() =>
       expect(first.events.at(-1)).toEqual({
         type: "selection",
-        text: "@example.ts#L10-L12\n",
+        reference: formatSelectionReference(snapshot),
       }),
     );
+    const event = first.events.at(-1);
+    if (event?.type !== "selection") throw new Error("missing selection reference");
+    const frozen = event.reference;
+    snapshot.ranges[0]!.text = "changed after attachment";
+    expect(readSelectionContent(frozen.ref).text).toContain("selected source");
+    expect(readSelectionContent(frozen.ref).text).not.toContain("changed after attachment");
     expect(second.events.some((event) => event.type === "selection")).toBe(false);
     const late = await h.open();
     expect(late.events.some((event) => event.type === "selection")).toBe(false);
@@ -200,7 +208,7 @@ describe("shared diagnostic event stream", () => {
     await vi.waitFor(() =>
       expect(first.events.at(-1)).toEqual({
         type: "selection",
-        text: "@example.ts\n",
+        reference: formatSelectionReference({ ...snapshot, ranges: [] }),
       }),
     );
 

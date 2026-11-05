@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { bindDiagnosticInput } from "../../src/client/diagnostics-stream.js";
 import { IDE_EVENTS_URL, subscribeIdeEvents } from "../../src/client/ide-stream.js";
+import { createSelectionReference } from "../../src/shared/selection-reference.js";
 
 const SESSION_ID = "session / one";
 const OTHER_SESSION_ID = "session-two";
@@ -45,9 +46,17 @@ function diagnosticConsumer(sessionId = SESSION_ID) {
   };
   const sendFix = vi.fn(async () => {});
   const fallback = vi.fn();
-  const cleanup = bindDiagnosticInput(sessionId, input, fallback, sendFix);
+  const insertSelection = vi.fn(() => true);
+  const cleanup = bindDiagnosticInput(
+    sessionId,
+    input,
+    fallback,
+    sendFix,
+    undefined,
+    insertSelection,
+  );
   cleanups.push(cleanup);
-  return { input, sendFix, fallback, cleanup };
+  return { input, sendFix, fallback, cleanup, insertSelection };
 }
 
 beforeEach(() => {
@@ -66,19 +75,23 @@ describe("shared IDE event stream", () => {
     const first = diagnosticConsumer();
     const second = diagnosticConsumer();
     const source = BrowserEventSource.instances[0]!;
-    const selection = { type: "selection", text: "@src/example.ts#L2-L3\n" };
+    const selection = {
+      type: "selection",
+      reference: createSelectionReference("@src/example.ts#L2-L3", "example.ts:2–3", "saved code"),
+    };
     source.emit(selection);
     expect(BrowserEventSource.instances).toHaveLength(1);
-    expect(first.input.insertText).toHaveBeenCalledExactlyOnceWith(selection.text, {
+    expect(first.insertSelection).toHaveBeenCalledExactlyOnceWith(SESSION_ID, selection.reference, {
       start: 0,
       end: 0,
       draftRev: 0,
     });
-    expect(second.input.insertText).not.toHaveBeenCalled();
+    expect(second.insertSelection).not.toHaveBeenCalled();
+    expect(first.input.insertText).not.toHaveBeenCalled();
     first.cleanup();
-    expect(second.input.insertText).not.toHaveBeenCalled();
+    expect(second.insertSelection).not.toHaveBeenCalled();
     source.emit(selection);
-    expect(second.input.insertText).toHaveBeenCalledOnce();
+    expect(second.insertSelection).toHaveBeenCalledOnce();
     expect(first.sendFix).not.toHaveBeenCalled();
     expect(second.sendFix).not.toHaveBeenCalled();
   });

@@ -7,6 +7,10 @@ import {
   type InputActions,
 } from "../../src/client/diagnostics-stream.js";
 import { IDE_EVENTS_URL, type SubscribeIdeEvents } from "../../src/client/ide-stream.js";
+import { formatSelectionReference } from "../../src/shared/format.js";
+import type { EditorSelectionSnapshot } from "../../src/shared/protocol.js";
+import type { InsertSelectionReference } from "../../src/client/selection-references.js";
+import { MAX_SELECTION_CONTEXT_CHARS } from "../../src/shared/selection-reference.js";
 
 const cleanups: Array<() => void> = [];
 function bindDiagnosticInput(...args: Parameters<typeof bindInput>): () => void {
@@ -53,37 +57,145 @@ function actions(overrides: Partial<InputActions> = {}) {
 }
 
 describe("diagnostics input stream", () => {
-  it("inserts selection references without sending and preserves refused edits for retry", () => {
+  const snapshot: EditorSelectionSnapshot = {
+    source: "vscode",
+    filePath: "/work/app/src/example.ts",
+    workspaceFolder: "/work/app",
+    ranges: [
+      {
+        text: "selected code",
+        selection: { start: { line: 9, character: 0 }, end: { line: 11, character: 1 } },
+      },
+    ],
+  };
+
+  it("inserts a frozen native reference without pasting code or sending the draft", () => {
     vi.stubGlobal("EventSource", MockEventSource);
     const input = actions();
     const sendFix = vi.fn();
     const fallback = vi.fn();
-    const cleanup = bindDiagnosticInput("selection-session", input.value, fallback, sendFix);
-    const source = MockEventSource.instances[0]!;
-    const text = "@src/example.ts#L10-L12\n";
-    source.emit({ type: "selection", text });
-    expect(input.insertText).toHaveBeenCalledWith(text, { start: 5, end: 5, draftRev: 9 });
+    const insertSelection = vi.fn(() => true);
+    bindDiagnosticInput(
+      "selection-session",
+      input.value,
+      fallback,
+      sendFix,
+      undefined,
+      insertSelection,
+    );
+    const reference = formatSelectionReference(snapshot);
+    MockEventSource.instances[0]!.emit({ type: "selection", reference });
+    expect(insertSelection).toHaveBeenCalledWith("selection-session", reference, {
+      start: 5,
+      end: 5,
+      draftRev: 9,
+    });
+    expect(input.insertText).not.toHaveBeenCalled();
     expect(input.persistDraft).toHaveBeenCalledOnce();
     expect(sendFix).not.toHaveBeenCalled();
-
-    input.insertText.mockReturnValue(false);
-    source.emit({ type: "selection", text });
-    expect(fallback).toHaveBeenCalledOnce();
-    const retry = fallback.mock.calls[0]![1] as () => boolean;
-    input.insertText.mockReturnValue(true);
-    expect(retry()).toBe(true);
-    cleanup();
-    expect(retry()).toBe(false);
+    expect(fallback).not.toHaveBeenCalled();
   });
 
-  it("ignores malformed and oversized selection input", () => {
+  it("retries the same snapshot at a fresh span and invalidates late selection callbacks", () => {
     vi.stubGlobal("EventSource", MockEventSource);
     const input = actions();
-    bindDiagnosticInput("selection-session", input.value, vi.fn());
+    const fallback = vi.fn();
+    const insertSelection = vi.fn(() => false);
+    const cleanup = bindDiagnosticInput(
+      "selection-session",
+      input.value,
+      fallback,
+      undefined,
+      undefined,
+      insertSelection,
+    );
+    const reference = formatSelectionReference(snapshot);
     const source = MockEventSource.instances[0]!;
-    for (const text of [undefined, "", 1, "x".repeat(MAX_FORMATTED_DIAGNOSTIC_CHARS + 1)])
-      source.emit({ type: "selection", text });
+    source.emit({ type: "selection", reference });
+    expect(fallback).toHaveBeenCalledWith(reference.clipboardText, expect.any(Function));
+    expect(input.persistDraft).not.toHaveBeenCalled();
+    const retry = fallback.mock.calls[0]![1] as () => boolean;
+    insertSelection.mockReturnValue(true);
+    input.captureInsertion.mockReturnValue({ start: 20, end: 20, draftRev: 10 });
+    expect(retry()).toBe(true);
+    expect(insertSelection).toHaveBeenLastCalledWith("selection-session", reference, {
+      start: 20,
+      end: 20,
+      draftRev: 10,
+    });
+    expect(input.persistDraft).toHaveBeenCalledOnce();
+    const staleCallback = source.onmessage!;
+    cleanup();
+    expect(retry()).toBe(false);
+    staleCallback({ data: JSON.stringify({ type: "selection", reference }) });
+    expect(insertSelection).toHaveBeenCalledTimes(2);
+  });
+
+  it("preserves references when insertion throws and never retries successful unpersisted edits", () => {
+    vi.stubGlobal("EventSource", MockEventSource);
+    const input = actions({
+      persistDraft: vi.fn(() => {
+        throw new Error("disk full");
+      }),
+    });
+    const fallback = vi.fn();
+    const insertSelection = vi.fn<InsertSelectionReference>(() => {
+      throw new Error("locked");
+    });
+    bindDiagnosticInput(
+      "selection-session",
+      input.value,
+      fallback,
+      undefined,
+      undefined,
+      insertSelection,
+    );
+    const reference = formatSelectionReference(snapshot);
+    MockEventSource.instances[0]!.emit({ type: "selection", reference });
+    expect(fallback).toHaveBeenCalledOnce();
+    insertSelection.mockReturnValue(true);
+    const retry = fallback.mock.calls[0]![1] as () => boolean;
+    expect(retry()).toBe(true);
+    expect(input.value.persistDraft).toHaveBeenCalledOnce();
+    expect(fallback).toHaveBeenCalledOnce();
+  });
+
+  it("ignores malformed, legacy, mismatched, and oversized selection references", () => {
+    vi.stubGlobal("EventSource", MockEventSource);
+    const input = actions();
+    const insertSelection = vi.fn(() => true);
+    bindDiagnosticInput(
+      "selection-session",
+      input.value,
+      vi.fn(),
+      undefined,
+      undefined,
+      insertSelection,
+    );
+    const source = MockEventSource.instances[0]!;
+    const reference = formatSelectionReference(snapshot);
+    source.emit({ type: "selection", text: "@legacy.ts#L1" });
+    for (const value of [
+      undefined,
+      null,
+      [],
+      1,
+      {},
+      { ...reference, source: "reference" },
+      { ...reference, ref: "not json" },
+      {
+        ...reference,
+        ref: JSON.stringify({
+          version: 1,
+          mention: "@a",
+          text: "x".repeat(MAX_SELECTION_CONTEXT_CHARS + 1),
+        }),
+      },
+      { ...reference, clipboardText: "@different.ts" },
+    ])
+      source.emit({ type: "selection", reference: value });
     expect(input.captureInsertion).not.toHaveBeenCalled();
+    expect(insertSelection).not.toHaveBeenCalled();
   });
 
   it("subscribes by session and invalidates injected callbacks and retries on cleanup", () => {

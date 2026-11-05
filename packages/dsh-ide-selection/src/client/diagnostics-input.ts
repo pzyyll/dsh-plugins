@@ -2,6 +2,7 @@
 // ABOUTME: Keep successful delivery invisible and localize the retry action.
 import { createElement, useEffect, useState, type ReactElement } from "react";
 import { bindDiagnosticInput, type InputActions } from "./diagnostics-stream.js";
+import type { InsertSelectionReference } from "./selection-references.js";
 
 const PANEL_MAX_HEIGHT_PX = 320;
 const PANEL_MAX_VIEWPORT_HEIGHT_VH = 40;
@@ -21,11 +22,13 @@ export function DiagnosticInput({
   sessionId,
   inputActions,
   sendFix,
+  insertSelection,
   t = (key: string) => key,
 }: {
   sessionId?: string;
   inputActions?: InputActions;
   sendFix?: (sessionId: string, text: string, signal: AbortSignal) => Promise<void>;
+  insertSelection?: InsertSelectionReference;
   t?: (key: string) => string;
 }): ReactElement | null {
   const [pending, setPending] = useState<PendingDiagnostic[]>([]);
@@ -41,8 +44,10 @@ export function DiagnosticInput({
         setPending((items) => [...items, { id, text, retry, ...metadata }]);
       },
       sendFix,
+      undefined,
+      insertSelection,
     );
-  }, [sessionId, inputActions, sendFix]);
+  }, [sessionId, inputActions, sendFix, insertSelection]);
   if (pending.length === 0) return null;
   return createElement(
     "div",

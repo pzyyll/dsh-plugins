@@ -57,7 +57,9 @@ When VS Code is disconnected, the status remains visible with a dimmed icon; whe
 
 In a trusted local VS Code file, right-click and select **Add to DSH Chat**. A text selection is optional. Keep the matching dsh Web input open.
 
-The action inserts `@relative/path#L10-L12` and a newline at the input cursor, as pi-x-ide does. With no selection, it inserts only `@relative/path` and a newline. With several selections, it uses the first range. It does not paste the source text or send a message. Review the draft, then send it yourself.
+The action inserts a file reference chip, e.g. `main.tsx:33–37`, at the input cursor. The chip stores the selection as it was when you added it. When you send the draft, dsh includes that saved code, even if you later edit the file, change the selection, or disconnect VS Code. The code stays out of the visible draft text. Multiple selections stay in one chip; `(+N)` shows the additional ranges. With no selection, the chip includes only the open file path, not the file contents.
+
+You can delete the chip with the editor's normal delete action. The snapshot survives draft restoration. Copying the chip as plain text copies only the path and line reference, not its saved code. Adding a chip does not send a message or change automatic live IDE context. Review the draft, then send it yourself. Saved drafts contain the selected code; do not attach secrets.
 
 Update both integrations. The action follows the session's IDE choice and goes to one matching input. Undelivered actions are not retained or replayed. If the input refuses the edit, use the retry panel.
 

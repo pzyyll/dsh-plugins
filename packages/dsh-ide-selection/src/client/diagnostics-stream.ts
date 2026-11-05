@@ -2,6 +2,8 @@
 // ABOUTME: Validate event bounds and preserve refused text for an explicit retry.
 import { MAX_DIAGNOSTIC_PAYLOAD_CHARS } from "../shared/diagnostics.js";
 import { subscribeIdeEvents, type SubscribeIdeEvents } from "./ide-stream.js";
+import { selectionReferenceFromEvent } from "../shared/selection-reference.js";
+import type { InsertSelectionReference } from "./selection-references.js";
 
 export const MAX_FORMATTED_DIAGNOSTIC_CHARS = 2 * MAX_DIAGNOSTIC_PAYLOAD_CHARS;
 
@@ -53,6 +55,7 @@ export function bindDiagnosticInput(
   onFallback: DiagnosticFallback,
   sendFix?: SendDiagnosticFix,
   subscribe: SubscribeIdeEvents = subscribeIdeEvents,
+  insertSelection?: InsertSelectionReference,
 ): () => void {
   let active = true;
   const abortController = new AbortController();
@@ -109,17 +112,24 @@ export function bindDiagnosticInput(
     onFallback(text, () => insert(text));
   });
   const unsubscribeSelection = subscribe(sessionId, "selection", (value) => {
-    if (!active || typeof value !== "object" || value === null || Array.isArray(value)) return;
-    const event = value as { type?: unknown; text?: unknown };
-    if (
-      event.type !== "selection" ||
-      typeof event.text !== "string" ||
-      event.text.length === 0 ||
-      event.text.length > MAX_FORMATTED_DIAGNOSTIC_CHARS
-    )
-      return;
-    const text = event.text;
-    if (!insert(text)) onFallback(text, () => insert(text));
+    if (!active) return;
+    const reference = selectionReferenceFromEvent(value);
+    if (!reference) return;
+    const retry = (): boolean => {
+      if (!active || !insertSelection) return false;
+      try {
+        if (!insertSelection(sessionId, reference, inputActions.captureInsertion())) return false;
+      } catch {
+        return false;
+      }
+      try {
+        inputActions.persistDraft();
+      } catch {
+        // Insertion succeeded. A second attempt would duplicate the reference.
+      }
+      return true;
+    };
+    if (!retry()) onFallback(reference.clipboardText, retry);
   });
   return () => {
     if (!active) return;

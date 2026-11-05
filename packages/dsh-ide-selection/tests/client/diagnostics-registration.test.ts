@@ -17,6 +17,11 @@ vi.mock("@deepseek-ai/dsh-client-ui-primitives", () => ({ Tooltip: () => null })
 import { apply, inject } from "../../src/client/index.js";
 import { DiagnosticInput } from "../../src/client/diagnostics-input.js";
 import type { InputActions, SendDiagnosticFix } from "../../src/client/diagnostics-stream.js";
+import type {
+  InsertSelectionReference,
+  SelectionReferenceSource,
+} from "../../src/client/selection-references.js";
+import { createSelectionReference } from "../../src/shared/selection-reference.js";
 
 const INPUT_SLOT = "conversation.input.overlay";
 const RECEIVER_ID = "ide-diagnostics-input";
@@ -28,7 +33,7 @@ afterEach(async () => {
   for (const ctx of contexts.splice(0).reverse()) await ctx.fiber.dispose();
 });
 
-async function setup(withSessions = true) {
+async function setup(withSessions = true, withInputTriggers = true) {
   const registered: Array<{
     name: string;
     id: string;
@@ -36,7 +41,20 @@ async function setup(withSessions = true) {
   }> = [];
   const prompt = vi.fn(async () => ({ ok: true as const, value: { accepted: true as const } }));
   const beginSubmission = vi.fn(() => ({ requestId: REQUEST_ID, abandon: vi.fn() }));
-  const sessions = { binding: vi.fn(() => ({ session: { prompt, beginSubmission } })) };
+  const actx = new Context();
+  contexts.push(actx);
+  const sessions = {
+    binding: vi.fn(() => ({ session: { prompt, beginSubmission } })),
+    scope: vi.fn((): Context | undefined => actx),
+  };
+  const sources: SelectionReferenceSource[] = [];
+  const disposeSource = vi.fn();
+  const inputTriggers = {
+    registerSource(source: SelectionReferenceSource) {
+      sources.push(source);
+      return disposeSource;
+    },
+  };
   const ctx = new Context();
   contexts.push(ctx);
   ctx.provide("slots", {
@@ -49,6 +67,7 @@ async function setup(withSessions = true) {
     },
   });
   if (withSessions) ctx.provide("sessions", sessions);
+  if (withInputTriggers) ctx.provide("inputTriggers", inputTriggers);
   await ctx.plugin({
     name: "ide-client-registration-test",
     inject,
@@ -56,7 +75,17 @@ async function setup(withSessions = true) {
       apply(scope as unknown as Parameters<typeof apply>[0]);
     },
   });
-  return { ctx, registered, sessions, prompt, beginSubmission };
+  return {
+    ctx,
+    actx,
+    registered,
+    sessions,
+    prompt,
+    beginSubmission,
+    inputTriggers,
+    sources,
+    disposeSource,
+  };
 }
 
 describe("diagnostic receiver registration", () => {
@@ -83,6 +112,44 @@ describe("diagnostic receiver registration", () => {
       expect(registered.filter(({ id }) => id === RECEIVER_ID)).toHaveLength(1);
     });
     expect(ctx.get("agents")).toBeUndefined();
+  });
+
+  it("waits for the native reference service and disposes its codec on unload", async () => {
+    const { ctx, registered, inputTriggers, sources, disposeSource } = await setup(true, false);
+    expect(registered.filter(({ id }) => id === RECEIVER_ID)).toHaveLength(0);
+    ctx.provide("inputTriggers", inputTriggers);
+    await vi.waitFor(() => expect(sources).toHaveLength(1));
+    expect(registered.filter(({ id }) => id === RECEIVER_ID)).toHaveLength(1);
+    expect(sources[0]?.name).toBe("ide-selection");
+    await ctx.fiber.dispose();
+    expect(disposeSource).toHaveBeenCalledOnce();
+  });
+
+  it("inserts through the addressed session's guarded event without sending or replacing the draft", async () => {
+    const { registered, sessions, actx, prompt } = await setup();
+    const inserted = vi.fn(() => true as const);
+    actx.on("slash/input-insert-reference" as never, inserted);
+    const receiver = registered.find(({ id }) => id === RECEIVER_ID)!;
+    const result = receiver.component({
+      sessionId: SESSION_ID,
+      inputActions: {} as InputActions,
+    }) as {
+      props: { insertSelection: InsertSelectionReference };
+    };
+    const reference = createSelectionReference(
+      "@main.tsx#L33-L37",
+      "main.tsx:33–37",
+      "frozen code",
+    );
+    const span = { start: 4, end: 4, draftRev: 2 };
+    expect(result.props.insertSelection(SESSION_ID, reference, span)).toBe(true);
+    expect(sessions.scope).toHaveBeenCalledWith(SESSION_ID);
+    expect(inserted).toHaveBeenCalledWith({ reference, span });
+    inserted.mockReturnValue(undefined as never);
+    expect(result.props.insertSelection(SESSION_ID, reference, span)).toBe(false);
+    sessions.scope.mockReturnValue(undefined);
+    expect(result.props.insertSelection(SESSION_ID, reference, span)).toBe(false);
+    expect(prompt).not.toHaveBeenCalled();
   });
 
   it("passes mounted input actions and a stable sender using the real queued session API", async () => {
