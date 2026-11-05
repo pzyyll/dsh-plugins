@@ -1,6 +1,7 @@
 {
   "meta": {
     "title": "xAI SuperGrok",
-    "description": "Signs in with an xAI SuperGrok subscription."
+    "description": "Signs in with an xAI SuperGrok subscription.",
+    "detail": "docs/detail.md"
   }
 }

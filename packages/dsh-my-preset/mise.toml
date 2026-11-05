@@ -1,0 +1,9 @@
+# ABOUTME: Checks localized bundle metadata and published detail documents.
+# ABOUTME: Uses the workspace formatter and Node.js without adding runtime dependencies.
+
+[tasks.check]
+description = "Check bundle metadata and detail documents"
+run = [
+  "pnpm exec oxfmt --check package.json locale docs tests",
+  "node --test tests/package.test.mjs",
+]

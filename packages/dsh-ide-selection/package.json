@@ -14,6 +14,8 @@
     "dist/client.js.map",
     "cordis.patch.yml",
     "locale/*.json",
+    "docs/detail.md",
+    "docs/detail.zh-CN.md",
     "icon.svg"
   ],
   "type": "module",

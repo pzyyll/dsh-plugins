@@ -1,4 +1,4 @@
-// ABOUTME: Checks the compiled package entry and its native Node.js loading behavior.
+// ABOUTME: Checks package entries, localized detail documents, and native Node.js loading.
 // ABOUTME: A real Rsbuild bundle loads from node_modules with runtime peers kept external.
 
 import assert from "node:assert/strict";
@@ -19,6 +19,27 @@ test("the package exposes the compiled host entry and keeps the client entry", (
   assert.ok(manifest.files.includes("dist"));
   assert.ok(!manifest.files.includes("src"));
   assert.equal(manifest.scripts?.prepare, undefined);
+});
+
+test("localized detail documents exist and are included in the published package", () => {
+  const manifest = JSON.parse(readFileSync(join(PROJECT_ROOT, "package.json"), "utf8"));
+  const documents = new Set<string>();
+  const languages = ["en", "zh"];
+  for (const language of languages) {
+    const locale = JSON.parse(
+      readFileSync(join(PROJECT_ROOT, "locale", language + ".json"), "utf8"),
+    );
+    const detail = locale.meta?.detail;
+    assert.equal(typeof detail, "string", language + " must declare a detail document");
+    assert.match(detail, /^docs\/[^/]+\.md$/);
+    assert.ok(manifest.files.includes(detail), detail + " must be published");
+    assert.ok(
+      readFileSync(join(PROJECT_ROOT, detail), "utf8").trim(),
+      detail + " must not be empty",
+    );
+    documents.add(detail);
+  }
+  assert.equal(documents.size, languages.length, "Each language must have its own document");
 });
 
 test("the bundle patch loads the published package name", () => {

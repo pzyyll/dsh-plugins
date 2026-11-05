@@ -1,6 +1,7 @@
 {
   "meta": {
     "title": "IDE selection",
-    "description": "Shows the current VS Code selection and adds it to accepted human turns."
+    "description": "Shows the current VS Code selection and adds it to accepted human turns.",
+    "detail": "docs/detail.md"
   }
 }

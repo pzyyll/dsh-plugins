@@ -9,9 +9,15 @@
     "directory": "packages/dsh-my-preset"
   },
   "files": [
-    "presets/*.patch.yml"
+    "presets/*.patch.yml",
+    "locale/*.json",
+    "docs/detail.md",
+    "docs/detail.zh-CN.md"
   ],
   "type": "module",
+  "exports": {
+    "./locale/*.json": "./locale/*.json"
+  },
   "dsh": {
     "bundle": {
       "patch": [

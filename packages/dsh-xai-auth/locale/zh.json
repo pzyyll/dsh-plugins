@@ -1,6 +1,7 @@
 {
   "meta": {
     "title": "xAI SuperGrok",
-    "description": "使用 xAI SuperGrok 订阅。"
+    "description": "使用 xAI SuperGrok 订阅。",
+    "detail": "docs/detail.zh-CN.md"
   }
 }

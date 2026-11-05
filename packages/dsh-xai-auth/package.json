@@ -22,6 +22,8 @@
     "dist",
     "lib/client.js",
     "locale",
+    "docs/detail.md",
+    "docs/detail.zh-CN.md",
     "cordis.patch.yml",
     "README.md",
     "LICENSE"
