@@ -12,9 +12,11 @@ window.__ModuleLoader__.load({
 
     const POLL_MS = 2000;
     const NS = "dsh-xai-auth";
-    const inject = ["slots", "connection", "locale"];
+    const inject = ["slots", "connection", "locale", "configForms"];
     const STYLE_ID = "dsh-xai-auth-config";
     const zh = {
+      showSidebarUsage: "在侧边栏显示用量",
+      saveSettingsFailed: "无法保存用量显示设置",
       signIn: "登录",
       lead: "使用 xAI SuperGrok 订阅登录。批准后，在模型列表中选择 xai-supergrok。",
       status: "状态",
@@ -54,6 +56,8 @@ window.__ModuleLoader__.load({
       usedReading: "Grok 用量 {percent}",
     };
     const en = {
+      showSidebarUsage: "Show usage in the sidebar",
+      saveSettingsFailed: "Could not save the usage display setting",
       signIn: "Sign in",
       lead: "Sign in with an xAI SuperGrok subscription. After approval, choose xai-supergrok in the model list.",
       status: "Status",
@@ -106,6 +110,7 @@ window.__ModuleLoader__.load({
       style.id = STYLE_ID;
       style.textContent = [
         "[data-xai-supergrok]{display:flex;flex-direction:column;gap:12px;color:var(--dsw-alias-label-primary)}",
+        "[data-xai-supergrok] .preference{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:8px 2px;border-bottom:.5px solid var(--dsw-alias-border-l2);font-size:13px;line-height:20px}",
         "[data-xai-supergrok] .lead{margin:0;color:var(--dsw-alias-label-secondary);font-size:14px;line-height:22px}",
         "[data-xai-supergrok] h4{margin:0;font-size:14px;line-height:20px;font-weight:500}",
         "[data-xai-supergrok] dl{margin:0}",
@@ -393,8 +398,47 @@ window.__ModuleLoader__.load({
       );
     }
 
+    function SidebarUsageSetting({ form, t }) {
+      const subscribe = react.useCallback((listener) => form.subscribe(listener), [form]);
+      const getSnapshot = react.useCallback(() => form.getSnapshot(), [form]);
+      const snapshot = react.useSyncExternalStore(subscribe, getSnapshot);
+      const [busy, setBusy] = react.useState(false);
+      const [failed, setFailed] = react.useState(false);
+      const save = async (next) => {
+        setBusy(true);
+        setFailed(false);
+        try {
+          if (!(await form.set("showSidebarUsage", next))) setFailed(true);
+        } catch {
+          setFailed(true);
+        } finally {
+          setBusy(false);
+        }
+      };
+      return react.createElement(
+        react.Fragment,
+        null,
+        react.createElement(
+          "div",
+          { className: "preference" },
+          react.createElement("span", null, t("showSidebarUsage")),
+          react.createElement(ui.Switch, {
+            checked: snapshot.value?.showSidebarUsage === true,
+            disabled: busy || snapshot.status !== "ready" || !snapshot.writable,
+            label: t("showSidebarUsage"),
+            onChange: (next) => {
+              void save(next);
+            },
+          }),
+        ),
+        failed
+          ? react.createElement("p", { className: "error", role: "alert" }, t("saveSettingsFailed"))
+          : null,
+      );
+    }
+
     function LoginPanel(props) {
-      const { ctx, t } = props;
+      const { ctx, t, form } = props;
       const tRef = react.useRef(t);
       tRef.current = t;
       const [status, setStatus] = react.useState(undefined);
@@ -471,6 +515,7 @@ window.__ModuleLoader__.load({
       return react.createElement(
         "div",
         { "data-xai-supergrok": "" },
+        form === undefined ? null : react.createElement(SidebarUsageSetting, { form, t }),
         react.createElement("h4", null, t("signIn")),
         react.createElement("p", { className: "lead" }, t("lead")),
         react.createElement(
@@ -642,7 +687,8 @@ window.__ModuleLoader__.load({
       const credits = status?.usage?.credits;
       const used = credits === undefined ? undefined : usedShare(credits.percent);
       const signedIn = status?.signedIn === true;
-      const available = signedIn && used !== undefined;
+      const showSidebarUsage = status?.showSidebarUsage === true;
+      const available = showSidebarUsage && signedIn && used !== undefined;
       const position = useAnchoredPosition({
         open: open && available,
         anchorRef: rootRef,
@@ -692,7 +738,7 @@ window.__ModuleLoader__.load({
         };
       }, [open]);
 
-      if (!signedIn) return null;
+      if (!showSidebarUsage || !signedIn) return null;
       if (!available) {
         if (status.usagePending !== true) return null;
         return react.createElement(
@@ -781,10 +827,14 @@ window.__ModuleLoader__.load({
             order: 1000,
             locale: NS,
           },
-          (props) =>
-            isThisBundle(props.subject)
-              ? react.createElement(LoginPanel, { ctx, t: props.t })
-              : null,
+          (props) => {
+            if (!isThisBundle(props.subject)) return null;
+            const row = props.subject.pkg.rows?.find(
+              (entry) => entry.moduleName === "@balaenis/dsh-xai-auth",
+            );
+            const form = row === undefined ? undefined : ctx.configForms.get(row.rowId);
+            return react.createElement(LoginPanel, { ctx, t: props.t, form });
+          },
         ),
       );
       ctx.slots.inject("sidebar.footer.action", () =>

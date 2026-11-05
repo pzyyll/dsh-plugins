@@ -6,6 +6,7 @@ import type {} from "@deepseek-ai/dsh-llm";
 import { TypertRemoteService } from "@deepseek-ai/dsh-typert-protocol";
 import { PLUGIN_NAME, PROVIDER_ID, PROVIDER_LABEL } from "./constants.ts";
 import { SuperGrokRuntime } from "./runtime.ts";
+import { Config } from "./config.ts";
 
 const REMOTE_METHODS = "@deepseek-ai/dsh-typert-protocol/remote-methods";
 
@@ -33,9 +34,11 @@ export class SuperGrokAuthService extends TypertRemoteService {
   static inject = ["llm"];
 
   readonly runtime: SuperGrokRuntime;
+  private readonly config: Config;
 
-  constructor(ctx: Context) {
+  constructor(ctx: Context, config: Config = Config()) {
     super(ctx, "xaiSupergrok");
+    this.config = config;
     this.runtime = new SuperGrokRuntime(ctx);
     ctx.llm.registerAdapter([PROVIDER_ID], this.runtime.adapter);
     ctx.llm.registerConfigurableProviders([
@@ -55,8 +58,11 @@ export class SuperGrokAuthService extends TypertRemoteService {
     });
   }
 
-  status(): ReturnType<SuperGrokRuntime["accountStatus"]> {
-    return this.runtime.accountStatus();
+  status(): ReturnType<SuperGrokRuntime["accountStatus"]> & { showSidebarUsage: boolean } {
+    return {
+      ...this.runtime.accountStatus(),
+      showSidebarUsage: this.config.showSidebarUsage.get(),
+    };
   }
 
   start(): Promise<{ url: string; code: string }> {

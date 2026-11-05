@@ -42,6 +42,7 @@
     "@deepseek-ai/dsh-llm": "catalog:",
     "@deepseek-ai/dsh-llm-pi-ai": "catalog:",
     "@deepseek-ai/dsh-typert-protocol": "catalog:",
+    "@deepseek-ai/schemastery": "catalog:",
     "@earendil-works/pi-ai": "catalog:",
     "@rsbuild/core": "catalog:",
     "@types/node": "catalog:",
@@ -56,6 +57,7 @@
     "@deepseek-ai/dsh-llm": "*",
     "@deepseek-ai/dsh-llm-pi-ai": "*",
     "@deepseek-ai/dsh-typert-protocol": "*",
+    "@deepseek-ai/schemastery": "*",
     "@earendil-works/pi-ai": "*"
   },
   "engines": {
@@ -73,6 +75,7 @@
         "@deepseek-ai/dsh-api-gateway",
         "@deepseek-ai/dsh-client-connection",
         "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
         "@deepseek-ai/dsh-client-ui-plugin-manager"
       ]
     }

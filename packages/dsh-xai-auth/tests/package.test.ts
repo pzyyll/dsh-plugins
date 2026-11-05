@@ -71,10 +71,12 @@ test("the Rsbuild host bundle loads from node_modules with external runtime peer
   const code = readFileSync(entry, "utf8");
   assert.match(code, /^\/\/ ABOUTME: .*\n\/\/ ABOUTME: /);
   assert.match(code, /from ['"]@deepseek-ai\/dsh-typert-protocol['"]/);
+  assert.match(code, /from ['"]@deepseek-ai\/schemastery['"]/);
   assert.match(code, /from ['"]@earendil-works\/pi-ai\/models['"]/);
   assert.match(code, /from ['"]@earendil-works\/pi-ai\/api\/openai-responses\.lazy['"]/);
   const plugin = await import(pathToFileURL(entry).href);
   assert.equal(plugin.name, "dsh-xai-auth");
   assert.deepEqual(plugin.inject, ["llm"]);
   assert.equal(typeof plugin.apply, "function");
+  assert.equal(plugin.Config().showSidebarUsage.get(), false);
 });

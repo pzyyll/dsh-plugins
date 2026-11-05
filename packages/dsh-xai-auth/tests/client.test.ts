@@ -14,7 +14,10 @@ const DETAIL_SLOT = "plugins.detail.section";
 type Translate = (key: string) => string;
 
 interface DetailProps {
-  subject?: { kind: string; pkg?: { name: string } };
+  subject?: {
+    kind: string;
+    pkg?: { name: string; rows?: Array<{ rowId: string; moduleName: string }> };
+  };
   t: Translate;
 }
 
@@ -152,8 +155,15 @@ function textContent(value: unknown): string {
   return ((value as UsageNode).props.children ?? []).map(textContent).join("");
 }
 
-function sidebar(options: { status?: unknown; wide?: boolean } = {}) {
-  const states: unknown[] = [options.status, false];
+interface PreferenceForm {
+  getSnapshot: () => { status: string; value?: { showSidebarUsage: boolean }; writable: boolean };
+  subscribe: (listener: () => void) => () => void;
+  set: (field: string, value: boolean) => Promise<boolean>;
+}
+
+function sidebar(options: { status?: unknown; wide?: boolean; form?: PreferenceForm } = {}) {
+  const componentStates = new Map<unknown, unknown[]>();
+  let states: unknown[] = [];
   let stateIndex = 0;
   const effects: Array<() => void | (() => void)> = [];
   const intervals = new Map<number, () => void>();
@@ -201,6 +211,8 @@ function sidebar(options: { status?: unknown; wide?: boolean } = {}) {
         effects.push(effect);
       },
       useRef: (initial: unknown) => ({ current: initial }),
+      useCallback: (callback: unknown) => callback,
+      useSyncExternalStore: (_subscribe: unknown, getSnapshot: () => unknown) => getSnapshot(),
     },
     "react-dom": {
       createPortal: (node: UsageNode, target: unknown) => {
@@ -209,6 +221,7 @@ function sidebar(options: { status?: unknown; wide?: boolean } = {}) {
       },
     },
     "@deepseek-ai/dsh-client-ui-primitives": {
+      Switch: "switch",
       useAnchoredPosition: () => ({ left: 12, top: 24 }),
     },
   };
@@ -233,6 +246,12 @@ function sidebar(options: { status?: unknown; wide?: boolean } = {}) {
       register();
     },
     locale: { register: () => () => {} },
+    configForms: {
+      get: (entryId: string) => {
+        assert.equal(entryId, "custom-xai-row");
+        return options.form;
+      },
+    },
     get: () => assert.fail("Sidebar usage must not read session services"),
     inject: () => assert.fail("Sidebar usage must not inject model-selection services"),
     connection: {
@@ -259,6 +278,18 @@ function sidebar(options: { status?: unknown; wide?: boolean } = {}) {
   plugin.apply(ctx);
   const renderSlot = renderers.get(FOOTER_SLOT);
   assert.ok(renderSlot);
+  function renderElement(element: UsageElement) {
+    states = componentStates.get(element.type) ?? [];
+    componentStates.set(element.type, states);
+    stateIndex = 0;
+    effects.length = 0;
+    return element.type(element.props);
+  }
+  const initialElement = renderSlot({
+    t: translate,
+    wide: true,
+  } as DetailProps) as unknown as UsageElement;
+  componentStates.set(initialElement.type, [options.status, false]);
   return {
     renderers,
     intervals,
@@ -266,11 +297,30 @@ function sidebar(options: { status?: unknown; wide?: boolean } = {}) {
     styles,
     remoteCalls,
     render(wide = options.wide ?? true) {
-      stateIndex = 0;
-      effects.length = 0;
       const element = renderSlot({ t: translate, wide } as DetailProps) as unknown as UsageElement;
       assert.equal(element.props.ctx, ctx);
-      return element.type(element.props);
+      return renderElement(element);
+    },
+    renderPreference() {
+      const detail = renderers.get(DETAIL_SLOT)!({
+        t: translate,
+        subject: {
+          kind: "bundle",
+          pkg: {
+            name: manifest.name,
+            rows: [
+              { rowId: "unrelated", moduleName: "@example/unrelated" },
+              { rowId: "custom-xai-row", moduleName: manifest.name },
+            ],
+          },
+        },
+      }) as unknown as UsageElement;
+      const panel = renderElement(detail);
+      const preference = nodes(panel).find(
+        (node) => options.form !== undefined && node.props.form === options.form,
+      );
+      assert.ok(preference, "The bundle page must render the usage preference");
+      return renderElement(preference as unknown as UsageElement);
     },
     mountEffects() {
       const cleanups = effects.map((effect) => effect());
@@ -291,6 +341,97 @@ function sidebar(options: { status?: unknown; wide?: boolean } = {}) {
   };
 }
 
+test("the bundle page saves the sidebar preference through its own Host configuration form", async () => {
+  let enabled = false;
+  const writes: Array<[string, boolean]> = [];
+  const view = sidebar({
+    form: {
+      getSnapshot: () => ({
+        status: "ready",
+        value: { showSidebarUsage: enabled },
+        writable: true,
+      }),
+      subscribe: () => () => {},
+      set: async (field, value) => {
+        writes.push([field, value]);
+        enabled = value;
+        return true;
+      },
+    },
+  });
+  for (const next of [true, false]) {
+    const control = nodes(view.renderPreference()).find((node) => node.type === "switch");
+    assert.ok(control);
+    assert.equal(control.props.label, "showSidebarUsage");
+    assert.equal(control.props.checked, !next);
+    assert.equal(control.props.disabled, false);
+    (control.props.onChange as (next: boolean) => void)(next);
+    assert.equal(
+      nodes(view.renderPreference()).find((node) => node.type === "switch")?.props.disabled,
+      true,
+    );
+    await nextTurn();
+    assert.equal(
+      nodes(view.renderPreference()).find((node) => node.type === "switch")?.props.checked,
+      next,
+    );
+  }
+  assert.deepEqual(writes, [
+    ["showSidebarUsage", true],
+    ["showSidebarUsage", false],
+  ]);
+});
+
+test("the usage switch is disabled until the configuration is ready and writable", () => {
+  for (const snapshot of [
+    { status: "loading", writable: true },
+    { status: "unavailable", writable: false },
+    { status: "ready", writable: false, value: { showSidebarUsage: true } },
+  ]) {
+    const view = sidebar({
+      form: {
+        getSnapshot: () => snapshot,
+        subscribe: () => () => {},
+        set: async () => assert.fail("Read-only settings must not be written"),
+      },
+    });
+    const control = nodes(view.renderPreference()).find((node) => node.type === "switch");
+    assert.ok(control);
+    assert.equal(control.props.disabled, true);
+  }
+});
+
+test("refused and failed preference writes keep the accepted value and show an error", async () => {
+  for (const set of [
+    async () => false,
+    async () => {
+      throw new Error("Connection lost");
+    },
+  ]) {
+    const view = sidebar({
+      form: {
+        getSnapshot: () => ({
+          status: "ready",
+          writable: true,
+          value: { showSidebarUsage: false },
+        }),
+        subscribe: () => () => {},
+        set,
+      },
+    });
+    const control = nodes(view.renderPreference()).find((node) => node.type === "switch");
+    assert.ok(control);
+    (control.props.onChange as (next: boolean) => void)(true);
+    await nextTurn();
+    const result = view.renderPreference();
+    assert.equal(nodes(result).find((node) => node.type === "switch")?.props.checked, false);
+    assert.equal(
+      nodes(result).find((node) => node.props.role === "alert")?.props.children[0],
+      "saveSettingsFailed",
+    );
+  }
+});
+
 test("usage registers only in the sidebar footer without conversation or model services", () => {
   const view = sidebar();
   assert.deepEqual([...view.renderers.keys()], [DETAIL_SLOT, FOOTER_SLOT]);
@@ -299,7 +440,7 @@ test("usage registers only in the sidebar footer without conversation or model s
 
 test("the sidebar shows signed-in account usage without a session or selected model", () => {
   const view = sidebar({
-    status: { signedIn: true, usage: { credits: { percent: 12 } } },
+    status: { showSidebarUsage: true, signedIn: true, usage: { credits: { percent: 12 } } },
   });
   const pill = view.render();
   assert.ok(pill);
@@ -314,17 +455,49 @@ test("the sidebar shows signed-in account usage without a session or selected mo
 test("the sidebar hides a signed-out account even if stale usage is present", () => {
   for (const status of [
     undefined,
-    { signedIn: false },
-    { signedIn: false, usagePending: true },
-    { signedIn: false, usage: { credits: { percent: 12 } } },
-    { signedIn: true },
+    { showSidebarUsage: true, signedIn: false },
+    { showSidebarUsage: true, signedIn: false, usagePending: true },
+    { showSidebarUsage: true, signedIn: false, usage: { credits: { percent: 12 } } },
+    { showSidebarUsage: true, signedIn: true },
   ]) {
     assert.equal(sidebar({ status }).render(), null);
   }
 });
 
+test("sidebar usage is hidden unless explicitly enabled, including the loading indicator", () => {
+  for (const preference of [{}, { showSidebarUsage: false }]) {
+    for (const reading of [{ usage: { credits: { percent: 12 } } }, { usagePending: true }]) {
+      const view = sidebar({ status: { ...preference, signedIn: true, ...reading } });
+      assert.equal(view.render(true), null);
+      assert.equal(view.render(false), null);
+    }
+  }
+});
+
+test("status polling applies sidebar visibility changes and hides an open usage panel", async () => {
+  const account = { signedIn: true, usage: { credits: { percent: 12 } } };
+  const view = sidebar({ status: account });
+  assert.equal(view.render(), null);
+  const unmount = view.mountEffects();
+  await nextTurn();
+
+  view.setReply({ ok: true, value: { ...account, showSidebarUsage: true } });
+  view.poll();
+  await nextTurn();
+  const trigger = nodes(view.render()).find((node) => node.type === "button");
+  assert.ok(trigger);
+  (trigger.props.onClick as () => void)();
+  assert.ok(nodes(view.render()).some((node) => node.props.role === "dialog"));
+
+  view.setReply({ ok: true, value: { ...account, showSidebarUsage: false } });
+  view.poll();
+  await nextTurn();
+  assert.equal(view.render(), null);
+  unmount();
+});
+
 test("signed-in usage loading has an accessible indicator in either sidebar width", () => {
-  const view = sidebar({ status: { signedIn: true, usagePending: true } });
+  const view = sidebar({ status: { showSidebarUsage: true, signedIn: true, usagePending: true } });
   for (const wide of [true, false]) {
     const pill = view.render(wide);
     assert.ok(pill);
@@ -339,7 +512,7 @@ test("signed-in usage loading has an accessible indicator in either sidebar widt
 
 test("the collapsed sidebar keeps an icon and accessible label without visible text", () => {
   const view = sidebar({
-    status: { signedIn: true, usage: { credits: { percent: 0 } } },
+    status: { showSidebarUsage: true, signedIn: true, usage: { credits: { percent: 0 } } },
   });
   const pill = view.render(false);
   assert.ok(pill);
@@ -354,6 +527,7 @@ test("the collapsed sidebar keeps an icon and accessible label without visible t
 test("the sidebar opens account details in a portal and closes on Escape", () => {
   const view = sidebar({
     status: {
+      showSidebarUsage: true,
       signedIn: true,
       usage: { credits: { percent: 12 }, tier: "SuperGrok", prepaid: "$5" },
     },
@@ -390,7 +564,7 @@ test("global status polling detects sign-in and sign-out and retains usage on fa
   assert.equal(view.styles.size, 1);
   view.setReply({
     ok: true,
-    value: { signedIn: true, usage: { credits: { percent: 12 } } },
+    value: { showSidebarUsage: true, signedIn: true, usage: { credits: { percent: 12 } } },
   });
   view.poll();
   await nextTurn();
@@ -411,7 +585,9 @@ test("global status polling detects sign-in and sign-out and retains usage on fa
   unmount();
   assert.equal(view.intervals.size, 0);
 
-  const signedOut = sidebar({ status: { signedIn: true, usage: { credits: { percent: 12 } } } });
+  const signedOut = sidebar({
+    status: { showSidebarUsage: true, signedIn: true, usage: { credits: { percent: 12 } } },
+  });
   assert.ok(signedOut.render());
   signedOut.setReply({ ok: true, value: { signedIn: false } });
   const stop = signedOut.mountEffects();
@@ -433,7 +609,10 @@ test("unmount stops status polling and ignores an in-flight response", async () 
   assert.equal(view.intervals.size, 1);
   unmount();
   assert.equal(view.intervals.size, 0);
-  resolve({ ok: true, value: { signedIn: true, usage: { credits: { percent: 12 } } } });
+  resolve({
+    ok: true,
+    value: { showSidebarUsage: true, signedIn: true, usage: { credits: { percent: 12 } } },
+  });
   await nextTurn();
   assert.equal(view.render(), null);
 });
