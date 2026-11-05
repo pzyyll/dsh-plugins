@@ -106,3 +106,160 @@ test("the sign-in slot renders only for this published bundle", () => {
     assert.equal(render({ subject, t }), null);
   }
 });
+
+const HERO_SLOT = "conversation.hero.options";
+const SESSION_ID = "blank-session";
+
+interface PillElement {
+  type: (props: PillProps) => PillNode | null;
+  props: PillProps;
+}
+
+interface PillProps {
+  ctx: { get(name: string): unknown };
+  t: (key: string, vars?: Record<string, string>) => string;
+  useProjection?: (key: string, select: (value: unknown) => unknown) => unknown;
+  sessionId?: string;
+}
+
+interface PillNode {
+  props: Record<string, unknown> & { children?: unknown };
+}
+
+function translate(key: string, vars?: Record<string, string>): string {
+  if (key === "usedReading") return "used " + (vars?.percent ?? "");
+  return key;
+}
+
+function pillReact(status: unknown) {
+  let useStateCalls = 0;
+  return {
+    Fragment: "fragment",
+    createElement: (
+      type: unknown,
+      props: Record<string, unknown> | null,
+      ...children: unknown[]
+    ) => ({
+      type,
+      props: { ...props, children },
+    }),
+    useState: (initial: unknown) => {
+      useStateCalls += 1;
+      return [useStateCalls === 1 ? status : initial, () => {}];
+    },
+    useEffect: () => {},
+    useRef: (initial: unknown) => ({ current: initial }),
+    useSyncExternalStore: (_subscribe: unknown, getSnapshot: () => unknown) => getSnapshot(),
+  };
+}
+
+function directory(provider: string | null) {
+  return {
+    directoryFor(sessionId: string) {
+      assert.equal(sessionId, SESSION_ID);
+      return {
+        store: {
+          getSnapshot: () => ({
+            current: provider === null ? null : { provider, model: "grok" },
+          }),
+          subscribe: () => () => {},
+        },
+      };
+    },
+  };
+}
+
+function projection(next: unknown) {
+  return (_key: string, select: (value: unknown) => unknown) => select({ lastUsed: null, next });
+}
+
+function renderHero(options: {
+  status?: unknown;
+  next: unknown;
+  provider: string | null;
+  sessionId?: string;
+}): PillNode | null {
+  const directories = directory(options.provider);
+  const dependencies: Record<string, unknown> = {
+    react: pillReact(options.status),
+    "react-dom": {},
+    "@deepseek-ai/dsh-client-ui-primitives": {},
+  };
+  const plugin = loadClient().factory((name) => {
+    assert.ok(Object.hasOwn(dependencies, name), "Unexpected client dependency: " + name);
+    return dependencies[name];
+  });
+  const renderers = new Map<string, RenderSlot>();
+  const ctx = {
+    effect: (register: () => unknown) => {
+      register();
+    },
+    locale: { register: () => () => {} },
+    get: (name: string) => (name === "modelDirectories" ? directories : undefined),
+    slots: {
+      inject: (_name: string, register: () => unknown) => {
+        register();
+      },
+      register: (slot: { name: string }, render: RenderSlot) => {
+        renderers.set(slot.name, render);
+        return () => {
+          renderers.delete(slot.name);
+        };
+      },
+    },
+  };
+  plugin.apply(ctx as ClientContext);
+  const render = renderers.get(HERO_SLOT);
+  assert.ok(render);
+  const element = render({
+    ctx,
+    t: translate,
+    useProjection: projection(options.next),
+    sessionId: options.sessionId === undefined ? SESSION_ID : options.sessionId,
+  } as DetailProps) as unknown as PillElement;
+  return element.type(element.props);
+}
+
+test("the hero pill follows the catalog default and keeps a seat while usage loads", () => {
+  const pending = renderHero({ next: null, provider: "xai-supergrok" });
+  assert.ok(pending);
+  assert.equal(pending.props["data-xai-usage-pending"], "");
+  assert.match(JSON.stringify(pending), /usageLoading/);
+
+  const recorded = renderHero({
+    next: { provider: "xai-supergrok", model: "grok" },
+    provider: null,
+  });
+  assert.ok(recorded);
+  assert.equal(recorded.props["data-xai-usage-pending"], "");
+});
+
+test("the hero pill hides for another route and for a finished reading with no credits", () => {
+  assert.equal(
+    renderHero({
+      next: { provider: "other", model: "other" },
+      provider: "xai-supergrok",
+    }),
+    null,
+  );
+  assert.equal(renderHero({ next: null, provider: "other" }), null);
+  assert.equal(
+    renderHero({
+      next: { provider: "xai-supergrok", model: "grok" },
+      provider: null,
+      status: { signedIn: false },
+    }),
+    null,
+  );
+});
+
+test("the hero pill shows the remaining percentage once credits arrive", () => {
+  const pill = renderHero({
+    next: null,
+    provider: "xai-supergrok",
+    status: { usage: { credits: { percent: 12 } } },
+  });
+  assert.ok(pill);
+  assert.equal(pill.props["data-xai-usage-pending"], undefined);
+  assert.match(JSON.stringify(pill), /used 12%/);
+});

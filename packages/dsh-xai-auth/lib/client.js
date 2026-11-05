@@ -592,17 +592,84 @@ window.__ModuleLoader__.load({
     const useAnchoredPosition = ui.useAnchoredPosition ?? (() => null);
     const useDismissOnOutsidePointer = ui.useDismissOnOutsidePointer ?? (() => {});
 
-    function isGrokSelection(value) {
-      const next = value !== null && typeof value === "object" ? value.next : undefined;
-      return next !== null && typeof next === "object" && next.provider === GROK_PROVIDER;
+    // Published when the model-selection service appears. A blank Hero often
+    // mounts before that plugin, and the pill has to repaint once it can see
+    // the same route the picker shows.
+    let modelDirectories;
+    const modelDirectoryListeners = new Set();
+
+    function notifyModelDirectories() {
+      for (const listener of modelDirectoryListeners) listener();
+    }
+
+    function subscribeModelDirectories(listener) {
+      modelDirectoryListeners.add(listener);
+      return () => {
+        modelDirectoryListeners.delete(listener);
+      };
+    }
+
+    function resolvedSelectionStore(ctx, sessionId) {
+      const directories =
+        modelDirectories ??
+        (typeof ctx.get === "function" ? ctx.get("modelDirectories") : undefined);
+      if (directories === undefined || typeof sessionId !== "string" || sessionId === "")
+        return undefined;
+      if (typeof directories.directoryFor !== "function") return undefined;
+      try {
+        return directories.directoryFor(sessionId)?.store;
+      } catch {
+        // The session scope may not be bound yet. The recorded projection still works.
+        return undefined;
+      }
+    }
+
+    /** Provider recorded on the session, or null when nothing has been recorded yet. */
+    function recordedProvider(value) {
+      if (value === null || typeof value !== "object") return undefined;
+      const next = value.next;
+      if (next === null) return null;
+      if (typeof next === "object" && typeof next.provider === "string") return next.provider;
+      return undefined;
+    }
+
+    function isGrokProvider(selection) {
+      return (
+        selection !== null && typeof selection === "object" && selection.provider === GROK_PROVIDER
+      );
     }
 
     function SessionUsagePill(props) {
-      const { ctx, t, useProjection } = props;
-      const grok =
+      const { ctx, t, useProjection, sessionId } = props;
+      const useSyncExternalStore = react.useSyncExternalStore;
+      const resolved = useSyncExternalStore(
+        (listener) => {
+          const unsubscribeDirectories = subscribeModelDirectories(listener);
+          const store = resolvedSelectionStore(ctx, sessionId);
+          const unsubscribeStore =
+            typeof store?.subscribe === "function" ? store.subscribe(listener) : undefined;
+          return () => {
+            unsubscribeDirectories();
+            if (typeof unsubscribeStore === "function") unsubscribeStore();
+          };
+        },
+        () => resolvedSelectionStore(ctx, sessionId)?.getSnapshot?.()?.current ?? null,
+      );
+      // next stays null on a blank session until a selection or request is recorded.
+      // The picker then shows the catalog default; follow that resolved route.
+      const recorded =
         typeof useProjection === "function"
-          ? useProjection("modelSelection", isGrokSelection) === true
-          : false;
+          ? useProjection("modelSelection", recordedProvider)
+          : undefined;
+      const provider =
+        typeof recorded === "string"
+          ? recorded
+          : isGrokProvider(resolved)
+            ? GROK_PROVIDER
+            : typeof resolved?.provider === "string"
+              ? resolved.provider
+              : undefined;
+      const grok = provider === GROK_PROVIDER;
       const [status, setStatus] = react.useState(undefined);
       const [open, setOpen] = react.useState(false);
       const rootRef = react.useRef(null);
@@ -660,7 +727,17 @@ window.__ModuleLoader__.load({
         };
       }, [open]);
 
-      if (!available) return null;
+      if (!grok) return null;
+      // Keep a seat while the first reading is in flight. An empty Hero options
+      // row is display:none, so returning null hides the row until a later paint.
+      if (!available) {
+        if (status !== undefined && status.usagePending !== true) return null;
+        return react.createElement(
+          "span",
+          { ref: rootRef, "data-xai-usage-pill": "", "data-xai-usage-pending": "" },
+          react.createElement("span", { className: "trigger", role: "status" }, t("usageLoading")),
+        );
+      }
       const label = t("usedReading", { percent: `${used}%` });
       const trigger = react.createElement(
         "button",
@@ -751,6 +828,21 @@ window.__ModuleLoader__.load({
       );
       // The composer dock mounts only after the Session leaves the blank Hero.
       // The Hero options row is the same reading before the first message.
+      if (typeof ctx.inject === "function") {
+        ctx.inject(["modelDirectories"], function publishModelDirectories(scope) {
+          const service = scope.get("modelDirectories");
+          modelDirectories = service;
+          notifyModelDirectories();
+          scope.effect(
+            () => () => {
+              if (modelDirectories !== service) return;
+              modelDirectories = undefined;
+              notifyModelDirectories();
+            },
+            "dsh-xai-auth: model directories",
+          );
+        });
+      }
       for (const name of ["conversation.hero.options", "conversation.composer.dock"]) {
         ctx.slots.inject(name, () =>
           ctx.slots.register(
@@ -765,6 +857,7 @@ window.__ModuleLoader__.load({
                 ctx,
                 t: props.t,
                 useProjection: props.useProjection,
+                sessionId: props.sessionId,
               }),
           ),
         );

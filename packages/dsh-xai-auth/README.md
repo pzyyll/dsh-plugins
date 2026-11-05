@@ -45,7 +45,7 @@ Requires dsh `>=0.2.0 <0.3.0`. The default profile includes all required service
 On the plugin page:
 
 - **Refresh models** updates the model list.
-- **Usage** shows subscription credits and billing details. Readings are cached for 2 minutes. The chat composer also shows the remaining percentage when an `xai-supergrok` model is selected.
+- **Usage** shows subscription credits and billing details. Readings are cached for 2 minutes. The blank-session Hero and the chat composer show the remaining percentage while an `xai-supergrok` model is the selected or default route.
 - **Sign out** removes local credentials; it does not revoke the token at xAI.
 
 ## Notes
