@@ -1,5 +1,7 @@
 # dsh-plugins
 
+English | [简体中文](README.zh-CN.md)
+
 pnpm workspace for local dsh plugins. Dependency versions are in the root catalog (`pnpm-workspace.yaml`). Each plugin stays a separate installable directory.
 
 ## Packages
