@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "M-PTC and M-Creator",
-    "description": "Agent presets with Exa search instead of the native web tools.",
+    "title": "My Presets",
+    "description": "Custom Agent presets",
     "detail": "docs/detail.md"
   }
 }

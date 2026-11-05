@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "M-PTC 与 M-Creator",
-    "description": "使用 Exa 搜索替代原生 Web 工具的代理预设。",
+    "title": "My Presets",
+    "description": "自定义代理预设。",
     "detail": "docs/detail.zh-CN.md"
   }
 }
