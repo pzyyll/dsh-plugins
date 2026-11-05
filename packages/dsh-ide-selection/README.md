@@ -53,6 +53,14 @@ The Web UI composer always shows the IDE status:
 
 When VS Code is disconnected, the status remains visible with a dimmed icon; when connected, the icon has normal brightness. `N` is the number of selected lines. Hover the status to see the file and line range, such as `#L10-L20`. Before the first message, the same status appears beside the workspace and preset controls, and it does not show the selected text. The status and the `/select-ide` description follow the Web UI language.
 
+### Add a selection to chat
+
+In a trusted local VS Code file, right-click and select **Add to DSH Chat**. A text selection is optional. Keep the matching dsh Web input open.
+
+The action inserts `@relative/path#L10-L12` and a newline at the input cursor, as pi-x-ide does. With no selection, it inserts only `@relative/path` and a newline. With several selections, it uses the first range. It does not paste the source text or send a message. Review the draft, then send it yourself.
+
+Update both integrations. The action follows the session's IDE choice and goes to one matching input. Undelivered actions are not retained or replayed. If the input refuses the edit, use the retry panel.
+
 ### Send a diagnostic
 
 1. Open a dsh Web session for the VS Code workspace. Keep its composer open.

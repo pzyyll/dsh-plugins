@@ -25,6 +25,7 @@ type ConnectionOptions = Pick<
 interface SessionSubscriber {
   update(update: FollowUpdate): void;
   diagnostic?: (context: DiagnosticContext) => void;
+  attach?: (snapshot: EditorSelectionSnapshot) => void;
 }
 interface LiveSession {
   cwd: string;
@@ -47,13 +48,33 @@ export class IdeConnections {
   private readonly pool: IdeConnectionPool;
 
   constructor(private readonly options: ConnectionOptions) {
-    this.pool = new IdeConnectionPool(options.signal, (ideId, context) => {
-      for (const [receiver, session] of this.receivers) {
-        if (session.ideId !== ideId || !inside(session.cwd, context.filePath)) continue;
-        receiver.diagnostic?.(context);
-        return;
-      }
-    });
+    this.pool = new IdeConnectionPool(
+      options.signal,
+      (ideId, context) => {
+        for (const [receiver, session] of this.receivers) {
+          if (
+            !receiver.diagnostic ||
+            session.ideId !== ideId ||
+            !inside(session.cwd, context.filePath)
+          )
+            continue;
+          receiver.diagnostic(context);
+          return;
+        }
+      },
+      (ideId, snapshot) => {
+        for (const [receiver, session] of this.receivers) {
+          if (
+            !receiver.attach ||
+            session.ideId !== ideId ||
+            !inside(session.cwd, snapshot.filePath)
+          )
+            continue;
+          receiver.attach(snapshot);
+          return;
+        }
+      },
+    );
     options.signal.addEventListener(
       "abort",
       () => {
@@ -186,12 +207,17 @@ export class IdeConnections {
     cwd: string,
     update: SessionSubscriber["update"],
     diagnostic?: SessionSubscriber["diagnostic"],
+    attach?: SessionSubscriber["attach"],
   ): () => void {
     if (this.options.signal.aborted) return () => undefined;
     const session = this.session(sessionId, cwd);
-    const subscriber = { update, ...(diagnostic ? { diagnostic } : {}) };
+    const subscriber = {
+      update,
+      ...(diagnostic ? { diagnostic } : {}),
+      ...(attach ? { attach } : {}),
+    };
     session.subscribers.add(subscriber);
-    if (diagnostic) this.receivers.set(subscriber, session);
+    if (diagnostic || attach) this.receivers.set(subscriber, session);
     this.start(sessionId, session);
     update(session.update);
     return () => {

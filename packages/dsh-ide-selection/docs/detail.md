@@ -14,6 +14,14 @@ Select the IDE status button or run `/select-ide`. Choose a matching VS Code win
 
 A matching VS Code workspace folder must be the dsh workspace or one of its subdirectories. A disconnected selected window is not replaced automatically.
 
+## Add a selection to chat
+
+In a trusted local VS Code file, right-click and select **Add to DSH Chat**. A text selection is optional. Keep the matching dsh Web input open.
+
+The action inserts `@relative/path#L10-L12` and a newline at the input cursor, as pi-x-ide does. With no selection, it inserts only `@relative/path` and a newline. With several selections, it uses the first range. It does not paste the source text or send a message. Review the draft, then send it yourself.
+
+Update both integrations. The action follows the session's IDE choice and goes to one matching input. Undelivered actions are not retained or replayed. If the input refuses the edit, use the retry panel.
+
 ## Diagnostic actions
 
 Keep the matching dsh Web input open. In VS Code, open Quick Fix on an error or warning:

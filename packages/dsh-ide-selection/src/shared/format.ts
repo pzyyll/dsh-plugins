@@ -1,10 +1,26 @@
 // ABOUTME: Render IDE selections in the selected-context reminder format.
 // ABOUTME: Adapted from pi-x-ide (Apache-2.0); bound text across selected ranges.
+import { isAbsolute, relative, sep } from "node:path";
 import type { EditorSelectionSnapshot } from "./protocol.js";
 
 const DEFAULT_MAX_CHARS = 24_000;
 const LINE_OFFSET = 1;
 const TRUNCATION_NOTICE = "\n[Selection text truncated to keep the prompt size bounded.]";
+
+/** Format the first selected range as a pi-x-ide-style input reference. */
+export function formatRangeMention(snapshot: EditorSelectionSnapshot): string {
+  let path = snapshot.filePath;
+  if (snapshot.workspaceFolder) {
+    const rel = relative(snapshot.workspaceFolder, path);
+    if (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)) path = rel;
+  }
+  path = path.replaceAll("\\", "/");
+  const first = snapshot.ranges[0];
+  if (!first) return `@${path}`;
+  const start = first.selection.start.line + LINE_OFFSET;
+  const end = first.selection.end.line + LINE_OFFSET;
+  return `@${path}#L${start}${start === end ? "" : `-L${end}`}`;
+}
 
 /** Render local editor context without reading any file from disk. */
 export function formatEditorContext(

@@ -6,6 +6,7 @@ import type {} from "@deepseek-ai/dsh-host-webserver";
 import type {} from "@deepseek-ai/dsh-client-connection";
 import { SessionId } from "@deepseek-ai/dsh-session";
 import { selectionStatusText } from "../shared/status.js";
+import { formatRangeMention } from "../shared/format.js";
 import type { FollowUpdate } from "../shared/watch.js";
 import { diagnosticInputEvent, type DiagnosticInputEvent } from "./diagnostics-stream.js";
 import type { IdeConnections } from "./ide-connections.js";
@@ -16,7 +17,10 @@ export type SelectionStatusEvent =
   | { connected: false; disabled?: true }
   | { connected: true; text: string; lines: number; detail?: string };
 
-export type IdeEvent = ({ type: "status" } & SelectionStatusEvent) | DiagnosticInputEvent;
+export type IdeEvent =
+  | ({ type: "status" } & SelectionStatusEvent)
+  | DiagnosticInputEvent
+  | { type: "selection"; text: string };
 
 export interface SelectionHubOptions {
   lockDir: string;
@@ -78,6 +82,8 @@ export function registerSelectionStatus(
                 });
               },
               (context) => listener(diagnosticInputEvent(context)),
+              (snapshot) =>
+                listener({ type: "selection", text: `${formatRangeMention(snapshot)}\n` }),
             );
             const stopSession = scope.on(
               "session/disposed",

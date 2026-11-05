@@ -95,6 +95,7 @@ export class IdeConnectionPool {
   constructor(
     private readonly signal: AbortSignal,
     private readonly onDiagnostic?: (ideId: string, context: DiagnosticContext) => void,
+    private readonly onAttach?: (ideId: string, snapshot: EditorSelectionSnapshot) => void,
   ) {
     signal.addEventListener(
       "abort",
@@ -122,6 +123,7 @@ export class IdeConnectionPool {
           cwd,
           () => this.connections.delete(id),
           (context) => this.onDiagnostic?.(id, context),
+          (snapshot) => this.onAttach?.(id, snapshot),
         );
       } catch {
         onUpdate({ type: "disconnected" });
@@ -151,6 +153,7 @@ class PooledConnection {
     cwd: string,
     private readonly onFinish: () => void,
     private readonly onDiagnostic: (context: DiagnosticContext) => void,
+    private readonly onAttach: (snapshot: EditorSelectionSnapshot) => void,
   ) {
     this.socket = new WebSocket(`ws://${lock.host}:${lock.port}`, {
       handshakeTimeout: INITIALIZE_TIMEOUT_MS,
@@ -250,6 +253,11 @@ class PooledConnection {
       return;
     }
     if (!this.initialized || value.id !== undefined) return;
+    if (value.method === "at_mentioned") {
+      const snapshot = validateSnapshot(value.params, this.lock);
+      if (snapshot) this.onAttach(snapshot);
+      return;
+    }
     if (value.method === "diagnostic_fix_requested") {
       const context = parseDiagnosticNotification(value.params, this.lock);
       if (context) this.onDiagnostic(context);

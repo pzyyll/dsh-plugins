@@ -1,7 +1,7 @@
 // ABOUTME: Check selected-context rendering for open files and selected ranges.
 // ABOUTME: Cover upstream-compatible line labels and shared selection text limits.
 import { describe, expect, it } from "vitest";
-import { formatEditorContext } from "../../src/shared/format.js";
+import { formatEditorContext, formatRangeMention } from "../../src/shared/format.js";
 import type { EditorSelectionSnapshot } from "../../src/shared/protocol.js";
 
 const snapshot: EditorSelectionSnapshot = {
@@ -16,6 +16,16 @@ const snapshot: EditorSelectionSnapshot = {
 };
 
 describe("selected context", () => {
+  it("formats a workspace-relative reference using the first selection, as pi-x-ide does", () => {
+    expect(formatRangeMention({ ...snapshot, workspaceFolder: "/project" })).toBe(
+      "@example.ts#L1-L2",
+    );
+    expect(formatRangeMention({ ...snapshot, ranges: [] })).toBe("@/project/example.ts");
+    expect(formatRangeMention({ ...snapshot, workspaceFolder: "/elsewhere" })).toBe(
+      "@/project/example.ts#L1-L2",
+    );
+  });
+
   it("keeps upstream reminder markers, text, and one-based line labels", () => {
     const text = formatEditorContext(snapshot);
     expect(text).toContain("<system-reminder><selected-context>");

@@ -53,13 +53,46 @@ function actions(overrides: Partial<InputActions> = {}) {
 }
 
 describe("diagnostics input stream", () => {
+  it("inserts selection references without sending and preserves refused edits for retry", () => {
+    vi.stubGlobal("EventSource", MockEventSource);
+    const input = actions();
+    const sendFix = vi.fn();
+    const fallback = vi.fn();
+    const cleanup = bindDiagnosticInput("selection-session", input.value, fallback, sendFix);
+    const source = MockEventSource.instances[0]!;
+    const text = "@src/example.ts#L10-L12\n";
+    source.emit({ type: "selection", text });
+    expect(input.insertText).toHaveBeenCalledWith(text, { start: 5, end: 5, draftRev: 9 });
+    expect(input.persistDraft).toHaveBeenCalledOnce();
+    expect(sendFix).not.toHaveBeenCalled();
+
+    input.insertText.mockReturnValue(false);
+    source.emit({ type: "selection", text });
+    expect(fallback).toHaveBeenCalledOnce();
+    const retry = fallback.mock.calls[0]![1] as () => boolean;
+    input.insertText.mockReturnValue(true);
+    expect(retry()).toBe(true);
+    cleanup();
+    expect(retry()).toBe(false);
+  });
+
+  it("ignores malformed and oversized selection input", () => {
+    vi.stubGlobal("EventSource", MockEventSource);
+    const input = actions();
+    bindDiagnosticInput("selection-session", input.value, vi.fn());
+    const source = MockEventSource.instances[0]!;
+    for (const text of [undefined, "", 1, "x".repeat(MAX_FORMATTED_DIAGNOSTIC_CHARS + 1)])
+      source.emit({ type: "selection", text });
+    expect(input.captureInsertion).not.toHaveBeenCalled();
+  });
+
   it("subscribes by session and invalidates injected callbacks and retries on cleanup", () => {
     let listener!: (event: unknown) => void;
     const unsubscribe = vi.fn();
     const subscribe: SubscribeIdeEvents = vi.fn((sessionId, type, onEvent) => {
       expect(sessionId).toBe("bound-session");
-      expect(type).toBe("diagnostic");
-      listener = onEvent;
+      expect(["diagnostic", "selection"]).toContain(type);
+      if (type === "diagnostic") listener = onEvent;
       return unsubscribe;
     });
     const input = actions({ insertText: vi.fn(() => false) });
@@ -78,7 +111,7 @@ describe("diagnostics input stream", () => {
     cleanup();
     listener({ type: "diagnostic", text: "late" });
     expect(retry()).toBe(false);
-    expect(unsubscribe).toHaveBeenCalledOnce();
+    expect(unsubscribe).toHaveBeenCalledTimes(2);
     expect(input.captureInsertion).toHaveBeenCalledOnce();
     expect(fallback).toHaveBeenCalledOnce();
   });

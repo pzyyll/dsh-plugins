@@ -11,6 +11,7 @@ import { IdeServer } from "../../../src/shared/server.js";
 import { getActiveSelectionSnapshot } from "./selection.js";
 import { registerDiagnosticQuickFixes } from "./diagnostics.js";
 import { IdeStatusBar } from "./status.js";
+import { registerAddToChat } from "./chat.js";
 
 const AUTH_TOKEN_BYTES = 32;
 const HEARTBEAT_INTERVAL_MS = 60_000;
@@ -98,6 +99,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     status = new IdeStatusBar(ideServer, output);
     context.subscriptions.push(status);
     registerDiagnosticQuickFixes(context, () => server);
+    registerAddToChat(context, () => server);
     context.subscriptions.push(
       vscode.window.onDidChangeActiveTextEditor(scheduleSelectionBroadcast),
       vscode.window.onDidChangeTextEditorSelection(scheduleSelectionBroadcast),

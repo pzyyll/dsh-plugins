@@ -7,7 +7,7 @@ interface EventStream {
   onerror: (() => void) | null;
   close(): void;
 }
-type EventType = "status" | "diagnostic";
+type EventType = "status" | "diagnostic" | "selection";
 interface Subscriber {
   type: EventType;
   event(value: unknown): void;
@@ -47,12 +47,13 @@ export const subscribeIdeEvents: SubscribeIdeEvents = (sessionId, type, listener
         return;
       }
       if (typeof event !== "object" || event === null || !("type" in event)) return;
-      if (event.type !== "status" && event.type !== "diagnostic") return;
+      if (event.type !== "status" && event.type !== "diagnostic" && event.type !== "selection")
+        return;
       if (event.type === "status") current.status = event;
       for (const subscriber of current.subscribers) {
         if (subscriber.type !== event.type) continue;
         subscriber.event(event);
-        if (event.type === "diagnostic") break;
+        if (event.type !== "status") break;
       }
     };
     source.onerror = () => {

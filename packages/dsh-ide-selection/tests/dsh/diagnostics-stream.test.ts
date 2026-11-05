@@ -14,7 +14,7 @@ import { SELECTION_EVENTS_PATH, type IdeEvent } from "../../src/dsh/status-strea
 import type { DiagnosticInputEvent } from "../../src/dsh/diagnostics-stream.js";
 import { ideLockId } from "../../src/shared/ide.js";
 import { createLock, writeLock } from "../../src/shared/lock.js";
-import type { DiagnosticContext } from "../../src/shared/protocol.js";
+import type { DiagnosticContext, EditorSelectionSnapshot } from "../../src/shared/protocol.js";
 import { IdeServer } from "../../src/shared/server.js";
 
 const TOKEN = "d".repeat(64);
@@ -46,7 +46,7 @@ function readEvents(reader: ReadableStreamDefaultReader<Uint8Array>) {
           pending = pending.slice(boundary + 2);
           if (!frame.startsWith("data: ")) continue;
           const event: IdeEvent = JSON.parse(frame.slice("data: ".length));
-          if (event.type !== "status" && event.type !== "diagnostic")
+          if (event.type !== "status" && event.type !== "diagnostic" && event.type !== "selection")
             throw new Error(`unclassified IDE event: ${frame}`);
           events.push(event);
         }
@@ -168,6 +168,52 @@ async function harness() {
 }
 
 describe("shared diagnostic event stream", () => {
+  it("routes explicit selection references once, rejects outside paths, and never replays actions", async () => {
+    const h = await harness();
+    const first = await h.open();
+    const second = await h.open();
+    const snapshot: EditorSelectionSnapshot = {
+      source: "vscode",
+      filePath: join(h.cwd, "example.ts"),
+      workspaceFolder: h.cwd,
+      ranges: [
+        {
+          text: "selected source",
+          selection: { start: { line: 9, character: 0 }, end: { line: 11, character: 1 } },
+        },
+      ],
+    };
+    expect(h.server.clientCount).toBe(1);
+    expect(h.server.attach(snapshot)).toBe(true);
+    await vi.waitFor(() =>
+      expect(first.events.at(-1)).toEqual({
+        type: "selection",
+        text: "@example.ts#L10-L12\n",
+      }),
+    );
+    expect(second.events.some((event) => event.type === "selection")).toBe(false);
+    const late = await h.open();
+    expect(late.events.some((event) => event.type === "selection")).toBe(false);
+    expect(h.ctx.agents.get(h.session.id)).toBeUndefined();
+
+    expect(h.server.attach({ ...snapshot, ranges: [] })).toBe(true);
+    await vi.waitFor(() =>
+      expect(first.events.at(-1)).toEqual({
+        type: "selection",
+        text: "@example.ts\n",
+      }),
+    );
+
+    h.server.attach({ ...snapshot, filePath: join(h.root, "outside.ts") });
+    // An ordered status update is a barrier after the invalid notification.
+    h.server.broadcast(undefined);
+    await vi.waitFor(() => expect(first.events.at(-1)).toMatchObject({ type: "status" }));
+    expect(first.events.filter((event) => event.type === "selection")).toHaveLength(2);
+    await h.choose({ kind: "off" });
+    await vi.waitFor(() => expect(h.server.clientCount).toBe(0));
+    expect(h.server.attach(snapshot)).toBe(false);
+  });
+
   it("authorizes the shared route and sends classified insertion and Fix actions without an agent turn", async () => {
     const h = await harness();
     h.authorize(false);

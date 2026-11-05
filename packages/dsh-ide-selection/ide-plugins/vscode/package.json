@@ -25,6 +25,11 @@
   "contributes": {
     "commands": [
       {
+        "command": "dsh-ide-selection.addToChat",
+        "title": "Add to DSH Chat",
+        "enablement": "isWorkspaceTrusted && resourceScheme == file"
+      },
+      {
         "command": "dsh-ide-selection.showConnectionStatus",
         "title": "DSH: Show IDE Connection Status"
       },
@@ -38,6 +43,13 @@
       }
     ],
     "menus": {
+      "editor/context": [
+        {
+          "command": "dsh-ide-selection.addToChat",
+          "when": "isWorkspaceTrusted && resourceScheme == file",
+          "group": "navigation@100"
+        }
+      ],
       "commandPalette": [
         {
           "command": "dsh-ide-selection.fixDiagnostic",

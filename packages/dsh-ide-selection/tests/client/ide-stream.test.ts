@@ -61,6 +61,28 @@ afterEach(() => {
 });
 
 describe("shared IDE event stream", () => {
+  it("delivers selection actions once over the status connection without replay", () => {
+    subscribe(SESSION_ID, "status", vi.fn());
+    const first = diagnosticConsumer();
+    const second = diagnosticConsumer();
+    const source = BrowserEventSource.instances[0]!;
+    const selection = { type: "selection", text: "@src/example.ts#L2-L3\n" };
+    source.emit(selection);
+    expect(BrowserEventSource.instances).toHaveLength(1);
+    expect(first.input.insertText).toHaveBeenCalledExactlyOnceWith(selection.text, {
+      start: 0,
+      end: 0,
+      draftRev: 0,
+    });
+    expect(second.input.insertText).not.toHaveBeenCalled();
+    first.cleanup();
+    expect(second.input.insertText).not.toHaveBeenCalled();
+    source.emit(selection);
+    expect(second.input.insertText).toHaveBeenCalledOnce();
+    expect(first.sendFix).not.toHaveBeenCalled();
+    expect(second.sendFix).not.toHaveBeenCalled();
+  });
+
   it("shares one encoded-session EventSource between status and diagnostic consumers", () => {
     const status = vi.fn();
     const stopStatus = subscribe(SESSION_ID, "status", status);

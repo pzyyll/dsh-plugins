@@ -3,7 +3,8 @@
 
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import { timingSafeEqual } from "node:crypto";
-import { isAbsolute, relative, sep } from "node:path";
+import { isAbsolute } from "node:path";
+import { formatRangeMention } from "./format.js";
 import WebSocket, { WebSocketServer } from "ws";
 import { parseDiagnosticContext } from "./diagnostics.js";
 import {
@@ -149,12 +150,18 @@ export class IdeServer {
     this.broadcastValue(notification);
   }
 
-  attach(snapshot: EditorSelectionSnapshot): void {
-    this.broadcastValue({
-      jsonrpc: "2.0",
-      method: "at_mentioned",
-      params: { ...snapshot, rangeText: formatRangeMention(snapshot), receivedAt: Date.now() },
-    });
+  /** Forward an explicit attachment once, rather than inserting into every Host's draft. */
+  attach(snapshot: EditorSelectionSnapshot): boolean {
+    for (const client of this.clients) {
+      if (client.readyState !== WebSocket.OPEN) continue;
+      this.send(client, {
+        jsonrpc: "2.0",
+        method: "at_mentioned",
+        params: { ...snapshot, rangeText: formatRangeMention(snapshot), receivedAt: Date.now() },
+      });
+      return true;
+    }
+    return false;
   }
 
   async stop(): Promise<void> {
@@ -282,20 +289,4 @@ export class IdeServer {
     const message = error instanceof Error ? error.message : String(error);
     process.emitWarning(`DSH IDE Selection ${label}: ${message}`);
   }
-}
-
-function formatRangeMention(snapshot: EditorSelectionSnapshot): string {
-  let path = snapshot.filePath;
-  const base = snapshot.workspaceFolder;
-  if (base) {
-    const rel = relative(base, path);
-    if (rel === "") path = rel;
-    else if (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)) path = rel;
-  }
-  path = path.replaceAll("\\", "/");
-  const first = snapshot.ranges[0];
-  if (!first) return `@${path}`;
-  const start = first.selection.start.line + 1;
-  const end = first.selection.end.line + 1;
-  return `@${path}#L${start}${start === end ? "" : `-L${end}`}`;
 }

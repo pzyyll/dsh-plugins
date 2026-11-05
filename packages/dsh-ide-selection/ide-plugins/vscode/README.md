@@ -4,6 +4,14 @@ Shares the active file path and selected text in VS Code with dsh on the same co
 
 Requires the matching dsh plugin: [@balaenis/dsh-ide-selection](https://www.npmjs.com/package/@balaenis/dsh-ide-selection?activeTab=readme). Install it in dsh to use this extension.
 
+## Add a selection to chat
+
+In a trusted local VS Code file, right-click and select **Add to DSH Chat**. A text selection is optional. Keep the matching dsh Web input open.
+
+The action inserts `@relative/path#L10-L12` and a newline at the input cursor, as pi-x-ide does. With no selection, it inserts only `@relative/path` and a newline. With several selections, it uses the first range. It does not paste the source text or send a message. Review the draft, then send it yourself.
+
+Update both integrations. The action follows the session's IDE choice and goes to one matching input. Undelivered actions are not retained or replayed. If the input refuses the edit, use the retry panel.
+
 ## Send a diagnostic
 
 Open a matching dsh Web session. In VS Code, open Quick Fix on an error or warning and select **DSH: Send diagnostic**. The action inserts the diagnostic and nearby code at the dsh input cursor. Review the draft and send it yourself. It does not run the agent.

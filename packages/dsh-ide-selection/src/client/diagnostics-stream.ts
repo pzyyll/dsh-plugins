@@ -108,10 +108,24 @@ export function bindDiagnosticInput(
     if (text === undefined || insert(text)) return;
     onFallback(text, () => insert(text));
   });
+  const unsubscribeSelection = subscribe(sessionId, "selection", (value) => {
+    if (!active || typeof value !== "object" || value === null || Array.isArray(value)) return;
+    const event = value as { type?: unknown; text?: unknown };
+    if (
+      event.type !== "selection" ||
+      typeof event.text !== "string" ||
+      event.text.length === 0 ||
+      event.text.length > MAX_FORMATTED_DIAGNOSTIC_CHARS
+    )
+      return;
+    const text = event.text;
+    if (!insert(text)) onFallback(text, () => insert(text));
+  });
   return () => {
     if (!active) return;
     active = false;
     abortController.abort();
+    unsubscribeSelection();
     unsubscribe();
   };
 }
