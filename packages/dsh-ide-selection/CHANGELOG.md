@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/pzyyll/dsh-plugins/compare/dsh-ide-selection-v0.4.0...dsh-ide-selection-v0.4.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* **deps:** upgrade dsh to 0.2.2-rc.1 ([26145df](https://github.com/pzyyll/dsh-plugins/commit/26145dfc281772deeb5e4ff03c95279ef01858cc))
+
 ## [0.4.0](https://github.com/pzyyll/dsh-plugins/compare/dsh-ide-selection-v0.3.0...dsh-ide-selection-v0.4.0) (2026-11-04)
 
 
