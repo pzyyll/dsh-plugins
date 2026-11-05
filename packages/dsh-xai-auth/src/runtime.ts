@@ -17,7 +17,9 @@ import {
   type CatalogModel,
 } from "./catalog.ts";
 import {
+  IMAGE_OFFLOAD_COUNT_QUANTUM,
   MAX_REQUEST_IMAGE_BYTES,
+  MAX_REQUEST_IMAGES,
   PLUGIN_NAME,
   PROVIDER_ID,
   PROVIDER_LABEL,
@@ -122,6 +124,8 @@ export class SuperGrokRuntime {
       api: "openai-responses",
       streamIdleTimeoutMs: STREAM_IDLE_TIMEOUT_MS,
       maxRequestImageBytes: MAX_REQUEST_IMAGE_BYTES,
+      maxRequestImages: MAX_REQUEST_IMAGES,
+      imageOffloadCountQuantum: IMAGE_OFFLOAD_COUNT_QUANTUM,
       requestImagePixelBudget: REQUEST_IMAGE_PIXEL_BUDGET,
       requestImageMaxBytes: REQUEST_IMAGE_MAX_BYTES,
       retryPolicy: resolveRetryPolicy(undefined, "dsh-xai-auth retryPolicy"),
@@ -141,7 +145,7 @@ export class SuperGrokRuntime {
     this.version += 1;
     this.profiles = undefined;
     if (previous === this.models.map((model) => model.id).join("\n") && !announce) return;
-    // dsh 0.2.1 refreshes the picker on adapter updates.
+    // Refresh the picker after the adapter's model catalog changes.
     this.ctx.emit("llm/adapters-updated");
   }
 

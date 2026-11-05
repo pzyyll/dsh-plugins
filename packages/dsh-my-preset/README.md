@@ -37,9 +37,9 @@ A preset revision loads once and every Agent that selects it shares that revisio
 
 ## Diff from the shipped presets
 
-Both presets remove `tool-web` (`web_search`, `web_fetch`) and add `mcp-exa` (`@deepseek-ai/dsh-mcp-client`, serverName `exa`).
+Both presets use the DSH `0.2.2-rc.1` plugin list. They remove `tool-web` (`web_search`, `web_fetch`) and add `mcp-exa` (`@deepseek-ai/dsh-mcp-client`, serverName `exa`).
 
-- **M-PTC** copies `ptc`, including disabled workflow rows and `tool-presentation` mode `ptc`. Display name `M-PTC`, `order: 5`.
+- **M-PTC** copies `ptc`, including disabled workflow rows and `@deepseek-ai/dsh-tool-executor-ptc`. Display name `M-PTC`, `order: 5`.
 - **M-Creator** copies `cordis`: workflow enabled, `tool-cordis`, the preset-authoring skill directory, and plugin-manager tools when a profile is present. Display name `M-Creator`, `order: 6`.
 
 When DSH changes `ptc` or `cordis`, copy that list again, drop `tool-web`, and keep the `mcp-exa` entry.

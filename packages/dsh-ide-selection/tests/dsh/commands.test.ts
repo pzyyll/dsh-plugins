@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { Context, type Fiber, type Plugin } from "@deepseek-ai/cordis";
 import { AgentRegistry, type Agent } from "@deepseek-ai/dsh-agent";
+import { SessionProjectionRegistry } from "@deepseek-ai/dsh-session-projection";
 import { CommandRuntime } from "@deepseek-ai/dsh-commands";
 import { SessionId, SessionStore } from "@deepseek-ai/dsh-session";
 import { en } from "../../src/client/locales.js";
@@ -56,6 +57,7 @@ async function createHarness(
 
   const ctx = new Context();
   fibers.push(await ctx.plugin(SessionStore));
+  fibers.push(await ctx.plugin(SessionProjectionRegistry));
   fibers.push(await ctx.plugin(AgentRegistry));
   fibers.push(await ctx.plugin(CommandRuntime));
   const meta = Object.hasOwn(options, "cwd")

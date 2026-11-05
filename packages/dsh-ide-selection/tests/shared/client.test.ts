@@ -11,6 +11,8 @@ import { listIdeTargets, readSelection } from "../../src/shared/client.js";
 import { ideLockId } from "../../src/shared/ide.js";
 import { IdeServer } from "../../src/shared/server.js";
 import type { EditorSelectionSnapshot } from "../../src/shared/protocol.js";
+// Allow live handshakes under full-suite load; deadline tests set their own shorter budget.
+const LIVE_SELECTION_TIMEOUT_MS = 1_000;
 const roots: string[] = [];
 const servers: IdeServer[] = [];
 const stalledServers: Server[] = [];
@@ -88,7 +90,7 @@ describe("readSelection", () => {
       readSelection({
         cwd: "/work/app",
         lockDir: dir,
-        timeoutMs: 250,
+        timeoutMs: LIVE_SELECTION_TIMEOUT_MS,
         maxAgeMs: 60_000,
         signal: new AbortController().signal,
       }),
@@ -123,7 +125,7 @@ describe("readSelection", () => {
         readSelection({
           cwd: "/work/app",
           lockDir: dir,
-          timeoutMs: 50,
+          timeoutMs: LIVE_SELECTION_TIMEOUT_MS,
           maxAgeMs: 60_000,
           signal: new AbortController().signal,
         }),

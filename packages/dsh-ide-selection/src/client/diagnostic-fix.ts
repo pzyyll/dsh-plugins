@@ -33,7 +33,7 @@ interface DiagnosticFixBinding {
   readonly session: DiagnosticFixSession;
 }
 
-/** Structural slice of dsh 0.2.1-rc.5's public ISessions/ISession contract. */
+/** Structural slice of dsh 0.2.2-rc.1's public ISessions/ISession contract. */
 export interface DiagnosticFixSessions {
   binding(sessionId: string): DiagnosticFixBinding | undefined;
 }

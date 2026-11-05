@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Context } from "@deepseek-ai/cordis";
 import { AgentRegistry } from "@deepseek-ai/dsh-agent";
+import { SessionProjectionRegistry } from "@deepseek-ai/dsh-session-projection";
 import { WebServer } from "@deepseek-ai/dsh-host-webserver";
 import { SessionStore } from "@deepseek-ai/dsh-session";
 import * as plugin from "../../src/dsh/index.js";
@@ -91,6 +92,7 @@ async function harness() {
     await ctx.fiber.dispose();
   });
   await ctx.plugin(SessionStore);
+  await ctx.plugin(SessionProjectionRegistry);
   await ctx.plugin(AgentRegistry);
   await ctx.plugin(WebServer, { host: "127.0.0.1", port: 0 });
   let authorized = true;

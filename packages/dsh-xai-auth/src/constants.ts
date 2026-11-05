@@ -76,6 +76,8 @@ export const AGENT_ID_FILE = "agent-id";
 /** Match dsh-llm-pi-ai profile defaults so image and idle limits stay familiar. */
 export const STREAM_IDLE_TIMEOUT_MS = 300_000;
 export const MAX_REQUEST_IMAGE_BYTES = 20 * 1024 * 1024;
+export const MAX_REQUEST_IMAGES = 50;
+export const IMAGE_OFFLOAD_COUNT_QUANTUM = 10;
 export const REQUEST_IMAGE_PIXEL_BUDGET = 2048 * 2048;
 export const REQUEST_IMAGE_MAX_BYTES = 1024 * 1024;
 

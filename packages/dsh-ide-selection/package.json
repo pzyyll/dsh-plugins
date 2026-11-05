@@ -36,6 +36,7 @@
     "@deepseek-ai/dsh-host-webserver": "catalog:",
     "@deepseek-ai/dsh-llm": "catalog:",
     "@deepseek-ai/dsh-session": "catalog:",
+    "@deepseek-ai/dsh-session-projection": "catalog:",
     "@deepseek-ai/dsh-workspace": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

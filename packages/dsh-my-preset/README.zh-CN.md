@@ -37,9 +37,9 @@ preset revision 只加载一次，选择它的会话共用这一份，所以是�
 
 ## 与内置 preset 的差异
 
-两个 preset 都删除 `tool-web`（`web_search`、`web_fetch`），并新增 `mcp-exa`（`@deepseek-ai/dsh-mcp-client`，serverName 为 `exa`）。
+两个 preset 均使用 DSH `0.2.2-rc.1` 的插件列表，删除 `tool-web`（`web_search`、`web_fetch`），并新增 `mcp-exa`（`@deepseek-ai/dsh-mcp-client`，serverName 为 `exa`）。
 
-- **M-PTC** 复制 `ptc`，包括禁用的 workflow 行和 `tool-presentation` 的 `ptc` 模式。显示名 `M-PTC`，`order: 5`。
+- **M-PTC** 复制 `ptc`，包括禁用的 workflow 行和 `@deepseek-ai/dsh-tool-executor-ptc`。显示名 `M-PTC`，`order: 5`。
 - **M-Creator** 复制 `cordis`：workflow 启用、`tool-cordis`、preset 编写技能目录，以及在有 profile 时启用的插件管理工具。显示名 `M-Creator`，`order: 6`。
 
 DSH 更新 `ptc` 或 `cordis` 后，重新复制那份列表、删掉 `tool-web`，并保留 `mcp-exa` 条目。

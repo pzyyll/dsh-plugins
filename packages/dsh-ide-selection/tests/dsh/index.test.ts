@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Context, type Fiber, type Plugin } from "@deepseek-ai/cordis";
 import { AgentRegistry, type Agent, type PreStepDecision } from "@deepseek-ai/dsh-agent";
+import { SessionProjectionRegistry } from "@deepseek-ai/dsh-session-projection";
 import { createUserMessage } from "@deepseek-ai/dsh-llm";
 import { CommandRuntime } from "@deepseek-ai/dsh-commands";
 import {
@@ -112,6 +113,7 @@ async function createHarness(
 
   const ctx = new Context();
   fibers.push(await ctx.plugin(SessionStore));
+  fibers.push(await ctx.plugin(SessionProjectionRegistry));
   fibers.push(await ctx.plugin(AgentRegistry));
   const plugin: Plugin = { name, inject, Config, apply };
   const pluginFiber = await ctx.plugin(plugin, {
@@ -157,7 +159,18 @@ async function createHarness(
       const { turn = 1, step = 1, signal = new AbortController().signal } = input;
       const messages = input.messages ?? [userMessage];
       const next = async () => input.result ?? { kind: "enter" as const, messages };
-      return ctx.waterfall("agent/pre-step", { agent, messages, turn, step, signal }, next);
+      return ctx.waterfall(
+        "agent/pre-step",
+        {
+          agent,
+          messages,
+          turn,
+          step,
+          signal,
+          modelSelection: { provider: "test", model: "test" },
+        },
+        next,
+      );
     },
   };
 }

@@ -9,6 +9,7 @@ import { Context, type Plugin } from "@deepseek-ai/cordis";
 import { WebServer } from "@deepseek-ai/dsh-host-webserver";
 import { SessionId, SessionStore } from "@deepseek-ai/dsh-session";
 import { AgentRegistry } from "@deepseek-ai/dsh-agent";
+import { SessionProjectionRegistry } from "@deepseek-ai/dsh-session-projection";
 import * as selectionPlugin from "../../src/dsh/index.js";
 import { IdeConnections } from "../../src/dsh/ide-connections.js";
 import { ideLockId } from "../../src/shared/ide.js";
@@ -58,6 +59,7 @@ describe("selection status stream", () => {
       await ctx.fiber.dispose();
     });
     await ctx.plugin(SessionStore);
+    await ctx.plugin(SessionProjectionRegistry);
     await ctx.plugin(AgentRegistry);
     await ctx.plugin(WebServer, { host: "127.0.0.1", port: 0 });
     let authorized = false;

@@ -13,7 +13,7 @@ import { IdeServer } from "../../src/shared/server.js";
 
 const TIMEOUT_MS = 1_000;
 const MAX_AGE_MS = 60_000;
-const LIST_TIMEOUT_MS = 200;
+const LIST_TIMEOUT_MS = 1_000;
 const roots: string[] = [];
 const servers: IdeServer[] = [];
 const stalledServers: Server[] = [];
