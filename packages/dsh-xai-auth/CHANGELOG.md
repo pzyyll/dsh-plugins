@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.0](https://github.com/pzyyll/dsh-plugins/compare/dsh-xai-auth-v0.3.0...dsh-xai-auth-v0.4.0) (2026-11-07)
+
+
+### Features
+
+* **dsh-xai-auth:** refine floating usage indicator ([2651149](https://github.com/pzyyll/dsh-plugins/commit/2651149321af37e7d3777c4d3ccedd3fd3368b58))
+
+
+### Bug Fixes
+
+* **dsh-xai-auth:** adjust low quota threshold ([27a931f](https://github.com/pzyyll/dsh-plugins/commit/27a931faf683732c189c27e6548f2f6df79d1ca7))
+* **dsh-xai-auth:** start usage badge on left ([6b52dc9](https://github.com/pzyyll/dsh-plugins/commit/6b52dc9070b185133e8917e016f0ad4519dc7ad1))
+
 ## [0.3.0](https://github.com/pzyyll/dsh-plugins/compare/dsh-xai-auth-v0.2.0...dsh-xai-auth-v0.3.0) (2026-11-07)
 
 
