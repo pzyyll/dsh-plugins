@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/pzyyll/dsh-plugins/compare/dsh-xai-auth-v0.2.0...dsh-xai-auth-v0.3.0) (2026-11-07)
+
+
+### Features
+
+* **dsh-xai-auth:** add draggable edge usage indicator ([2eb2d1e](https://github.com/pzyyll/dsh-plugins/commit/2eb2d1e41bf50cea57c3897ab7f5959f46c6f8d0))
+* **dsh-xai-auth:** refine floating usage and model visibility ([acdb9da](https://github.com/pzyyll/dsh-plugins/commit/acdb9da5c76c863614439d24114c34ade365bbb6))
+
 ## [0.2.0](https://github.com/pzyyll/dsh-plugins/compare/dsh-xai-auth-v0.1.3...dsh-xai-auth-v0.2.0) (2026-11-06)
 
 
