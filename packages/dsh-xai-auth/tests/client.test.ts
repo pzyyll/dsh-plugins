@@ -1,4 +1,4 @@
-// ABOUTME: Checks bundle-page sign-in and account usage in the sidebar footer.
+// ABOUTME: Checks bundle-page sign-in and draggable edge-docked account usage.
 // ABOUTME: Exercises client rendering, status polling, and cleanup without a browser or network.
 
 import assert from "node:assert/strict";
@@ -47,6 +47,7 @@ function loadClient(globals: Record<string, unknown> = {}): ClientRegistration {
   runInNewContext(client, {
     ...globals,
     window: {
+      ...(globals.window as Record<string, unknown>),
       __ModuleLoader__: {
         load: (value: ClientRegistration) => {
           assert.equal(registration, undefined);
@@ -112,7 +113,7 @@ test("the sign-in slot renders only for this published bundle", () => {
   }
 });
 
-const FOOTER_SLOT = "sidebar.footer.action";
+const FOOTER_SLOT = "shell.overlay";
 const USAGE_POLL_MS = 2000;
 
 interface UsageNode {
@@ -123,7 +124,6 @@ interface UsageNode {
 interface UsageProps {
   ctx: ClientContext;
   t: (key: string, vars?: Record<string, string>) => string;
-  wide: boolean;
 }
 
 interface UsageElement {
@@ -163,13 +163,40 @@ interface PreferenceForm {
 
 function sidebar(options: { status?: unknown; wide?: boolean; form?: PreferenceForm } = {}) {
   const componentStates = new Map<unknown, unknown[]>();
+  const componentRefs = new Map<unknown, Array<{ current: unknown }>>();
   let states: unknown[] = [];
+  let refs: Array<{ current: unknown }> = [];
   let stateIndex = 0;
+  let refIndex = 0;
+  let changed = false;
+  const layoutEffects: Array<() => void | (() => void)> = [];
+  let layoutCleanups: Array<void | (() => void)> = [];
+  const resizeCallbacks = new Set<() => void>();
+  const mutationCallbacks = new Set<() => void>();
+  const timers = new Map<number, () => void>();
+  let timerId = 0;
+  let rect = { left: 280, right: 1200, top: 40, bottom: 800 };
+  let fullscreen = false;
+  const center = { inert: false, getBoundingClientRect: () => rect };
+  const frame = {
+    querySelector: (selector: string) => {
+      assert.equal(selector, "[data-rightbar-col]");
+      return { previousElementSibling: center };
+    },
+    hasAttribute: (name: string) => name === "data-rightbar-fullscreen" && fullscreen,
+  };
+  const root = {
+    closest: (selector: string) => {
+      assert.equal(selector, "[data-shell-overlay]");
+      return { parentElement: frame };
+    },
+  };
   const effects: Array<() => void | (() => void)> = [];
   const intervals = new Map<number, () => void>();
   const listeners = new Map<string, (event: { key: string }) => void>();
   const styles = new Map<string, { id: string; textContent: string }>();
   const body = {};
+  let outsideDismiss: (() => void) | undefined;
   const remoteCalls: Array<{ path: string; endpoint: string; args: unknown }> = [];
   let reply: RpcReply | Promise<RpcReply> = { ok: true, value: options.status };
   let failure: Error | undefined;
@@ -199,18 +226,27 @@ function sidebar(options: { status?: unknown; wide?: boolean; form?: PreferenceF
       ) => ({ type, props: { ...props, children } }),
       useState: (initial: unknown) => {
         const index = stateIndex++;
-        if (!(index in states)) states[index] = initial;
+        const current = states;
+        if (!(index in current)) current[index] = initial;
         return [
-          states[index],
+          current[index],
           (next: unknown) => {
-            states[index] = typeof next === "function" ? next(states[index]) : next;
+            const value = typeof next === "function" ? next(current[index]) : next;
+            if (value !== current[index]) changed = true;
+            current[index] = value;
           },
         ];
       },
       useEffect: (effect: () => void | (() => void)) => {
         effects.push(effect);
       },
-      useRef: (initial: unknown) => ({ current: initial }),
+      useLayoutEffect: (effect: () => void | (() => void)) => {
+        layoutEffects.push(effect);
+      },
+      useRef: (initial: unknown) => {
+        const index = refIndex++;
+        return (refs[index] ??= { current: initial });
+      },
       useCallback: (callback: unknown) => callback,
       useSyncExternalStore: (_subscribe: unknown, getSnapshot: () => unknown) => getSnapshot(),
     },
@@ -223,10 +259,43 @@ function sidebar(options: { status?: unknown; wide?: boolean; form?: PreferenceF
     "@deepseek-ai/dsh-client-ui-primitives": {
       Switch: "switch",
       useAnchoredPosition: () => ({ left: 12, top: 24 }),
+      useDismissOnOutsidePointer: (_root: unknown, open: boolean, dismiss: () => void) => {
+        outsideDismiss = open ? dismiss : undefined;
+      },
     },
   };
   const plugin = loadClient({
     document,
+    window: { addEventListener: () => {}, removeEventListener: () => {} },
+    ResizeObserver: class {
+      callback: () => void;
+      constructor(callback: () => void) {
+        this.callback = callback;
+        resizeCallbacks.add(callback);
+      }
+      observe() {}
+      disconnect() {
+        resizeCallbacks.delete(this.callback);
+      }
+    },
+    MutationObserver: class {
+      callback: () => void;
+      constructor(callback: () => void) {
+        this.callback = callback;
+        mutationCallbacks.add(callback);
+      }
+      observe() {}
+      disconnect() {
+        mutationCallbacks.delete(this.callback);
+      }
+    },
+    setTimeout: (callback: () => void) => {
+      timers.set(++timerId, callback);
+      return timerId;
+    },
+    clearTimeout: (id: number) => {
+      timers.delete(id);
+    },
     setInterval: (callback: () => void, delay: number) => {
       assert.equal(delay, USAGE_POLL_MS);
       const id = intervals.size + 1;
@@ -281,9 +350,26 @@ function sidebar(options: { status?: unknown; wide?: boolean; form?: PreferenceF
   function renderElement(element: UsageElement) {
     states = componentStates.get(element.type) ?? [];
     componentStates.set(element.type, states);
-    stateIndex = 0;
-    effects.length = 0;
-    return element.type(element.props);
+    refs = componentRefs.get(element.type) ?? [];
+    componentRefs.set(element.type, refs);
+    let result: UsageNode | null = null;
+    const MAX_LAYOUT_PASSES = 5;
+    for (let pass = 0; pass < MAX_LAYOUT_PASSES; pass++) {
+      for (const cleanup of layoutCleanups) if (typeof cleanup === "function") cleanup();
+      stateIndex = 0;
+      refIndex = 0;
+      changed = false;
+      effects.length = 0;
+      layoutEffects.length = 0;
+      result = element.type(element.props);
+      for (const node of nodes(result)) {
+        const ref = node.props.ref as { current: unknown } | undefined;
+        if (ref) ref.current = node.props["data-xai-usage-pill"] === "" ? root : {};
+      }
+      layoutCleanups = layoutEffects.map((effect) => effect());
+      if (!changed) return result;
+    }
+    assert.fail("Layout did not settle");
   }
   const initialElement = renderSlot({
     t: translate,
@@ -296,6 +382,27 @@ function sidebar(options: { status?: unknown; wide?: boolean; form?: PreferenceF
     listeners,
     styles,
     remoteCalls,
+    resizeCallbacks,
+    mutationCallbacks,
+    dismissOutside() {
+      assert.ok(outsideDismiss);
+      outsideDismiss();
+    },
+    timers,
+    resize(next: typeof rect) {
+      rect = next;
+      for (const callback of resizeCallbacks) callback();
+    },
+    hideContent(reason: "drawer" | "fullscreen") {
+      if (reason === "drawer") center.inert = true;
+      else fullscreen = true;
+      for (const callback of mutationCallbacks) callback();
+    },
+    flushHoverClose() {
+      const pending = [...timers.values()];
+      timers.clear();
+      for (const callback of pending) callback();
+    },
     render(wide = options.wide ?? true) {
       const element = renderSlot({ t: translate, wide } as DetailProps) as unknown as UsageElement;
       assert.equal(element.props.ctx, ctx);
@@ -325,7 +432,8 @@ function sidebar(options: { status?: unknown; wide?: boolean; form?: PreferenceF
     mountEffects() {
       const cleanups = effects.map((effect) => effect());
       return () => {
-        for (const cleanup of cleanups) if (typeof cleanup === "function") cleanup();
+        for (const cleanup of [...cleanups, ...layoutCleanups])
+          if (typeof cleanup === "function") cleanup();
       };
     },
     setReply(value: RpcReply | Promise<RpcReply>) {
@@ -432,7 +540,7 @@ test("refused and failed preference writes keep the accepted value and show an e
   }
 });
 
-test("usage registers only in the sidebar footer without conversation or model services", () => {
+test("usage registers only in the shell overlay without conversation or model services", () => {
   const view = sidebar();
   assert.deepEqual([...view.renderers.keys()], [DETAIL_SLOT, FOOTER_SLOT]);
   assert.equal(view.render(), null);
@@ -444,8 +552,8 @@ test("the sidebar shows signed-in account usage without a session or selected mo
   });
   const pill = view.render();
   assert.ok(pill);
-  assert.equal(pill.props["data-wide"], "true");
-  assert.equal(textContent(pill), "Grok usage 12%");
+  assert.equal(pill.props["data-edge"], "right");
+  assert.equal(textContent(pill), "");
   const trigger = nodes(pill).find((node) => node.type === "button");
   assert.ok(trigger);
   assert.equal(trigger.props["aria-label"], "Grok usage 12%");
@@ -505,7 +613,7 @@ test("signed-in usage loading has an accessible indicator in either sidebar widt
     const status = nodes(pill).find((node) => node.props.role === "status");
     assert.ok(status);
     assert.equal(status.props["aria-label"], "usageLoading");
-    assert.equal(textContent(pill), wide ? "usageLoading" : "");
+    assert.equal(textContent(pill), "");
     assert.ok(nodes(pill).some((node) => node.type === "svg"));
   }
 });
@@ -516,7 +624,7 @@ test("the collapsed sidebar keeps an icon and accessible label without visible t
   });
   const pill = view.render(false);
   assert.ok(pill);
-  assert.equal(pill.props["data-wide"], "false");
+  assert.equal(pill.props["data-edge"], "right");
   assert.equal(textContent(pill), "");
   assert.ok(nodes(pill).some((node) => node.type === "svg"));
   const trigger = nodes(pill).find((node) => node.type === "button");
@@ -556,6 +664,209 @@ test("the sidebar opens account details in a portal and closes on Escape", () =>
   }
 });
 
+const SIGNED_IN_USAGE = {
+  showSidebarUsage: true,
+  signedIn: true,
+  usage: { credits: { percent: 12 }, tier: "SuperGrok" },
+};
+
+function buttonOf(node: UsageNode | null): UsageNode {
+  const button = nodes(node).find((entry) => entry.type === "button");
+  assert.ok(button);
+  return button;
+}
+
+function pointerTarget() {
+  let captured = false;
+  return {
+    setPointerCapture: () => {
+      captured = true;
+    },
+    hasPointerCapture: () => captured,
+    releasePointerCapture: () => {
+      captured = false;
+    },
+  };
+}
+
+function pointer(
+  button: UsageNode,
+  handler: string,
+  currentTarget: ReturnType<typeof pointerTarget>,
+  x: number,
+  y: number,
+) {
+  (button.props[handler] as (event: unknown) => void)({
+    pointerId: 1,
+    isPrimary: true,
+    button: 0,
+    clientX: x,
+    clientY: y,
+    currentTarget,
+  });
+}
+
+function placementOf(node: UsageNode | null) {
+  assert.ok(node);
+  return node.props.style as { left: number; top: number; visibility: string };
+}
+
+function dialogOf(node: UsageNode | null) {
+  return nodes(node).find((entry) => entry.props.role === "dialog");
+}
+
+test("the icon draws a semicircular progress arc and follows the content edge on resize", () => {
+  const view = sidebar({ status: SIGNED_IN_USAGE });
+  const pill = view.render();
+  assert.equal(placementOf(pill).left, 1176);
+  assert.equal(placementOf(pill).top, 396);
+  assert.equal(textContent(pill), "");
+  assert.equal(
+    nodes(pill).some((node) => node.type === "circle"),
+    false,
+  );
+  const fill = nodes(pill).find((node) => node.props.className === "ringFill");
+  assert.ok(fill);
+  assert.equal(fill.props.d, "M 24 5 A 19 19 0 0 0 24 43");
+  assert.equal(fill.props.strokeDasharray, "12 100");
+  view.resize({ left: 56, right: 800, top: 0, bottom: 600 });
+  assert.equal(placementOf(view.render()).left, 776);
+  assert.equal(placementOf(view.render()).top, 276);
+  const unmount = view.mountEffects();
+  unmount();
+  assert.equal(view.resizeCallbacks.size, 0);
+  assert.equal(view.mutationCallbacks.size, 0);
+});
+
+test("dragging snaps to the nearest edge, preserves height, and suppresses the resulting click", () => {
+  const view = sidebar({ status: SIGNED_IN_USAGE });
+  const target = pointerTarget();
+  let button = buttonOf(view.render());
+  pointer(button, "onPointerDown", target, 1188, 420);
+  pointer(button, "onPointerMove", target, 500, 300);
+  let pill = view.render();
+  assert.equal(placementOf(pill).left, 488);
+  assert.equal(placementOf(pill).top, 276);
+  assert.equal(pill?.props["data-dragging"], true);
+  assert.equal(dialogOf(pill), undefined);
+  button = buttonOf(pill);
+  pointer(button, "onPointerUp", target, 500, 300);
+  pill = view.render();
+  assert.equal(placementOf(pill).left, 280);
+  assert.equal(placementOf(pill).top, 276);
+  assert.equal(pill?.props["data-edge"], "left");
+  assert.equal(pill?.props["data-dragging"], false);
+  assert.equal(
+    nodes(pill).find((node) => node.props.className === "ringTrack")?.props.d,
+    "M 0 5 A 19 19 0 0 1 0 43",
+  );
+  (buttonOf(pill).props.onClick as (event: unknown) => void)({ detail: 1 });
+  assert.equal(dialogOf(view.render()), undefined);
+  // Keyboard activation must still work after a drag.
+  (buttonOf(view.render()).props.onClick as (event: unknown) => void)({ detail: 0 });
+  assert.ok(dialogOf(view.render()));
+});
+
+test("zero usage has no filled arc and full usage fills the whole semicircle", () => {
+  for (const percent of [0, 100]) {
+    const view = sidebar({
+      status: {
+        ...SIGNED_IN_USAGE,
+        usage: { credits: { percent } },
+      },
+    });
+    const fill = nodes(view.render()).find((node) => node.props.className === "ringFill");
+    if (percent === 0) assert.equal(fill, undefined);
+    else assert.equal(fill?.props.strokeDasharray, "100 100");
+  }
+});
+
+test("clicking outside dismisses pinned details and unmount clears pending hover timers", () => {
+  const view = sidebar({ status: SIGNED_IN_USAGE });
+  (buttonOf(view.render()).props.onClick as () => void)();
+  assert.ok(dialogOf(view.render()));
+  view.dismissOutside();
+  assert.equal(dialogOf(view.render()), undefined);
+  const button = buttonOf(view.render());
+  (button.props.onPointerEnter as (event: unknown) => void)({ pointerType: "mouse" });
+  (button.props.onPointerLeave as () => void)();
+  assert.equal(view.timers.size, 1);
+  const unmount = view.mountEffects();
+  unmount();
+  assert.equal(view.timers.size, 0);
+});
+
+test("pointer cancellation and capture loss both clamp and dock without opening details", () => {
+  for (const end of ["onPointerCancel", "onLostPointerCapture"]) {
+    const view = sidebar({ status: SIGNED_IN_USAGE });
+    const target = pointerTarget();
+    const button = buttonOf(view.render());
+    pointer(button, "onPointerDown", target, 1188, 420);
+    pointer(button, "onPointerMove", target, 2000, -100);
+    const moving = view.render();
+    assert.equal(placementOf(moving).left, 1176);
+    assert.equal(placementOf(moving).top, 52);
+    pointer(buttonOf(moving), end, target, 2000, -100);
+    const docked = view.render();
+    assert.equal(docked?.props["data-edge"], "right");
+    assert.equal(docked?.props["data-dragging"], false);
+    assert.equal(dialogOf(docked), undefined);
+  }
+});
+
+test("small pointer movement remains a click and secondary pointers cannot drag", () => {
+  const view = sidebar({ status: SIGNED_IN_USAGE });
+  const target = pointerTarget();
+  const button = buttonOf(view.render());
+  (button.props.onPointerDown as (event: unknown) => void)({ button: 2, isPrimary: true });
+  pointer(button, "onPointerMove", target, 0, 0);
+  assert.equal(view.render()?.props["data-dragging"], false);
+  pointer(button, "onPointerDown", target, 1188, 420);
+  pointer(button, "onPointerMove", target, 1189, 421);
+  pointer(button, "onPointerUp", target, 1189, 421);
+  (button.props.onClick as () => void)();
+  assert.ok(dialogOf(view.render()));
+});
+
+test("hover opens the existing details, crossing the gap keeps them open, and clicking pins them", () => {
+  const view = sidebar({ status: SIGNED_IN_USAGE });
+  let button = buttonOf(view.render());
+  (button.props.onPointerEnter as (event: unknown) => void)({ pointerType: "touch" });
+  assert.equal(dialogOf(view.render()), undefined);
+  (button.props.onPointerEnter as (event: unknown) => void)({ pointerType: "mouse" });
+  let dialog = dialogOf(view.render());
+  assert.ok(dialog);
+  assert.match(textContent(dialog), /SuperGrok/);
+  (button.props.onPointerLeave as () => void)();
+  assert.equal(view.timers.size, 1);
+  (dialog.props.onPointerEnter as (event: unknown) => void)({ pointerType: "mouse" });
+  assert.equal(view.timers.size, 0);
+  (dialog.props.onPointerLeave as () => void)();
+  view.flushHoverClose();
+  assert.equal(dialogOf(view.render()), undefined);
+  button = buttonOf(view.render());
+  (button.props.onPointerEnter as (event: unknown) => void)({ pointerType: "mouse" });
+  (button.props.onClick as () => void)();
+  (button.props.onPointerLeave as () => void)();
+  view.flushHoverClose();
+  dialog = dialogOf(view.render());
+  assert.ok(dialog);
+  (buttonOf(view.render()).props.onClick as () => void)();
+  assert.equal(dialogOf(view.render()), undefined);
+});
+
+test("open drawers and fullscreen right panels hide the floating control and details", () => {
+  for (const reason of ["drawer", "fullscreen"] as const) {
+    const view = sidebar({ status: SIGNED_IN_USAGE });
+    (buttonOf(view.render()).props.onClick as () => void)();
+    assert.ok(dialogOf(view.render()));
+    view.hideContent(reason);
+    const pill = view.render();
+    assert.equal(placementOf(pill).visibility, "hidden");
+    assert.equal(dialogOf(pill), undefined);
+  }
+});
+
 test("global status polling detects sign-in and sign-out and retains usage on failures", async () => {
   const view = sidebar();
   assert.equal(view.render(), null);
@@ -568,15 +879,17 @@ test("global status polling detects sign-in and sign-out and retains usage on fa
   });
   view.poll();
   await nextTurn();
-  assert.equal(textContent(view.render()), "Grok usage 12%");
+  const reading = () =>
+    nodes(view.render()).find((node) => node.type === "button")?.props["aria-label"];
+  assert.equal(reading(), "Grok usage 12%");
   view.setReply({ ok: false });
   view.poll();
   await nextTurn();
-  assert.equal(textContent(view.render()), "Grok usage 12%");
+  assert.equal(reading(), "Grok usage 12%");
   view.setFailure(new Error("Connection lost"));
   view.poll();
   await nextTurn();
-  assert.equal(textContent(view.render()), "Grok usage 12%");
+  assert.equal(reading(), "Grok usage 12%");
   assert.ok(
     view.remoteCalls.every(
       (call) => call.path === "/api" && call.endpoint === "xaiSupergrok/status",

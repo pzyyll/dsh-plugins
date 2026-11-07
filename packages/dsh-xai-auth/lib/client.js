@@ -1,4 +1,4 @@
-// ABOUTME: Provides Plugins-page sign-in and sidebar subscription usage for xAI SuperGrok.
+// ABOUTME: Provides Plugins-page sign-in and edge-docked subscription usage for xAI SuperGrok.
 // ABOUTME: The browser half uses the dsh web controls and never imports a Grok session file.
 
 window.__ModuleLoader__.load({
@@ -15,7 +15,7 @@ window.__ModuleLoader__.load({
     const inject = ["slots", "connection", "locale", "configForms"];
     const STYLE_ID = "dsh-xai-auth-config";
     const zh = {
-      showSidebarUsage: "在侧边栏显示用量",
+      showSidebarUsage: "显示悬浮用量",
       saveSettingsFailed: "无法保存用量显示设置",
       signIn: "登录",
       lead: "使用 xAI SuperGrok 订阅登录。批准后，在模型列表中选择 xai-supergrok。",
@@ -56,7 +56,7 @@ window.__ModuleLoader__.load({
       usedReading: "Grok 用量 {percent}",
     };
     const en = {
-      showSidebarUsage: "Show usage in the sidebar",
+      showSidebarUsage: "Show floating usage",
       saveSettingsFailed: "Could not save the usage display setting",
       signIn: "Sign in",
       lead: "Sign in with an xAI SuperGrok subscription. After approval, choose xai-supergrok in the model list.",
@@ -134,14 +134,14 @@ window.__ModuleLoader__.load({
         "[data-xai-supergrok] .limitTrack{display:block;height:6px;border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 12%,transparent);overflow:hidden}",
         "[data-xai-supergrok] .limitFill{display:block;height:100%;border-radius:inherit;background:var(--dsw-alias-label-primary)}",
         "[data-xai-supergrok] .note{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary)}",
-        "[data-xai-usage-pill]{display:flex;flex:1;min-width:0}",
-        "[data-xai-usage-pill] .trigger{display:inline-flex;align-items:center;gap:var(--dsh-sidebar-label-gap,6px);box-sizing:border-box;width:100%;min-width:0;min-height:36px;padding:7px calc(var(--dsh-sidebar-row-padding,12px) - var(--dsh-sidebar-paint-inset,3px));border:0;border-inline:var(--dsh-sidebar-paint-inset,3px) solid transparent;border-radius:var(--dsw-radius-md);background:transparent;background-clip:padding-box;color:var(--dsw-alias-label-secondary);font:inherit;font-size:13px;font-variant-numeric:tabular-nums;line-height:22px;text-align:start;cursor:pointer}",
+        "[data-xai-usage-pill]{position:fixed;display:flex;width:24px;height:48px}",
+        "[data-xai-usage-pill] .trigger{display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:100%;height:100%;padding:0;border:0;border-radius:24px 0 0 24px;background:var(--dsw-specific-menu);color:var(--dsw-alias-label-secondary);cursor:grab;touch-action:none;user-select:none;-webkit-app-region:no-drag;box-shadow:var(--dsw-elevation-prominent)}",
+        "[data-xai-usage-pill][data-edge=left] .trigger{border-radius:0 24px 24px 0}",
+        "[data-xai-usage-pill][data-dragging=true] .trigger{cursor:grabbing}",
         "[data-xai-usage-pill] .trigger[aria-expanded=true],[data-xai-usage-pill] .trigger:hover{background-color:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}",
         "[data-xai-usage-pill] button.trigger:focus-visible{outline:var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:-2px}",
         "[data-xai-usage-pill] .trigger>svg{flex:none}",
-        "[data-xai-usage-pill] .label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
-        "[data-xai-usage-pill][data-wide=false]{flex:none}",
-        "[data-xai-usage-pill][data-wide=false] .trigger{justify-content:center;width:36px;height:36px;padding:0;border:0}",
+
         "[data-xai-usage-pending] .trigger{cursor:default}",
         "[data-xai-usage-pill] .ringTrack{fill:none;stroke:var(--dsw-alias-border-l3);stroke-width:2}",
         "[data-xai-usage-pill] .ringFill{fill:none;stroke:var(--dsw-alias-label-tertiary);stroke-width:2;stroke-linecap:round}",
@@ -637,67 +637,195 @@ window.__ModuleLoader__.load({
       );
     }
 
-    const RING_SIZE = 14;
-    const RING_CENTER = RING_SIZE / 2;
-    const RING_RADIUS = 5.5;
-    const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
-    const RING_START_ANGLE_DEG = -90;
+    const INDICATOR_WIDTH_PX = 24;
+    const INDICATOR_HEIGHT_PX = 48;
+    const ARC_RADIUS_PX = 19;
+    const ARC_INSET_PX = INDICATOR_HEIGHT_PX / 2 - ARC_RADIUS_PX;
+    const EDGE_MARGIN_PX = 12;
+    const INITIAL_VERTICAL_FRACTION = 0.5;
+    const DRAG_THRESHOLD_PX = 4;
+    const HOVER_CLOSE_MS = 150;
     const FULL_PERCENT = 100;
     const POPOVER_GAP_PX = 8;
     const POPOVER_MARGIN_PX = 12;
-    const TOOLTIP_DELAY_MS = 200;
     const USAGE_SLOT_ORDER = 2;
     const useAnchoredPosition = ui.useAnchoredPosition ?? (() => null);
     const useDismissOnOutsidePointer = ui.useDismissOnOutsidePointer ?? (() => {});
 
-    function usageRing(used) {
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    // The right-column marker is a layout seam; its preceding sibling is the main column.
+    // Do not depend on the shell's generated CSS class names.
+    function useContentBounds(rootRef, visible) {
+      const [bounds, setBounds] = react.useState(null);
+      react.useLayoutEffect(() => {
+        if (!visible) return undefined;
+        const frame = rootRef.current?.closest("[data-shell-overlay]")?.parentElement;
+        const center = frame?.querySelector("[data-rightbar-col]")?.previousElementSibling;
+        if (!center) return undefined;
+        const measure = () => {
+          const rect = center.getBoundingClientRect();
+          const top = rect.top + EDGE_MARGIN_PX;
+          const bottom = rect.bottom - EDGE_MARGIN_PX - INDICATOR_HEIGHT_PX;
+          const right = rect.right - INDICATOR_WIDTH_PX;
+          const hidden =
+            center.inert ||
+            frame.hasAttribute("data-rightbar-fullscreen") ||
+            right < rect.left ||
+            bottom < top;
+          const next = { left: rect.left, right, top, bottom, hidden };
+          setBounds((previous) =>
+            previous && Object.keys(next).every((key) => previous[key] === next[key])
+              ? previous
+              : next,
+          );
+        };
+        measure();
+        const resize = new ResizeObserver(measure);
+        resize.observe(center);
+        resize.observe(frame);
+        const mutation = new MutationObserver(measure);
+        mutation.observe(frame, { attributes: true });
+        mutation.observe(center, { attributes: true, attributeFilter: ["inert"] });
+        window.addEventListener("resize", measure);
+        return () => {
+          resize.disconnect();
+          mutation.disconnect();
+          window.removeEventListener("resize", measure);
+        };
+      }, [rootRef, visible]);
+      return bounds;
+    }
+
+    function usageRing(used, edge) {
+      const x = edge === "left" ? 0 : INDICATOR_WIDTH_PX;
+      const sweep = edge === "left" ? 1 : 0;
+      const arc = `M ${x} ${ARC_INSET_PX} A ${ARC_RADIUS_PX} ${ARC_RADIUS_PX} 0 0 ${sweep} ${x} ${INDICATOR_HEIGHT_PX - ARC_INSET_PX}`;
       return react.createElement(
         "svg",
         {
-          viewBox: `0 0 ${RING_SIZE} ${RING_SIZE}`,
-          width: RING_SIZE,
-          height: RING_SIZE,
+          viewBox: `0 0 ${INDICATOR_WIDTH_PX} ${INDICATOR_HEIGHT_PX}`,
+          width: INDICATOR_WIDTH_PX,
+          height: INDICATOR_HEIGHT_PX,
           "aria-hidden": true,
         },
-        react.createElement("circle", {
-          className: "ringTrack",
-          cx: RING_CENTER,
-          cy: RING_CENTER,
-          r: RING_RADIUS,
-        }),
-        used === undefined
+        react.createElement("path", { className: "ringTrack", d: arc }),
+        used === undefined || used === 0
           ? null
-          : react.createElement("circle", {
+          : react.createElement("path", {
               className: "ringFill",
-              cx: RING_CENTER,
-              cy: RING_CENTER,
-              r: RING_RADIUS,
-              strokeDasharray: `${(RING_LENGTH * used) / FULL_PERCENT} ${RING_LENGTH}`,
-              transform: `rotate(${RING_START_ANGLE_DEG} ${RING_CENTER} ${RING_CENTER})`,
+              d: arc,
+              pathLength: FULL_PERCENT,
+              strokeDasharray: `${used} ${FULL_PERCENT}`,
             }),
       );
     }
 
-    function SidebarUsagePill(props) {
-      const { ctx, t, wide } = props;
+    function FloatingUsagePill(props) {
+      const { ctx, t } = props;
       const [status, setStatus] = react.useState(undefined);
       const [open, setOpen] = react.useState(false);
       const rootRef = react.useRef(null);
       const panelRef = react.useRef(null);
+      const dragRef = react.useRef(null);
+      const suppressClickRef = react.useRef(false);
+      const pinnedRef = react.useRef(false);
+      const closeTimerRef = react.useRef(null);
+      const [dock, setDock] = react.useState({
+        edge: "right",
+        fraction: INITIAL_VERTICAL_FRACTION,
+      });
+      const [point, setPoint] = react.useState(null);
       const credits = status?.usage?.credits;
       const used = credits === undefined ? undefined : usedShare(credits.percent);
       const signedIn = status?.signedIn === true;
       const showSidebarUsage = status?.showSidebarUsage === true;
-      const available = showSidebarUsage && signedIn && used !== undefined;
+      const visible =
+        showSidebarUsage && signedIn && (used !== undefined || status?.usagePending === true);
+      const bounds = useContentBounds(rootRef, visible);
+      const available = visible && used !== undefined;
+      const interactive = available && bounds !== null && !bounds.hidden;
+      const placement =
+        bounds === null
+          ? { visibility: "hidden", left: 0, top: 0 }
+          : {
+              visibility: bounds.hidden ? "hidden" : "visible",
+              left: point
+                ? clamp(point.x, bounds.left, bounds.right)
+                : dock.edge === "left"
+                  ? bounds.left
+                  : bounds.right,
+              top: point
+                ? clamp(point.y, bounds.top, bounds.bottom)
+                : bounds.top + dock.fraction * (bounds.bottom - bounds.top),
+            };
+      const clearCloseTimer = () => {
+        clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      };
+      const dismiss = () => {
+        clearCloseTimer();
+        pinnedRef.current = false;
+        setOpen(false);
+      };
+      const enter = (event) => {
+        clearCloseTimer();
+        if (event.pointerType !== "touch" && !dragRef.current?.moved) setOpen(true);
+      };
+      const leave = () => {
+        clearCloseTimer();
+        if (!pinnedRef.current)
+          closeTimerRef.current = setTimeout(() => setOpen(false), HOVER_CLOSE_MS);
+      };
+      const move = (event) => {
+        const drag = dragRef.current;
+        if (!drag || drag.id !== event.pointerId || !bounds) return;
+        if (
+          !drag.moved &&
+          Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < DRAG_THRESHOLD_PX
+        )
+          return;
+        if (!drag.moved) dismiss();
+        drag.moved = true;
+        drag.point = {
+          x: clamp(event.clientX - drag.offsetX, bounds.left, bounds.right),
+          y: clamp(event.clientY - drag.offsetY, bounds.top, bounds.bottom),
+        };
+        setPoint(drag.point);
+      };
+      const finish = (event) => {
+        const drag = dragRef.current;
+        if (!drag || drag.id !== event.pointerId) return;
+        dragRef.current = null;
+        if (drag.moved && bounds) {
+          const { x, y } = drag.point;
+          setDock({
+            edge: x - bounds.left < bounds.right - x ? "left" : "right",
+            fraction:
+              bounds.bottom === bounds.top
+                ? INITIAL_VERTICAL_FRACTION
+                : clamp((y - bounds.top) / (bounds.bottom - bounds.top), 0, 1),
+          });
+          suppressClickRef.current = true;
+        }
+        setPoint(null);
+        if (event.currentTarget.hasPointerCapture(event.pointerId))
+          event.currentTarget.releasePointerCapture(event.pointerId);
+      };
       const position = useAnchoredPosition({
-        open: open && available,
+        open: open && interactive,
         anchorRef: rootRef,
         panelRef,
         side: "top",
+        align: dock.edge === "right" ? "end" : "start",
         gap: POPOVER_GAP_PX,
         margin: POPOVER_MARGIN_PX,
       });
-      useDismissOnOutsidePointer(rootRef, open && available, setOpen, panelRef);
+      useDismissOnOutsidePointer(rootRef, open && interactive, dismiss, panelRef);
+
+      react.useEffect(() => () => clearTimeout(closeTimerRef.current), []);
 
       react.useEffect(() => {
         installStyle();
@@ -724,13 +852,13 @@ window.__ModuleLoader__.load({
       }, [ctx]);
 
       react.useEffect(() => {
-        if (!available && open) setOpen(false);
-      }, [available, open]);
+        if (!interactive && open) dismiss();
+      }, [interactive, open]);
 
       react.useEffect(() => {
         if (!open) return undefined;
         const onKeyDown = (event) => {
-          if (event.key === "Escape") setOpen(false);
+          if (event.key === "Escape") dismiss();
         };
         document.addEventListener("keydown", onKeyDown);
         return () => {
@@ -747,13 +875,13 @@ window.__ModuleLoader__.load({
             ref: rootRef,
             "data-xai-usage-pill": "",
             "data-xai-usage-pending": "",
-            "data-wide": String(wide),
+            "data-edge": dock.edge,
+            style: placement,
           },
           react.createElement(
             "span",
             { className: "trigger", role: "status", "aria-label": t("usageLoading") },
-            usageRing(undefined),
-            wide ? react.createElement("span", { className: "label" }, t("usageLoading")) : null,
+            usageRing(undefined, dock.edge),
           ),
         );
       }
@@ -766,12 +894,36 @@ window.__ModuleLoader__.load({
           "aria-label": label,
           "aria-haspopup": "dialog",
           "aria-expanded": open,
-          onClick: () => {
-            setOpen((current) => !current);
+          onPointerDown: (event) => {
+            if (event.button !== 0 || !event.isPrimary || !bounds) return;
+            suppressClickRef.current = false;
+            dragRef.current = {
+              id: event.pointerId,
+              startX: event.clientX,
+              startY: event.clientY,
+              offsetX: event.clientX - placement.left,
+              offsetY: event.clientY - placement.top,
+              moved: false,
+            };
+            event.currentTarget.setPointerCapture(event.pointerId);
+          },
+          onPointerMove: move,
+          onPointerUp: finish,
+          onPointerCancel: finish,
+          onLostPointerCapture: finish,
+          onPointerEnter: enter,
+          onPointerLeave: leave,
+          onClick: (event) => {
+            if (suppressClickRef.current && event?.detail !== 0) {
+              suppressClickRef.current = false;
+              return;
+            }
+            clearCloseTimer();
+            pinnedRef.current = !pinnedRef.current;
+            setOpen(pinnedRef.current);
           },
         },
-        usageRing(used),
-        wide ? react.createElement("span", { className: "label" }, label) : null,
+        usageRing(used, dock.edge),
       );
       const body = usagePanel(
         status.usage,
@@ -780,7 +932,7 @@ window.__ModuleLoader__.load({
         t,
       );
       const panel =
-        open && body !== null && typeof reactDom.createPortal === "function"
+        open && interactive && body !== null && typeof reactDom.createPortal === "function"
           ? reactDom.createPortal(
               react.createElement(
                 "div",
@@ -790,24 +942,24 @@ window.__ModuleLoader__.load({
                   role: "dialog",
                   "aria-label": label,
                   style: position ?? { visibility: "hidden", left: 0, top: 0 },
+                  onPointerEnter: enter,
+                  onPointerLeave: leave,
                 },
                 body,
               ),
               document.body,
             )
           : null;
-      const button =
-        ui.Tooltip === undefined
-          ? trigger
-          : react.createElement(
-              ui.Tooltip,
-              { label, side: "top", delayMs: TOOLTIP_DELAY_MS, disabled: open },
-              trigger,
-            );
       return react.createElement(
         "span",
-        { ref: rootRef, "data-xai-usage-pill": "", "data-wide": String(wide) },
-        button,
+        {
+          ref: rootRef,
+          "data-xai-usage-pill": "",
+          "data-edge": dock.edge,
+          "data-dragging": point !== null,
+          style: placement,
+        },
+        trigger,
         panel,
       );
     }
@@ -837,15 +989,15 @@ window.__ModuleLoader__.load({
           },
         ),
       );
-      ctx.slots.inject("sidebar.footer.action", () =>
+      ctx.slots.inject("shell.overlay", () =>
         ctx.slots.register(
           {
-            name: "sidebar.footer.action",
+            name: "shell.overlay",
             id: "xai-supergrok-usage",
             order: USAGE_SLOT_ORDER,
             locale: NS,
           },
-          (props) => react.createElement(SidebarUsagePill, { ctx, t: props.t, wide: props.wide }),
+          (props) => react.createElement(FloatingUsagePill, { ctx, t: props.t }),
         ),
       );
     }

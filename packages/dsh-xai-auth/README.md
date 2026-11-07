@@ -48,9 +48,9 @@ On the plugin page:
 - **Usage** shows subscription credits and billing details. Readings are cached for 2 minutes.
 - **Sign out** removes local credentials; it does not revoke the token at xAI.
 
-After sign-in, **Grok usage** appears above **Settings** in the sidebar footer, for all model routes. The percentage shows used credits. Select the indicator to see details. A collapsed sidebar rail shows only the ring icon, with the percentage in its tooltip. The blank-session Hero and the chat composer have no usage indicator.
+Enable **Show floating usage** on the plugin page after sign-in. A semicircular progress icon appears at the right edge of the main content area, for all model routes. The arc shows used credits without text. Hover to view the usage details; click to keep them open. Click again, press Escape, or click outside to close them.
 
-The sidebar indicator requires the `sidebar.footer.action` slot, verified with dsh `0.2.2-rc.1`. Windows desktop hides the indicator when the sidebar is fully collapsed.
+Drag the icon to move it. Release it to snap to the nearest left or right edge, with its straight side against the edge. It follows content-area size changes and stays visible when the left sidebar collapses. Position resets on reload. The indicator uses the `shell.overlay` slot. The existing `showSidebarUsage` configuration key still controls visibility.
 
 ## Notes
 
