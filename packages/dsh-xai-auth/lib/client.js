@@ -680,7 +680,7 @@ window.__ModuleLoader__.load({
     const RING_RADIUS_PX = 19;
     const RING_STROKE_PX = 3;
     const RING_START_ANGLE_DEG = -90;
-    const LOW_REMAINING_PERCENT = 15;
+    const LOW_REMAINING_PERCENT = 5;
     const EDGE_MARGIN_PX = 12;
     const INITIAL_VERTICAL_FRACTION = 0.5;
     const DRAG_THRESHOLD_PX = 4;
