@@ -1013,10 +1013,13 @@ test("the icon draws a full percentage ring and follows the content edge on resi
   assert.equal(fill.props.cy, 24);
   assert.equal(fill.props.r, 19);
   assert.equal(fill.props.transform, "rotate(-90 24 24)");
-  const gradient = nodes(pill).find((node) => node.type === "linearGradient");
-  assert.ok(gradient);
-  assert.equal((fill.props.style as { stroke: string }).stroke, `url(#${gradient.props.id})`);
-  assert.equal(fill.props.strokeDasharray, "88 100");
+  assert.equal(fill.props.style, undefined);
+  assert.equal(
+    nodes(pill).find((node) => node.type === "linearGradient"),
+    undefined,
+  );
+  assert.equal(fill.props.strokeDasharray, "88 12");
+  assert.equal(fill.props.strokeDashoffset, 88);
   view.resize({ left: 56, right: 800, top: 0, bottom: 600 });
   assertPixels(placementOf(view.render()).left, 750);
   assertPixels(placementOf(view.render()).top, 280);
@@ -1342,9 +1345,32 @@ test("the model directory loads for the current session and releases subscriptio
   assert.equal(view.modelSources.get("main")?.listeners.size, 0);
 });
 
+test("low quota paints the ring and percentage with the host error-state color", () => {
+  const view = sidebar({
+    status: { ...SIGNED_IN_USAGE, usage: { credits: { percent: 88 } } },
+  });
+  const pill = view.render();
+  assert.ok(nodes(pill).some((node) => node.props.className === "ringFill low"));
+  assert.ok(nodes(pill).some((node) => node.props.className === "ringPercent low"));
+  const unmount = view.mountEffects();
+  try {
+    const css = [...view.styles.values()][0]?.textContent;
+    assert.ok(css);
+    const ringRule = css.match(/\[data-xai-usage-pill\] \.ringFill\.low\{([^}]+)\}/)?.[1];
+    const percentRule = css.match(/\[data-xai-usage-pill\] \.ringPercent\.low\{([^}]+)\}/)?.[1];
+    assert.ok(ringRule);
+    assert.ok(percentRule);
+    assert.match(ringRule, /(?:^|;)stroke:var\(--dsw-alias-state-error-primary\)(?:;|$)/);
+    assert.match(percentRule, /(?:^|;)fill:var\(--dsw-alias-state-error-primary\)(?:;|$)/);
+  } finally {
+    unmount();
+  }
+});
+
 test("the arc and detail bar count down remaining quota while usage labels stay unchanged", () => {
   const readings = [
     { used: 0, remaining: 100, label: "Grok usage 0%" },
+    { used: 85, remaining: 15, label: "Grok usage 85%" },
     { used: 86, remaining: 14, label: "Grok usage 86%" },
     { used: 86.5, remaining: 14, label: "Grok usage 87%" },
     { used: 100, remaining: 0, label: "Grok usage 100%" },
@@ -1359,9 +1385,18 @@ test("the arc and detail bar count down remaining quota while usage labels stay 
       },
     });
     const pill = view.render();
-    const fill = nodes(pill).find((node) => node.props.className === "ringFill");
+    const fill = nodes(pill).find((node) => String(node.props.className).includes("ringFill"));
+    const percent = nodes(pill).find((node) =>
+      String(node.props.className).includes("ringPercent"),
+    );
+    const low = remaining < 15;
+    assert.equal(percent?.props.className, low ? "ringPercent low" : "ringPercent");
     if (remaining === 0) assert.equal(fill, undefined);
-    else assert.equal(fill?.props.strokeDasharray, `${remaining} 100`);
+    else {
+      assert.equal(fill?.props.className, low ? "ringFill low" : "ringFill");
+      assert.equal(fill?.props.strokeDasharray, `${remaining} ${100 - remaining}`);
+      assert.equal(fill?.props.strokeDashoffset, remaining);
+    }
     assert.equal(nodes(pill).find((node) => node.type === "tooltip")?.props.label, label);
     assert.equal(textContent(pill), `${remaining}%`);
     (buttonOf(pill).props.onClick as () => void)();

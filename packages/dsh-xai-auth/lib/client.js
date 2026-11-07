@@ -149,10 +149,10 @@ window.__ModuleLoader__.load({
 
         "[data-xai-usage-pending] .trigger{cursor:default}",
         `[data-xai-usage-pill] .ringTrack{fill:none;stroke:color-mix(in srgb,var(--dsw-alias-label-primary) 12%,transparent);stroke-width:${RING_STROKE_PX}}`,
-        `[data-xai-usage-pill] .ringFill{fill:none;stroke-width:${RING_STROKE_PX};stroke-linecap:round;filter:drop-shadow(0 0 ${RING_GLOW_PX}px var(--dsw-static-blue-450))}`,
-        "[data-xai-usage-pill] .ringGradientStart{stop-color:var(--dsw-static-blue-300)}",
-        "[data-xai-usage-pill] .ringGradientEnd{stop-color:var(--dsw-static-blue-450)}",
+        `[data-xai-usage-pill] .ringFill{fill:none;stroke:var(--dsw-alias-label-primary);stroke-width:${RING_STROKE_PX};stroke-linecap:round}`,
+        "[data-xai-usage-pill] .ringFill.low{stroke:var(--dsw-alias-state-error-primary)}",
         "[data-xai-usage-pill] .ringPercent{fill:var(--dsw-alias-label-primary);font:inherit;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}",
+        "[data-xai-usage-pill] .ringPercent.low{fill:var(--dsw-alias-state-error-primary)}",
         "[data-xai-usage-panel]{position:fixed;z-index:1100;box-sizing:border-box;width:min(264px,calc(100vw - 24px));padding:12px;border:0;border-radius:var(--dsw-radius-lg);background:var(--dsw-specific-menu);backdrop-filter:var(--dsw-menu-backdrop-filter);--dsw-elevation-stroke-color:var(--dsw-alias-border-l1);box-shadow:var(--dsw-elevation-prominent);font-size:12px;line-height:20px;color:var(--dsw-alias-label-secondary);cursor:default}",
         "[data-xai-usage-panel] .header{display:flex;align-items:center;gap:6px}",
         "[data-xai-usage-panel] .headline{color:var(--dsw-alias-label-tertiary)}",
@@ -679,9 +679,8 @@ window.__ModuleLoader__.load({
     const RING_CENTER_PX = RING_BASE_SIZE_PX / 2;
     const RING_RADIUS_PX = 19;
     const RING_STROKE_PX = 3;
-    const RING_GLOW_PX = 2;
     const RING_START_ANGLE_DEG = -90;
-    const RING_GRADIENT_ID = `${NS}-usage-gradient`;
+    const LOW_REMAINING_PERCENT = 15;
     const EDGE_MARGIN_PX = 12;
     const INITIAL_VERTICAL_FRACTION = 0.5;
     const DRAG_THRESHOLD_PX = 4;
@@ -753,33 +752,23 @@ window.__ModuleLoader__.load({
           height: RING_SIZE_PX,
           "aria-hidden": true,
         },
-        react.createElement(
-          "defs",
-          null,
-          react.createElement(
-            "linearGradient",
-            { id: RING_GRADIENT_ID, x1: "0%", y1: "100%", x2: "100%", y2: "0%" },
-            react.createElement("stop", { offset: "0%", className: "ringGradientStart" }),
-            react.createElement("stop", { offset: "100%", className: "ringGradientEnd" }),
-          ),
-        ),
         react.createElement("circle", { ...circle, className: "ringTrack" }),
         remaining === undefined || remaining === 0
           ? null
           : react.createElement("circle", {
               ...circle,
-              className: "ringFill",
+              className: remaining < LOW_REMAINING_PERCENT ? "ringFill low" : "ringFill",
               pathLength: FULL_PERCENT,
-              strokeDasharray: `${remaining} ${FULL_PERCENT}`,
+              strokeDasharray: `${remaining} ${FULL_PERCENT - remaining}`,
+              strokeDashoffset: remaining,
               transform: `rotate(${RING_START_ANGLE_DEG} ${RING_CENTER_PX} ${RING_CENTER_PX})`,
-              style: { stroke: `url(#${RING_GRADIENT_ID})` },
             }),
         remaining === undefined
           ? null
           : react.createElement(
               "text",
               {
-                className: "ringPercent",
+                className: remaining < LOW_REMAINING_PERCENT ? "ringPercent low" : "ringPercent",
                 x: RING_CENTER_PX,
                 y: RING_CENTER_PX,
                 textAnchor: "middle",
