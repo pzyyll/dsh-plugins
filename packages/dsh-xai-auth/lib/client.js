@@ -814,7 +814,7 @@ window.__ModuleLoader__.load({
       const pendingDockRef = react.useRef(null);
       const dockAnimationsRef = react.useRef([]);
       const [dock, setDock] = react.useState({
-        edge: "right",
+        edge: "left",
         fraction: INITIAL_VERTICAL_FRACTION,
       });
       const [point, setPoint] = react.useState(null);

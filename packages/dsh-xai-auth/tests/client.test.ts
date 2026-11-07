@@ -10,6 +10,7 @@ import { runInNewContext } from "node:vm";
 const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const client = readFileSync(new URL("../lib/client.js", import.meta.url), "utf8");
 const DETAIL_SLOT = "plugins.detail.section";
+const LOW_REMAINING_PERCENT = 5;
 
 type Translate = (key: string) => string;
 
@@ -769,7 +770,7 @@ test("the sidebar shows signed-in account usage without a session or selected mo
   });
   const pill = view.render();
   assert.ok(pill);
-  assert.equal(pill.props["data-edge"], "right");
+  assert.equal(pill.props["data-edge"], "left");
   assert.equal(textContent(pill), "88%");
   const trigger = nodes(pill).find((node) => node.type === "button");
   assert.ok(trigger);
@@ -841,7 +842,7 @@ test("the collapsed sidebar keeps the ring percentage and accessible label", () 
   });
   const pill = view.render(false);
   assert.ok(pill);
-  assert.equal(pill.props["data-edge"], "right");
+  assert.equal(pill.props["data-edge"], "left");
   assert.equal(textContent(pill), "100%");
   assert.ok(nodes(pill).some((node) => node.type === "svg"));
   const trigger = nodes(pill).find((node) => node.type === "button");
@@ -994,10 +995,10 @@ test("hover and open feedback affect only the outer glow, not the badge interior
   unmount();
 });
 
-test("the icon draws a full percentage ring and follows the content edge on resize", () => {
+test("the icon starts on the left with a full percentage ring and follows the content edge on resize", () => {
   const view = sidebar({ status: SIGNED_IN_USAGE });
   const pill = view.render();
-  assertPixels(placementOf(pill).left, 1150);
+  assertPixels(placementOf(pill).left, 280);
   assertPixels(placementOf(pill).top, 400);
   assert.equal(textContent(pill), "88%");
   assert.equal(nodes(pill).filter((node) => node.type === "circle").length, 2);
@@ -1021,7 +1022,7 @@ test("the icon draws a full percentage ring and follows the content edge on resi
   assert.equal(fill.props.strokeDasharray, "88 12");
   assert.equal(fill.props.strokeDashoffset, 88);
   view.resize({ left: 56, right: 800, top: 0, bottom: 600 });
-  assertPixels(placementOf(view.render()).left, 750);
+  assertPixels(placementOf(view.render()).left, 56);
   assertPixels(placementOf(view.render()).top, 280);
   const unmount = view.mountEffects();
   unmount();
@@ -1033,7 +1034,7 @@ test("dragging snaps to the nearest edge, preserves height, and suppresses the r
   const view = sidebar({ status: SIGNED_IN_USAGE });
   const target = pointerTarget();
   let button = buttonOf(view.render());
-  pointer(button, "onPointerDown", target, 1188, 420);
+  pointer(button, "onPointerDown", target, 318, 420);
   pointer(button, "onPointerMove", target, 500, 300);
   let pill = view.render();
   assertPixels(placementOf(pill).left, 462);
@@ -1083,7 +1084,7 @@ test("docking travels from the release point and plays a mirrored jelly deformat
     const view = sidebar({ status: SIGNED_IN_USAGE });
     const target = pointerTarget();
     const button = buttonOf(view.render());
-    pointer(button, "onPointerDown", target, 1188, 420);
+    pointer(button, "onPointerDown", target, 318, 420);
     pointer(button, "onPointerMove", target, x, 300);
     const moving = view.render();
     assert.equal(moving?.props["data-dragging"], true);
@@ -1125,7 +1126,7 @@ test("reduced motion and browsers without animation support still dock without a
     const view = sidebar({ status: SIGNED_IN_USAGE, ...options });
     const target = pointerTarget();
     const button = buttonOf(view.render());
-    pointer(button, "onPointerDown", target, 1188, 420);
+    pointer(button, "onPointerDown", target, 318, 420);
     pointer(button, "onPointerMove", target, 500, 300);
     pointer(buttonOf(view.render()), "onPointerUp", target, 500, 300);
     const docked = view.render();
@@ -1141,7 +1142,7 @@ test("a new drag, reduced motion, and hidden content cancel active docking anima
     const view = sidebar({ status: SIGNED_IN_USAGE });
     const target = pointerTarget();
     const button = buttonOf(view.render());
-    pointer(button, "onPointerDown", target, 1188, 420);
+    pointer(button, "onPointerDown", target, 318, 420);
     pointer(button, "onPointerMove", target, 500, 300);
     pointer(buttonOf(view.render()), "onPointerUp", target, 500, 300);
     const docked = view.render();
@@ -1347,7 +1348,7 @@ test("the model directory loads for the current session and releases subscriptio
 
 test("low quota paints the ring and percentage with the host error-state color", () => {
   const view = sidebar({
-    status: { ...SIGNED_IN_USAGE, usage: { credits: { percent: 88 } } },
+    status: { ...SIGNED_IN_USAGE, usage: { credits: { percent: 96 } } },
   });
   const pill = view.render();
   assert.ok(nodes(pill).some((node) => node.props.className === "ringFill low"));
@@ -1373,6 +1374,10 @@ test("the arc and detail bar count down remaining quota while usage labels stay 
     { used: 85, remaining: 15, label: "Grok usage 85%" },
     { used: 86, remaining: 14, label: "Grok usage 86%" },
     { used: 86.5, remaining: 14, label: "Grok usage 87%" },
+    { used: 94, remaining: 6, label: "Grok usage 94%" },
+    { used: 95, remaining: 5, label: "Grok usage 95%" },
+    { used: 96, remaining: 4, label: "Grok usage 96%" },
+    { used: 96.5, remaining: 4, label: "Grok usage 97%" },
     { used: 100, remaining: 0, label: "Grok usage 100%" },
     { used: -20, remaining: 100, label: "Grok usage 0%" },
     { used: 120, remaining: 0, label: "Grok usage 100%" },
@@ -1389,7 +1394,7 @@ test("the arc and detail bar count down remaining quota while usage labels stay 
     const percent = nodes(pill).find((node) =>
       String(node.props.className).includes("ringPercent"),
     );
-    const low = remaining < 15;
+    const low = remaining < LOW_REMAINING_PERCENT;
     assert.equal(percent?.props.className, low ? "ringPercent low" : "ringPercent");
     if (remaining === 0) assert.equal(fill, undefined);
     else {
@@ -1430,7 +1435,7 @@ test("pointer cancellation and capture loss both clamp and dock without opening 
     const view = sidebar({ status: SIGNED_IN_USAGE });
     const target = pointerTarget();
     const button = buttonOf(view.render());
-    pointer(button, "onPointerDown", target, 1188, 420);
+    pointer(button, "onPointerDown", target, 318, 420);
     pointer(button, "onPointerMove", target, 2000, -100);
     const moving = view.render();
     assertPixels(placementOf(moving).left, 1150);
@@ -1450,9 +1455,9 @@ test("small pointer movement remains a click and secondary pointers cannot drag"
   (button.props.onPointerDown as (event: unknown) => void)({ button: 2, isPrimary: true });
   pointer(button, "onPointerMove", target, 0, 0);
   assert.equal(view.render()?.props["data-dragging"], false);
-  pointer(button, "onPointerDown", target, 1188, 420);
-  pointer(button, "onPointerMove", target, 1189, 421);
-  pointer(button, "onPointerUp", target, 1189, 421);
+  pointer(button, "onPointerDown", target, 318, 420);
+  pointer(button, "onPointerMove", target, 319, 421);
+  pointer(button, "onPointerUp", target, 319, 421);
   (button.props.onClick as () => void)();
   assert.ok(dialogOf(view.render()));
   assert.equal(view.animations.length, 0);
@@ -1466,7 +1471,7 @@ test("hover uses the usage tooltip while details open only on click", () => {
   assert.equal(tooltip.props.label, "Grok usage 12%");
   assert.equal(tooltip.props.disabled, false);
   assert.equal(tooltip.props.portal, true);
-  assert.equal(tooltip.props.side, "left");
+  assert.equal(tooltip.props.side, "right");
   assert.equal(textContent(pill), "88%");
   const button = buttonOf(pill);
   assert.equal(button.props.onPointerEnter, undefined);
