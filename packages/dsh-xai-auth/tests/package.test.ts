@@ -21,6 +21,16 @@ test("the package exposes the compiled host entry and keeps the client entry", (
   assert.equal(manifest.scripts?.prepare, undefined);
 });
 
+test("the client declares the services needed for session model visibility", () => {
+  const manifest = JSON.parse(readFileSync(join(PROJECT_ROOT, "package.json"), "utf8"));
+  for (const name of [
+    "@deepseek-ai/dsh-client-ui-session",
+    "@deepseek-ai/dsh-client-ui-model-selection",
+  ]) {
+    assert.ok(manifest.dsh.client.inject.includes(name));
+  }
+});
+
 test("localized detail documents exist and are included in the published package", () => {
   const manifest = JSON.parse(readFileSync(join(PROJECT_ROOT, "package.json"), "utf8"));
   const documents = new Set<string>();
@@ -79,4 +89,5 @@ test("the Rsbuild host bundle loads from node_modules with external runtime peer
   assert.deepEqual(plugin.inject, ["llm"]);
   assert.equal(typeof plugin.apply, "function");
   assert.equal(plugin.Config().showSidebarUsage.get(), false);
+  assert.equal(plugin.Config().onlyShowUsageForGrok.get(), false);
 });

@@ -1,17 +1,24 @@
 // ABOUTME: Defines the plugin configuration shown on the Plugins page.
-// ABOUTME: Sidebar usage is opt-in and does not affect usage on the sign-in panel.
+// ABOUTME: Floating usage is opt-in and keeps the existing configuration key for compatibility.
 
 import type { Volatile } from "@deepseek-ai/cordis";
 import z from "@deepseek-ai/schemastery";
 
 export interface Config {
   showSidebarUsage: Volatile<boolean>;
+  onlyShowUsageForGrok: Volatile<boolean>;
 }
 
 const showSidebarUsage = z.boolean().default(false).volatile();
 showSidebarUsage.meta.description = {
-  en: "Show usage in the sidebar.",
-  zh: "在侧边栏显示用量。",
+  en: "Show floating usage.",
+  zh: "显示悬浮用量。",
 };
 
-export const Config = z.object({ showSidebarUsage });
+const onlyShowUsageForGrok = z.boolean().default(false).volatile();
+onlyShowUsageForGrok.meta.description = {
+  en: "Show only in conversations using Grok",
+  zh: "仅在会话切换 Grok 模型时显示",
+};
+
+export const Config = z.object({ showSidebarUsage, onlyShowUsageForGrok });

@@ -1,4 +1,4 @@
-// ABOUTME: Provides Plugins-page sign-in and sidebar subscription usage for xAI SuperGrok.
+// ABOUTME: Provides Plugins-page sign-in and edge-docked subscription usage for xAI SuperGrok.
 // ABOUTME: The browser half uses the dsh web controls and never imports a Grok session file.
 
 window.__ModuleLoader__.load({
@@ -12,10 +12,12 @@ window.__ModuleLoader__.load({
 
     const POLL_MS = 2000;
     const NS = "dsh-xai-auth";
-    const inject = ["slots", "connection", "locale", "configForms"];
+    const inject = ["slots", "connection", "locale", "configForms", "modelDirectories"];
+    const GROK_PROVIDER_ID = "xai-supergrok";
     const STYLE_ID = "dsh-xai-auth-config";
     const zh = {
-      showSidebarUsage: "在侧边栏显示用量",
+      showSidebarUsage: "显示悬浮用量",
+      onlyShowUsageForGrok: "仅在会话切换 Grok 模型时显示",
       saveSettingsFailed: "无法保存用量显示设置",
       signIn: "登录",
       lead: "使用 xAI SuperGrok 订阅登录。批准后，在模型列表中选择 xai-supergrok。",
@@ -56,7 +58,8 @@ window.__ModuleLoader__.load({
       usedReading: "Grok 用量 {percent}",
     };
     const en = {
-      showSidebarUsage: "Show usage in the sidebar",
+      showSidebarUsage: "Show floating usage",
+      onlyShowUsageForGrok: "Show only in conversations using Grok",
       saveSettingsFailed: "Could not save the usage display setting",
       signIn: "Sign in",
       lead: "Sign in with an xAI SuperGrok subscription. After approval, choose xai-supergrok in the model list.",
@@ -134,25 +137,30 @@ window.__ModuleLoader__.load({
         "[data-xai-supergrok] .limitTrack{display:block;height:6px;border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 12%,transparent);overflow:hidden}",
         "[data-xai-supergrok] .limitFill{display:block;height:100%;border-radius:inherit;background:var(--dsw-alias-label-primary)}",
         "[data-xai-supergrok] .note{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary)}",
-        "[data-xai-usage-pill]{display:flex;flex:1;min-width:0}",
-        "[data-xai-usage-pill] .trigger{display:inline-flex;align-items:center;gap:var(--dsh-sidebar-label-gap,6px);box-sizing:border-box;width:100%;min-width:0;min-height:36px;padding:7px calc(var(--dsh-sidebar-row-padding,12px) - var(--dsh-sidebar-paint-inset,3px));border:0;border-inline:var(--dsh-sidebar-paint-inset,3px) solid transparent;border-radius:var(--dsw-radius-md);background:transparent;background-clip:padding-box;color:var(--dsw-alias-label-secondary);font:inherit;font-size:13px;font-variant-numeric:tabular-nums;line-height:22px;text-align:start;cursor:pointer}",
-        "[data-xai-usage-pill] .trigger[aria-expanded=true],[data-xai-usage-pill] .trigger:hover{background-color:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}",
+        `[data-xai-usage-pill]{position:fixed;display:flex;width:${INDICATOR_WIDTH_PX}px;height:${INDICATOR_HEIGHT_PX}px}`,
+        `[data-xai-usage-pill] .trigger{display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:100%;height:100%;padding:0;border:${BADGE_BORDER_PX}px solid color-mix(in srgb,var(--dsw-static-blue-450) 24%,transparent);border-radius:${BADGE_CORNER_RADIUS_PX}px;corner-shape:round;background:var(--dsw-specific-menu);color:var(--dsw-alias-label-secondary);cursor:grab;touch-action:none;user-select:none;-webkit-app-region:no-drag;--dsw-elevation-stroke-color:transparent;box-shadow:var(--dsw-elevation-prominent);transition:box-shadow ${BADGE_GLOW_TRANSITION_MS}ms ease}`,
+        `[data-xai-usage-pill][data-edge=left]:not([data-dragging=true]) .trigger{border-radius:0 ${BADGE_CORNER_RADIUS_PX}px ${BADGE_CORNER_RADIUS_PX}px 0;border-left-color:transparent}`,
+        `[data-xai-usage-pill][data-edge=right]:not([data-dragging=true]) .trigger{border-radius:${BADGE_CORNER_RADIUS_PX}px 0 0 ${BADGE_CORNER_RADIUS_PX}px;border-right-color:transparent}`,
+        "[data-xai-usage-pill][data-dragging=true] .trigger{cursor:grabbing}",
+        `[data-xai-usage-pill] .trigger[aria-expanded=true],[data-xai-usage-pill] .trigger:hover{box-shadow:0 0 ${BADGE_GLOW_NEAR_BLUR_PX}px color-mix(in srgb,var(--dsw-static-blue-450) ${BADGE_GLOW_NEAR_ALPHA_PERCENT}%,transparent),0 0 ${BADGE_GLOW_FAR_BLUR_PX}px color-mix(in srgb,var(--dsw-static-blue-300) ${BADGE_GLOW_FAR_ALPHA_PERCENT}%,transparent),var(--dsw-elevation-prominent)}`,
+        "@media (prefers-reduced-motion:reduce){[data-xai-usage-pill] .trigger{transition:none}}",
         "[data-xai-usage-pill] button.trigger:focus-visible{outline:var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:-2px}",
         "[data-xai-usage-pill] .trigger>svg{flex:none}",
-        "[data-xai-usage-pill] .label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
-        "[data-xai-usage-pill][data-wide=false]{flex:none}",
-        "[data-xai-usage-pill][data-wide=false] .trigger{justify-content:center;width:36px;height:36px;padding:0;border:0}",
+
         "[data-xai-usage-pending] .trigger{cursor:default}",
-        "[data-xai-usage-pill] .ringTrack{fill:none;stroke:var(--dsw-alias-border-l3);stroke-width:2}",
-        "[data-xai-usage-pill] .ringFill{fill:none;stroke:var(--dsw-alias-label-tertiary);stroke-width:2;stroke-linecap:round}",
+        `[data-xai-usage-pill] .ringTrack{fill:none;stroke:color-mix(in srgb,var(--dsw-alias-label-primary) 12%,transparent);stroke-width:${RING_STROKE_PX}}`,
+        `[data-xai-usage-pill] .ringFill{fill:none;stroke-width:${RING_STROKE_PX};stroke-linecap:round;filter:drop-shadow(0 0 ${RING_GLOW_PX}px var(--dsw-static-blue-450))}`,
+        "[data-xai-usage-pill] .ringGradientStart{stop-color:var(--dsw-static-blue-300)}",
+        "[data-xai-usage-pill] .ringGradientEnd{stop-color:var(--dsw-static-blue-450)}",
+        "[data-xai-usage-pill] .ringPercent{fill:var(--dsw-alias-label-primary);font:inherit;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}",
         "[data-xai-usage-panel]{position:fixed;z-index:1100;box-sizing:border-box;width:min(264px,calc(100vw - 24px));padding:12px;border:0;border-radius:var(--dsw-radius-lg);background:var(--dsw-specific-menu);backdrop-filter:var(--dsw-menu-backdrop-filter);--dsw-elevation-stroke-color:var(--dsw-alias-border-l1);box-shadow:var(--dsw-elevation-prominent);font-size:12px;line-height:20px;color:var(--dsw-alias-label-secondary);cursor:default}",
         "[data-xai-usage-panel] .header{display:flex;align-items:center;gap:6px}",
         "[data-xai-usage-panel] .headline{color:var(--dsw-alias-label-tertiary)}",
         "[data-xai-usage-panel] .headline:empty{display:none}",
         "[data-xai-usage-panel] .percent{font-weight:500;color:var(--dsw-alias-label-primary)}",
         "[data-xai-usage-panel] .figures{margin-left:auto;font-weight:500;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-primary)}",
-        "[data-xai-usage-panel] .bar{display:flex;gap:1px;margin:10px 0 12px;height:4px;border-radius:999px;background:var(--dsw-alias-interactive-bg-hover);overflow:hidden}",
-        "[data-xai-usage-panel] .segment{flex:none;min-width:2px;height:100%;border-radius:1px;background:var(--dsw-static-blue-450)}",
+        "[data-xai-usage-panel] .bar{display:block;margin:10px 0 12px;height:6px;border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 12%,transparent);overflow:hidden}",
+        "[data-xai-usage-panel] .segment{display:block;height:100%;border-radius:inherit;background:var(--dsw-alias-label-primary)}",
         "[data-xai-usage-panel] .rows{margin:6px 0 0}",
         "[data-xai-usage-panel] .row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:2px 0}",
         "[data-xai-usage-panel] .row dt{color:var(--dsw-alias-label-secondary)}",
@@ -339,7 +347,7 @@ window.__ModuleLoader__.load({
       );
     }
 
-    /** Account usage details shared by the expanded sidebar and the collapsed rail. */
+    /** Account usage details opened by the floating indicator. */
     function usagePanel(current, message, pending, t) {
       if (current?.credits === undefined) {
         if (message !== "")
@@ -347,6 +355,7 @@ window.__ModuleLoader__.load({
         return pending ? react.createElement("p", { className: "note" }, t("usageLoading")) : null;
       }
       const used = usedShare(current.credits.percent);
+      const left = remainingPercent(current.credits.percent);
       const parts = t("usedReading", { percent: "\u0000" }).split("\u0000");
       const before = (parts[0] ?? "").trim();
       const after = (parts[1] ?? "").trim();
@@ -385,11 +394,12 @@ window.__ModuleLoader__.load({
             role: "meter",
             "aria-valuemin": 0,
             "aria-valuemax": 100,
-            "aria-valuenow": used,
+            "aria-valuenow": left,
+            "aria-label": t("remainingLabel", { title: t("usage"), left }),
           },
-          used === 0
+          left === 0
             ? null
-            : react.createElement("div", { className: "segment", style: { width: `${used}%` } }),
+            : react.createElement("div", { className: "segment", style: { width: `${left}%` } }),
         ),
         rows.length === 0 ? null : react.createElement("dl", { className: "rows" }, rows),
         message === ""
@@ -398,7 +408,7 @@ window.__ModuleLoader__.load({
       );
     }
 
-    function SidebarUsageSetting({ form, t }) {
+    function UsageSetting({ form, t, field }) {
       const subscribe = react.useCallback((listener) => form.subscribe(listener), [form]);
       const getSnapshot = react.useCallback(() => form.getSnapshot(), [form]);
       const snapshot = react.useSyncExternalStore(subscribe, getSnapshot);
@@ -408,7 +418,7 @@ window.__ModuleLoader__.load({
         setBusy(true);
         setFailed(false);
         try {
-          if (!(await form.set("showSidebarUsage", next))) setFailed(true);
+          if (!(await form.set(field, next))) setFailed(true);
         } catch {
           setFailed(true);
         } finally {
@@ -421,11 +431,11 @@ window.__ModuleLoader__.load({
         react.createElement(
           "div",
           { className: "preference" },
-          react.createElement("span", null, t("showSidebarUsage")),
+          react.createElement("span", null, t(field)),
           react.createElement(ui.Switch, {
-            checked: snapshot.value?.showSidebarUsage === true,
+            checked: snapshot.value?.[field] === true,
             disabled: busy || snapshot.status !== "ready" || !snapshot.writable,
-            label: t("showSidebarUsage"),
+            label: t(field),
             onChange: (next) => {
               void save(next);
             },
@@ -515,7 +525,11 @@ window.__ModuleLoader__.load({
       return react.createElement(
         "div",
         { "data-xai-supergrok": "" },
-        form === undefined ? null : react.createElement(SidebarUsageSetting, { form, t }),
+        form === undefined
+          ? null
+          : ["showSidebarUsage", "onlyShowUsageForGrok"].map((field) =>
+              react.createElement(UsageSetting, { key: field, form, t, field }),
+            ),
         react.createElement("h4", null, t("signIn")),
         react.createElement("p", { className: "lead" }, t("lead")),
         react.createElement(
@@ -637,67 +651,349 @@ window.__ModuleLoader__.load({
       );
     }
 
-    const RING_SIZE = 14;
-    const RING_CENTER = RING_SIZE / 2;
-    const RING_RADIUS = 5.5;
-    const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
-    const RING_START_ANGLE_DEG = -90;
     const FULL_PERCENT = 100;
+    const BADGE_SCALE_PERCENT = 80;
+    const RING_BASE_SIZE_PX = 48;
+    const RING_SIZE_PX = scaledBadgePixels(RING_BASE_SIZE_PX);
+    const BADGE_BORDER_PX = scaledBadgePixels(1);
+    const BADGE_CORNER_RADIUS_PX = scaledBadgePixels(16);
+    const BADGE_GLOW_NEAR_BLUR_PX = scaledBadgePixels(12);
+    const BADGE_GLOW_FAR_BLUR_PX = scaledBadgePixels(24);
+    const BADGE_GLOW_NEAR_ALPHA_PERCENT = 28;
+    const BADGE_GLOW_FAR_ALPHA_PERCENT = 16;
+    const BADGE_GLOW_TRANSITION_MS = 160;
+    const DOCK_TRAVEL_MS = 220;
+    const DOCK_JELLY_MS = 480;
+    const DOCK_TRAVEL_EASING = "cubic-bezier(0.22,1,0.36,1)";
+    const DOCK_IMPACT_OFFSET = DOCK_TRAVEL_MS / DOCK_JELLY_MS;
+    const DOCK_REBOUND_OFFSET = 0.7;
+    const DOCK_SETTLE_OFFSET = 0.86;
+    const DOCK_IMPACT_SCALE_X = 0.88;
+    const DOCK_IMPACT_SCALE_Y = 1.08;
+    const DOCK_REBOUND_SCALE_X = 1.06;
+    const DOCK_REBOUND_SCALE_Y = 0.96;
+    const DOCK_SETTLE_SCALE_X = 0.98;
+    const DOCK_SETTLE_SCALE_Y = 1.02;
+    const INDICATOR_WIDTH_PX = 50;
+    const INDICATOR_HEIGHT_PX = 40;
+    const RING_CENTER_PX = RING_BASE_SIZE_PX / 2;
+    const RING_RADIUS_PX = 19;
+    const RING_STROKE_PX = 3;
+    const RING_GLOW_PX = 2;
+    const RING_START_ANGLE_DEG = -90;
+    const RING_GRADIENT_ID = `${NS}-usage-gradient`;
+    const EDGE_MARGIN_PX = 12;
+    const INITIAL_VERTICAL_FRACTION = 0.5;
+    const DRAG_THRESHOLD_PX = 4;
+    const TOOLTIP_DELAY_MS = 200;
     const POPOVER_GAP_PX = 8;
     const POPOVER_MARGIN_PX = 12;
-    const TOOLTIP_DELAY_MS = 200;
     const USAGE_SLOT_ORDER = 2;
     const useAnchoredPosition = ui.useAnchoredPosition ?? (() => null);
     const useDismissOnOutsidePointer = ui.useDismissOnOutsidePointer ?? (() => {});
 
-    function usageRing(used) {
+    function scaledBadgePixels(value) {
+      return (value * BADGE_SCALE_PERCENT) / FULL_PERCENT;
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    // The right-column marker is a layout seam; its preceding sibling is the main column.
+    // Do not depend on the shell's generated CSS class names.
+    function useContentBounds(rootRef, visible) {
+      const [bounds, setBounds] = react.useState(null);
+      react.useLayoutEffect(() => {
+        if (!visible) return undefined;
+        const frame = rootRef.current?.closest("[data-shell-overlay]")?.parentElement;
+        const center = frame?.querySelector("[data-rightbar-col]")?.previousElementSibling;
+        if (!center) return undefined;
+        const measure = () => {
+          const rect = center.getBoundingClientRect();
+          const top = rect.top + EDGE_MARGIN_PX;
+          const bottom = rect.bottom - EDGE_MARGIN_PX - INDICATOR_HEIGHT_PX;
+          const right = rect.right - INDICATOR_WIDTH_PX;
+          const hidden =
+            center.inert ||
+            frame.hasAttribute("data-rightbar-fullscreen") ||
+            right < rect.left ||
+            bottom < top;
+          const next = { left: rect.left, right, top, bottom, hidden };
+          setBounds((previous) =>
+            previous && Object.keys(next).every((key) => previous[key] === next[key])
+              ? previous
+              : next,
+          );
+        };
+        measure();
+        const resize = new ResizeObserver(measure);
+        resize.observe(center);
+        resize.observe(frame);
+        const mutation = new MutationObserver(measure);
+        mutation.observe(frame, { attributes: true });
+        mutation.observe(center, { attributes: true, attributeFilter: ["inert"] });
+        window.addEventListener("resize", measure);
+        return () => {
+          resize.disconnect();
+          mutation.disconnect();
+          window.removeEventListener("resize", measure);
+        };
+      }, [rootRef, visible]);
+      return bounds;
+    }
+
+    function usageRing(remaining) {
+      const circle = { cx: RING_CENTER_PX, cy: RING_CENTER_PX, r: RING_RADIUS_PX };
       return react.createElement(
         "svg",
         {
-          viewBox: `0 0 ${RING_SIZE} ${RING_SIZE}`,
-          width: RING_SIZE,
-          height: RING_SIZE,
+          viewBox: `0 0 ${RING_BASE_SIZE_PX} ${RING_BASE_SIZE_PX}`,
+          width: RING_SIZE_PX,
+          height: RING_SIZE_PX,
           "aria-hidden": true,
         },
-        react.createElement("circle", {
-          className: "ringTrack",
-          cx: RING_CENTER,
-          cy: RING_CENTER,
-          r: RING_RADIUS,
-        }),
-        used === undefined
+        react.createElement(
+          "defs",
+          null,
+          react.createElement(
+            "linearGradient",
+            { id: RING_GRADIENT_ID, x1: "0%", y1: "100%", x2: "100%", y2: "0%" },
+            react.createElement("stop", { offset: "0%", className: "ringGradientStart" }),
+            react.createElement("stop", { offset: "100%", className: "ringGradientEnd" }),
+          ),
+        ),
+        react.createElement("circle", { ...circle, className: "ringTrack" }),
+        remaining === undefined || remaining === 0
           ? null
           : react.createElement("circle", {
+              ...circle,
               className: "ringFill",
-              cx: RING_CENTER,
-              cy: RING_CENTER,
-              r: RING_RADIUS,
-              strokeDasharray: `${(RING_LENGTH * used) / FULL_PERCENT} ${RING_LENGTH}`,
-              transform: `rotate(${RING_START_ANGLE_DEG} ${RING_CENTER} ${RING_CENTER})`,
+              pathLength: FULL_PERCENT,
+              strokeDasharray: `${remaining} ${FULL_PERCENT}`,
+              transform: `rotate(${RING_START_ANGLE_DEG} ${RING_CENTER_PX} ${RING_CENTER_PX})`,
+              style: { stroke: `url(#${RING_GRADIENT_ID})` },
             }),
+        remaining === undefined
+          ? null
+          : react.createElement(
+              "text",
+              {
+                className: "ringPercent",
+                x: RING_CENTER_PX,
+                y: RING_CENTER_PX,
+                textAnchor: "middle",
+                dominantBaseline: "central",
+              },
+              `${remaining}%`,
+            ),
       );
     }
 
-    function SidebarUsagePill(props) {
-      const { ctx, t, wide } = props;
+    function useGrokSelection(ctx, useSessions, enabled) {
+      const sessionId = useSessions((state) =>
+        enabled
+          ? Object.values(state.byId).find((session) => (session.retainedBy.mainView ?? 0) > 0)?.id
+          : undefined,
+      );
+      const directory =
+        sessionId === undefined ? undefined : ctx.modelDirectories.directoryFor(sessionId);
+      const subscribe = react.useCallback(
+        (listener) => directory?.store.subscribe(listener) ?? (() => {}),
+        [directory],
+      );
+      const getSnapshot = react.useCallback(
+        () => directory?.store.getSnapshot() ?? null,
+        [directory],
+      );
+      const snapshot = react.useSyncExternalStore(subscribe, getSnapshot);
+      react.useEffect(() => {
+        if (directory) void directory.load().catch(() => {});
+      }, [directory]);
+      return snapshot?.current?.provider === GROK_PROVIDER_ID;
+    }
+
+    function FloatingUsagePill(props) {
+      const { ctx, t, useSessions, usePanelInfo } = props;
+      const conversationVisible = usePanelInfo((info) => info.activePanelId === null);
       const [status, setStatus] = react.useState(undefined);
       const [open, setOpen] = react.useState(false);
       const rootRef = react.useRef(null);
       const panelRef = react.useRef(null);
+      const dragRef = react.useRef(null);
+      const suppressClickRef = react.useRef(false);
+      const pendingDockRef = react.useRef(null);
+      const dockAnimationsRef = react.useRef([]);
+      const [dock, setDock] = react.useState({
+        edge: "right",
+        fraction: INITIAL_VERTICAL_FRACTION,
+      });
+      const [point, setPoint] = react.useState(null);
       const credits = status?.usage?.credits;
       const used = credits === undefined ? undefined : usedShare(credits.percent);
+      const remaining = credits === undefined ? undefined : remainingPercent(credits.percent);
       const signedIn = status?.signedIn === true;
       const showSidebarUsage = status?.showSidebarUsage === true;
-      const available = showSidebarUsage && signedIn && used !== undefined;
+      const onlyShowUsageForGrok = status?.onlyShowUsageForGrok === true;
+      const grokSelected = useGrokSelection(
+        ctx,
+        useSessions,
+        onlyShowUsageForGrok && showSidebarUsage && signedIn && conversationVisible,
+      );
+      const modelVisible = !onlyShowUsageForGrok || (conversationVisible && grokSelected);
+      const visible =
+        showSidebarUsage &&
+        signedIn &&
+        modelVisible &&
+        (used !== undefined || status?.usagePending === true);
+      const bounds = useContentBounds(rootRef, visible);
+      const available = visible && used !== undefined;
+      const interactive = available && bounds !== null && !bounds.hidden;
+      const placement =
+        bounds === null
+          ? { visibility: "hidden", left: 0, top: 0 }
+          : {
+              visibility: bounds.hidden ? "hidden" : "visible",
+              left: point
+                ? clamp(point.x, bounds.left, bounds.right)
+                : dock.edge === "left"
+                  ? bounds.left
+                  : bounds.right,
+              top: point
+                ? clamp(point.y, bounds.top, bounds.bottom)
+                : bounds.top + dock.fraction * (bounds.bottom - bounds.top),
+            };
+      const dismiss = () => setOpen(false);
+      const move = (event) => {
+        const drag = dragRef.current;
+        if (!drag || drag.id !== event.pointerId || !bounds) return;
+        if (
+          !drag.moved &&
+          Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < DRAG_THRESHOLD_PX
+        )
+          return;
+        if (!drag.moved) dismiss();
+        drag.moved = true;
+        drag.point = {
+          x: clamp(event.clientX - drag.offsetX, bounds.left, bounds.right),
+          y: clamp(event.clientY - drag.offsetY, bounds.top, bounds.bottom),
+        };
+        setPoint(drag.point);
+      };
+      const finish = (event) => {
+        const drag = dragRef.current;
+        if (!drag || drag.id !== event.pointerId) return;
+        dragRef.current = null;
+        if (drag.moved && bounds) {
+          const { x, y } = drag.point;
+          pendingDockRef.current = {
+            x: clamp(x, bounds.left, bounds.right),
+            y: clamp(y, bounds.top, bounds.bottom),
+          };
+          setDock({
+            edge: x - bounds.left < bounds.right - x ? "left" : "right",
+            fraction:
+              bounds.bottom === bounds.top
+                ? INITIAL_VERTICAL_FRACTION
+                : clamp((y - bounds.top) / (bounds.bottom - bounds.top), 0, 1),
+          });
+          suppressClickRef.current = true;
+        }
+        setPoint(null);
+        if (event.currentTarget.hasPointerCapture(event.pointerId))
+          event.currentTarget.releasePointerCapture(event.pointerId);
+      };
+      react.useLayoutEffect(() => {
+        const from = pendingDockRef.current;
+        pendingDockRef.current = null;
+        if (!from || point !== null || !interactive) return undefined;
+        const root = rootRef.current;
+        const trigger = root?.querySelector(".trigger");
+        const motion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+        if (
+          motion?.matches ||
+          typeof root?.animate !== "function" ||
+          typeof trigger?.animate !== "function"
+        )
+          return undefined;
+        const corner = `${BADGE_CORNER_RADIUS_PX}px`;
+        const dockedCorners =
+          dock.edge === "left" ? `0 ${corner} ${corner} 0` : `${corner} 0 0 ${corner}`;
+        const dockBorder = dock.edge === "left" ? "borderLeftColor" : "borderRightColor";
+        const borderColor = window.getComputedStyle(trigger).borderTopColor;
+        const origin = `${dock.edge} center`;
+        const animations = [
+          root.animate(
+            [
+              { transform: `translate(${from.x - placement.left}px,${from.y - placement.top}px)` },
+              { transform: "translate(0px,0px)" },
+            ],
+            { duration: DOCK_TRAVEL_MS, easing: DOCK_TRAVEL_EASING },
+          ),
+          trigger.animate(
+            [
+              {
+                offset: 0,
+                transform: "scale(1,1)",
+                borderRadius: corner,
+                [dockBorder]: borderColor,
+              },
+              {
+                offset: DOCK_IMPACT_OFFSET,
+                transform: `scale(${DOCK_IMPACT_SCALE_X},${DOCK_IMPACT_SCALE_Y})`,
+                borderRadius: dockedCorners,
+                [dockBorder]: "transparent",
+              },
+              {
+                offset: DOCK_REBOUND_OFFSET,
+                transform: `scale(${DOCK_REBOUND_SCALE_X},${DOCK_REBOUND_SCALE_Y})`,
+                borderRadius: dockedCorners,
+                [dockBorder]: "transparent",
+              },
+              {
+                offset: DOCK_SETTLE_OFFSET,
+                transform: `scale(${DOCK_SETTLE_SCALE_X},${DOCK_SETTLE_SCALE_Y})`,
+                borderRadius: dockedCorners,
+                [dockBorder]: "transparent",
+              },
+              {
+                offset: 1,
+                transform: "scale(1,1)",
+                borderRadius: dockedCorners,
+                [dockBorder]: "transparent",
+              },
+            ].map((frame) => ({ ...frame, transformOrigin: origin })),
+            {
+              duration: DOCK_JELLY_MS,
+              easing: "ease-in-out",
+            },
+          ),
+        ];
+        dockAnimationsRef.current = animations;
+        const cancel = () => {
+          for (const animation of animations) animation.cancel();
+          dockAnimationsRef.current = [];
+        };
+        const onMotionChange = (event) => {
+          if (event.matches) cancel();
+        };
+        motion?.addEventListener("change", onMotionChange);
+        return () => {
+          motion?.removeEventListener("change", onMotionChange);
+          cancel();
+        };
+      }, [dock, point, bounds, interactive]);
+
       const position = useAnchoredPosition({
-        open: open && available,
+        open: open && interactive,
         anchorRef: rootRef,
         panelRef,
         side: "top",
+        align: dock.edge === "right" ? "end" : "start",
         gap: POPOVER_GAP_PX,
         margin: POPOVER_MARGIN_PX,
       });
-      useDismissOnOutsidePointer(rootRef, open && available, setOpen, panelRef);
+      useDismissOnOutsidePointer(rootRef, open && interactive, dismiss, panelRef);
 
       react.useEffect(() => {
         installStyle();
@@ -724,13 +1020,13 @@ window.__ModuleLoader__.load({
       }, [ctx]);
 
       react.useEffect(() => {
-        if (!available && open) setOpen(false);
-      }, [available, open]);
+        if (!interactive && open) dismiss();
+      }, [interactive, open]);
 
       react.useEffect(() => {
         if (!open) return undefined;
         const onKeyDown = (event) => {
-          if (event.key === "Escape") setOpen(false);
+          if (event.key === "Escape") dismiss();
         };
         document.addEventListener("keydown", onKeyDown);
         return () => {
@@ -738,7 +1034,7 @@ window.__ModuleLoader__.load({
         };
       }, [open]);
 
-      if (!showSidebarUsage || !signedIn) return null;
+      if (!showSidebarUsage || !signedIn || !modelVisible) return null;
       if (!available) {
         if (status.usagePending !== true) return null;
         return react.createElement(
@@ -747,13 +1043,13 @@ window.__ModuleLoader__.load({
             ref: rootRef,
             "data-xai-usage-pill": "",
             "data-xai-usage-pending": "",
-            "data-wide": String(wide),
+            "data-edge": dock.edge,
+            style: placement,
           },
           react.createElement(
             "span",
             { className: "trigger", role: "status", "aria-label": t("usageLoading") },
             usageRing(undefined),
-            wide ? react.createElement("span", { className: "label" }, t("usageLoading")) : null,
           ),
         );
       }
@@ -764,14 +1060,37 @@ window.__ModuleLoader__.load({
           type: "button",
           className: "trigger",
           "aria-label": label,
+          title: ui.Tooltip === undefined ? label : undefined,
           "aria-haspopup": "dialog",
           "aria-expanded": open,
-          onClick: () => {
+          onPointerDown: (event) => {
+            if (event.button !== 0 || !event.isPrimary || !bounds) return;
+            for (const animation of dockAnimationsRef.current) animation.cancel();
+            dockAnimationsRef.current = [];
+            suppressClickRef.current = false;
+            dragRef.current = {
+              id: event.pointerId,
+              startX: event.clientX,
+              startY: event.clientY,
+              offsetX: event.clientX - placement.left,
+              offsetY: event.clientY - placement.top,
+              moved: false,
+            };
+            event.currentTarget.setPointerCapture(event.pointerId);
+          },
+          onPointerMove: move,
+          onPointerUp: finish,
+          onPointerCancel: finish,
+          onLostPointerCapture: finish,
+          onClick: (event) => {
+            if (suppressClickRef.current && event?.detail !== 0) {
+              suppressClickRef.current = false;
+              return;
+            }
             setOpen((current) => !current);
           },
         },
-        usageRing(used),
-        wide ? react.createElement("span", { className: "label" }, label) : null,
+        usageRing(remaining),
       );
       const body = usagePanel(
         status.usage,
@@ -780,7 +1099,7 @@ window.__ModuleLoader__.load({
         t,
       );
       const panel =
-        open && body !== null && typeof reactDom.createPortal === "function"
+        open && interactive && body !== null && typeof reactDom.createPortal === "function"
           ? reactDom.createPortal(
               react.createElement(
                 "div",
@@ -801,12 +1120,24 @@ window.__ModuleLoader__.load({
           ? trigger
           : react.createElement(
               ui.Tooltip,
-              { label, side: "top", delayMs: TOOLTIP_DELAY_MS, disabled: open },
+              {
+                label,
+                side: dock.edge === "left" ? "right" : "left",
+                delayMs: TOOLTIP_DELAY_MS,
+                disabled: open || point !== null || !interactive,
+                portal: true,
+              },
               trigger,
             );
       return react.createElement(
         "span",
-        { ref: rootRef, "data-xai-usage-pill": "", "data-wide": String(wide) },
+        {
+          ref: rootRef,
+          "data-xai-usage-pill": "",
+          "data-edge": dock.edge,
+          "data-dragging": point !== null,
+          style: placement,
+        },
         button,
         panel,
       );
@@ -837,15 +1168,21 @@ window.__ModuleLoader__.load({
           },
         ),
       );
-      ctx.slots.inject("sidebar.footer.action", () =>
+      ctx.slots.inject("shell.overlay", () =>
         ctx.slots.register(
           {
-            name: "sidebar.footer.action",
+            name: "shell.overlay",
             id: "xai-supergrok-usage",
             order: USAGE_SLOT_ORDER,
             locale: NS,
           },
-          (props) => react.createElement(SidebarUsagePill, { ctx, t: props.t, wide: props.wide }),
+          (props) =>
+            react.createElement(FloatingUsagePill, {
+              ctx,
+              t: props.t,
+              useSessions: props.useSessions,
+              usePanelInfo: props.usePanelInfo,
+            }),
         ),
       );
     }
