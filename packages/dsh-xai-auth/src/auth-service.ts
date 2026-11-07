@@ -58,10 +58,14 @@ export class SuperGrokAuthService extends TypertRemoteService {
     });
   }
 
-  status(): ReturnType<SuperGrokRuntime["accountStatus"]> & { showSidebarUsage: boolean } {
+  status(): ReturnType<SuperGrokRuntime["accountStatus"]> & {
+    showSidebarUsage: boolean;
+    onlyShowUsageForGrok: boolean;
+  } {
     return {
       ...this.runtime.accountStatus(),
       showSidebarUsage: this.config.showSidebarUsage.get(),
+      onlyShowUsageForGrok: this.config.onlyShowUsageForGrok.get(),
     };
   }
 

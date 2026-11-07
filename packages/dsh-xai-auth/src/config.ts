@@ -6,6 +6,7 @@ import z from "@deepseek-ai/schemastery";
 
 export interface Config {
   showSidebarUsage: Volatile<boolean>;
+  onlyShowUsageForGrok: Volatile<boolean>;
 }
 
 const showSidebarUsage = z.boolean().default(false).volatile();
@@ -14,4 +15,10 @@ showSidebarUsage.meta.description = {
   zh: "显示悬浮用量。",
 };
 
-export const Config = z.object({ showSidebarUsage });
+const onlyShowUsageForGrok = z.boolean().default(false).volatile();
+onlyShowUsageForGrok.meta.description = {
+  en: "Show only in conversations using Grok",
+  zh: "仅在会话切换 Grok 模型时显示",
+};
+
+export const Config = z.object({ showSidebarUsage, onlyShowUsageForGrok });
