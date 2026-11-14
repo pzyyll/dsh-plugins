@@ -58,6 +58,16 @@ export const USAGE_CSS = `
   flex: none;
   display: block;
 }
+/* The balance capsule takes the leading slot the gauge mark used to hold. */
+[data-dsh-usages-money] {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
 [data-dsh-usages-facts] {
   display: flex;
   flex: 1;
@@ -131,7 +141,8 @@ export const USAGE_CSS = `
 }
 [data-dsh-usages-ring] [data-role="fill"] {
   fill: none;
-  stroke: var(--dsw-alias-label-primary);
+  /* Softer than the ink, so the remainder reads as a grey arc instead of solid black. */
+  stroke: color-mix(in srgb, var(--dsw-alias-label-primary) 62%, transparent);
   stroke-linecap: round;
   transition:
     stroke var(--ds-transition-duration-fast) var(--ds-ease-in-out),

@@ -49,6 +49,39 @@ export interface UsageSnapshot {
   readonly opencodeGo: OpencodeReading;
 }
 
+/** Each channel keeps its own host cache for this long. The sidebar polls the visible one at the same pace. */
+export const CHANNEL_CACHE_MS = 15_000;
+
+const USAGE_CHANNELS = ["deepseek", "opencode-go"] as const satisfies readonly UsageChannel[];
+
+/** Channels a snapshot call should touch. An empty or unknown list means both. */
+export function usageChannels(value: unknown): readonly UsageChannel[] {
+  if (!Array.isArray(value)) return USAGE_CHANNELS;
+  const channels: UsageChannel[] = [];
+  for (const item of value) {
+    if ((item === "deepseek" || item === "opencode-go") && !channels.includes(item)) {
+      channels.push(item);
+    }
+  }
+  return channels.length === 0 ? USAGE_CHANNELS : channels;
+}
+
+/**
+ * Keep a channel the request did not ask for. A DeepSeek poll must not wipe the OpenCode
+ * reading the detail is still showing.
+ */
+export function mergeSnapshot(
+  previous: UsageSnapshot | null,
+  next: UsageSnapshot,
+  channels: readonly UsageChannel[],
+): UsageSnapshot {
+  if (previous === null) return next;
+  return {
+    deepseek: channels.includes("deepseek") ? next.deepseek : previous.deepseek,
+    opencodeGo: channels.includes("opencode-go") ? next.opencodeGo : previous.opencodeGo,
+  };
+}
+
 export interface Anchor {
   readonly left: number;
   readonly top: number;

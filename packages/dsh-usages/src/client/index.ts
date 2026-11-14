@@ -26,6 +26,8 @@ import {
   opencodeChips,
   placePopover,
   providerOfMainSession,
+  CHANNEL_CACHE_MS,
+  mergeSnapshot,
   resetCountdown,
   snapshotFromRpc,
   translateWith,
@@ -52,7 +54,7 @@ import { USAGE_CSS, USAGE_STYLE_ID } from "./styles.js";
 
 const NS = "dsh-usages";
 const ENDPOINT = "dshUsages/snapshot";
-const POLL_MS = 60_000;
+const POLL_MS = CHANNEL_CACHE_MS;
 
 interface LocaleService {
   getLocale(): unknown;
@@ -142,7 +144,11 @@ function useUsage() {
   return useSyncExternalStore(subscribeUsage, usageState);
 }
 
-async function loadUsage(refresh: boolean): Promise<void> {
+async function loadUsage(
+  refresh: boolean,
+  channels: readonly UsageChannel[],
+  quiet = false,
+): Promise<void> {
   const ctx = clientContext;
   const locale = localeId(ctx?.locale?.getSnapshot() ?? ctx?.locale?.getLocale());
   const failed = translateWith(locale)("requestFailed");
@@ -151,7 +157,7 @@ async function loadUsage(refresh: boolean): Promise<void> {
     return;
   }
   const seq = ++requestSeq;
-  if (refresh || usageState().snapshot === null) setUsagePending(true);
+  if (!quiet && (refresh || usageState().snapshot === null)) setUsagePending(true);
   try {
     const result = await ctx.connection.rpc.call("/api", ENDPOINT, {
       args: {
@@ -159,20 +165,22 @@ async function loadUsage(refresh: boolean): Promise<void> {
         locale,
         timezoneOffsetSeconds: -new Date().getTimezoneOffset() * 60,
         refresh,
+        channels,
       },
     });
     if (seq !== requestSeq) return;
     const parsed = snapshotFromRpc(result);
-    if (parsed.snapshot !== undefined) setUsageSnapshot(parsed.snapshot);
-    else setUsageError(failed);
+    if (parsed.snapshot !== undefined) {
+      setUsageSnapshot(mergeSnapshot(usageState().snapshot, parsed.snapshot, channels));
+    } else setUsageError(failed);
   } catch {
     if (seq !== requestSeq) return;
     setUsageError(failed);
   }
 }
 
-function requestUsage(refresh: boolean): void {
-  void loadUsage(refresh);
+function requestUsage(refresh: boolean, channels: readonly UsageChannel[], quiet = false): void {
+  void loadUsage(refresh, channels, quiet);
 }
 
 function closeUsage(restoreFocus = false): void {
@@ -281,11 +289,10 @@ function fact(name: string, value: string): ReactElement {
 }
 
 /** DeepSeek balance as a capsule: the currency mark is smaller than the figure. */
-function moneyFact(name: string, parts: readonly MoneyPart[]): ReactElement {
+function moneyLead(parts: readonly MoneyPart[]): ReactElement {
   return createElement(
     "span",
-    { "data-dsh-usages-fact": "", "data-pill": "true" },
-    createElement("span", { "data-dsh-usages-name": "" }, name),
+    { "data-dsh-usages-money": "" },
     parts.map((part, index) =>
       createElement(
         "span",
@@ -299,11 +306,11 @@ function moneyFact(name: string, parts: readonly MoneyPart[]): ReactElement {
   );
 }
 
-/** Channel name alone; the ring's own hover carries the numbers. */
-function nameFact(name: string): ReactElement {
+/** Channel name alone; the leading mark carries the numbers. */
+function nameFact(name: string, lead: "ring" | "pill"): ReactElement {
   return createElement(
     "span",
-    { "data-dsh-usages-fact": "", "data-ring": "true" },
+    { "data-dsh-usages-fact": "", [`data-${lead}`]: "true" },
     createElement("span", { "data-dsh-usages-name": "" }, name),
   );
 }
@@ -465,7 +472,7 @@ function UsageRow(props: {
       ? null
       : windowRing(
           chips,
-          24,
+          28,
           ringRef,
           hovered,
           (window) => {
@@ -510,20 +517,21 @@ function UsageRow(props: {
   }, [tip]);
 
   useEffect(() => {
-    requestUsage(false);
-    const timer = setInterval(() => {
+    const loadVisible = (refresh: boolean, quiet: boolean) => {
       if (globalThis.document?.hidden) return;
-      requestUsage(false);
-    }, POLL_MS);
+      requestUsage(refresh, [channel], quiet);
+    };
+    loadVisible(false, false);
+    const timer = setInterval(() => loadVisible(true, true), POLL_MS);
     const onVisible = () => {
-      if (!globalThis.document?.hidden) requestUsage(false);
+      if (!globalThis.document?.hidden) requestUsage(false, [channel]);
     };
     globalThis.document?.addEventListener("visibilitychange", onVisible);
     return () => {
       clearInterval(timer);
       globalThis.document?.removeEventListener("visibilitychange", onVisible);
     };
-  }, []);
+  }, [channel]);
 
   return createElement(
     "div",
@@ -562,10 +570,10 @@ function UsageRow(props: {
                   bottom: rect.bottom,
                 },
           );
-          requestUsage(true);
+          requestUsage(false, ["deepseek", "opencode-go"]);
         },
       },
-      wide ? (ring ?? mark()) : null,
+      wide ? (ring ?? (money.length > 0 ? moneyLead(money) : mark())) : null,
       wide
         ? shown === null
           ? loading
@@ -573,9 +581,9 @@ function UsageRow(props: {
             : null
           : ring === null
             ? money.length > 0
-              ? moneyFact(shown.name, money)
+              ? nameFact(shown.name, "pill")
               : fact(shown.name, shown.value)
-            : nameFact(shown.name)
+            : nameFact(shown.name, "ring")
         : createElement(
             "span",
             { "data-dsh-usages-compact": "" },
@@ -903,7 +911,7 @@ function UsagePanel(props: { readonly ctx: ClientContext }): ReactElement | null
           "aria-busy": usage.pending,
           disabled: usage.pending,
           onClick: () => {
-            requestUsage(true);
+            requestUsage(true, ["deepseek", "opencode-go"]);
           },
         },
         refreshIcon(),

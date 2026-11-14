@@ -3,7 +3,7 @@
 
 import type { Context } from "@deepseek-ai/cordis";
 import { TypertRemoteService } from "@deepseek-ai/dsh-typert-protocol";
-import type { UsageSnapshot } from "../shared/model.js";
+import { usageChannels, type UsageSnapshot } from "../shared/model.js";
 import { usageConfig, type Config } from "./config.js";
 import { resolveApiKey, type CredentialStore } from "./keys.js";
 import {
@@ -69,10 +69,12 @@ export class UsageService extends TypertRemoteService {
     locale: string,
     timezoneOffsetSeconds: number,
     refresh: boolean,
+    channels: readonly string[] | undefined,
     signal: AbortSignal,
   ): Promise<UsageSnapshot> {
     return this.reader.snapshot(
       refresh === true,
+      usageChannels(channels),
       accountClient(version, locale, timezoneOffsetSeconds),
       signal,
     );

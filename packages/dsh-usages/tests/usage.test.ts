@@ -28,6 +28,7 @@ import {
   providerOfMainSession,
   formatCountdown,
   resetCountdown,
+  mergeSnapshot,
   sidebarFacts,
   snapshotFromRpc,
   translateWith,
@@ -279,6 +280,30 @@ describe("money marks", () => {
   });
 });
 
+describe("detail refresh guard", () => {
+  it("keeps a channel the request did not ask for", () => {
+    const previous = {
+      deepseek: {
+        status: "ready" as const,
+        wallets: [{ currency: "CNY", balance: "12.50" }],
+        bonusWallets: [],
+      },
+      opencodeGo: { status: "missing-key" as const },
+    };
+    const next = {
+      deepseek: { status: "unavailable" as const },
+      opencodeGo: {
+        status: "ready" as const,
+        fetchedAt: 1,
+        windows: [{ id: "rolling" as const, status: "ok", usedPercent: 1, remainingPercent: 99 }],
+      },
+    };
+    expect(mergeSnapshot(previous, next, ["opencode-go"]).deepseek).toEqual(previous.deepseek);
+    expect(mergeSnapshot(previous, next, ["opencode-go"]).opencodeGo).toEqual(next.opencodeGo);
+    expect(mergeSnapshot(null, next, ["deepseek"])).toEqual(next);
+  });
+});
+
 describe("detail placement", () => {
   it("opens above the trigger and stays inside the viewport", () => {
     const placed = placePopover(
@@ -375,14 +400,50 @@ describe("usage reader", () => {
   it("caches a successful quota until refresh", async () => {
     let now = 5_000;
     const { reader, calls } = createReader({ now: () => now });
-    const first = await reader.snapshot(false, client, new AbortController().signal);
+    const both = ["deepseek", "opencode-go"] as const;
+    const first = await reader.snapshot(false, both, client, new AbortController().signal);
     now = 6_000;
-    const second = await reader.snapshot(false, client, new AbortController().signal);
-    const third = await reader.snapshot(true, client, new AbortController().signal);
+    const second = await reader.snapshot(false, both, client, new AbortController().signal);
+    const third = await reader.snapshot(true, both, client, new AbortController().signal);
     expect(calls).toHaveLength(2);
     expect(first.opencodeGo).toMatchObject({ status: "ready" });
     expect(second).toEqual(first);
     expect(third.opencodeGo).toMatchObject({ status: "ready", fetchedAt: 6_000 });
+  });
+
+  it("queries each channel on its own 15 second cache", async () => {
+    let now = 1_000;
+    let accountReads = 0;
+    const { reader, calls } = createReader({
+      now: () => now,
+      readAccount: async () => {
+        accountReads += 1;
+        return {
+          status: "ready",
+          wallets: [{ currency: "CNY", balance: "9" }],
+          bonusWallets: [],
+        };
+      },
+    });
+    const signal = new AbortController().signal;
+    await reader.snapshot(false, ["deepseek"], client, signal);
+    expect(accountReads).toBe(1);
+    expect(calls).toHaveLength(0);
+
+    now = 5_000;
+    await reader.snapshot(false, ["deepseek", "opencode-go"], client, signal);
+    expect(accountReads).toBe(1);
+    expect(calls).toHaveLength(1);
+
+    now = 10_000;
+    await reader.snapshot(false, ["opencode-go"], client, signal);
+    expect(accountReads).toBe(1);
+    expect(calls).toHaveLength(1);
+
+    now = 21_000;
+    await reader.snapshot(false, ["deepseek"], client, signal);
+    expect(accountReads).toBe(2);
+    expect(calls).toHaveLength(1);
   });
 
   it("does not put the key in an unauthorized or thrown result", async () => {
@@ -392,7 +453,12 @@ describe("usage reader", () => {
         return new Response("no", { status: 401 });
       },
     });
-    const denied = await unauthorized.reader.snapshot(true, client, new AbortController().signal);
+    const denied = await unauthorized.reader.snapshot(
+      true,
+      ["opencode-go"],
+      client,
+      new AbortController().signal,
+    );
     expect(denied.opencodeGo).toEqual({ status: "unauthorized" });
     expect(JSON.stringify(denied)).not.toContain(SECRET);
 
@@ -401,7 +467,12 @@ describe("usage reader", () => {
         throw new Error(`Bearer ${SECRET}`);
       },
     });
-    const failed = await thrown.reader.snapshot(true, client, new AbortController().signal);
+    const failed = await thrown.reader.snapshot(
+      true,
+      ["opencode-go"],
+      client,
+      new AbortController().signal,
+    );
     expect(failed.opencodeGo).toEqual({ status: "failed" });
     expect(JSON.stringify(failed)).not.toContain(SECRET);
   });
@@ -409,11 +480,13 @@ describe("usage reader", () => {
   it("reports a missing key and a plan rejection", async () => {
     const missing = createReader({ resolveKey: async () => undefined });
     expect(
-      (await missing.reader.snapshot(true, client, new AbortController().signal)).opencodeGo,
+      (await missing.reader.snapshot(true, ["opencode-go"], client, new AbortController().signal))
+        .opencodeGo,
     ).toEqual({ status: "missing-key" });
     const forbidden = createReader({ fetch: async () => new Response("no", { status: 403 }) });
     expect(
-      (await forbidden.reader.snapshot(true, client, new AbortController().signal)).opencodeGo,
+      (await forbidden.reader.snapshot(true, ["opencode-go"], client, new AbortController().signal))
+        .opencodeGo,
     ).toEqual({ status: "forbidden" });
   });
 
@@ -426,7 +499,9 @@ describe("usage reader", () => {
         throw new DOMException("aborted", "AbortError");
       },
     });
-    await expect(cancelled.snapshot(true, client, controller.signal)).rejects.toThrow(/aborted/i);
+    await expect(
+      cancelled.snapshot(true, ["opencode-go"], client, controller.signal),
+    ).rejects.toThrow(/aborted/i);
   });
 });
 

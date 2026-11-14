@@ -2,14 +2,16 @@
 // ABOUTME: Expected HTTP and account failures stay inside the snapshot; cancellation still rejects.
 
 import {
+  CHANNEL_CACHE_MS,
   parseOpencodeUsage,
   type DeepseekReading,
   type OpencodeReading,
+  type UsageChannel,
   type UsageSnapshot,
   type Wallet,
 } from "../shared/model.js";
 
-export const CACHE_MS = 15_000;
+export const CACHE_MS = CHANNEL_CACHE_MS;
 export const MAX_BODY_BYTES = 65_536;
 
 export interface AccountClient {
@@ -46,35 +48,73 @@ export interface UsageDeps {
 
 type ReadyOpencode = Extract<OpencodeReading, { status: "ready" }>;
 
+interface Cached<T> {
+  readonly at: number;
+  readonly reading: T;
+}
+
 export class UsageReader {
-  private cache:
-    | { readonly url: string; readonly at: number; readonly reading: ReadyOpencode }
-    | undefined;
+  private deepseekCache: Cached<DeepseekReading> | undefined;
+  private opencodeCache: (Cached<OpencodeReading> & { readonly url: string }) | undefined;
 
   constructor(private readonly deps: UsageDeps) {}
 
+  /**
+   * Read only the requested channels. A channel queried inside the cache window is reused
+   * unless `refresh` is set; a channel left out of the list is not queried at all.
+   */
   async snapshot(
     refresh: boolean,
+    channels: readonly UsageChannel[],
     client: AccountClient,
     signal: AbortSignal,
   ): Promise<UsageSnapshot> {
     const [deepseek, opencodeGo] = await Promise.all([
-      this.deps.readAccount(client),
-      this.readOpencode(refresh, signal),
+      channels.includes("deepseek")
+        ? this.readDeepseek(refresh, client)
+        : Promise.resolve(this.deepseekCache?.reading ?? { status: "unavailable" as const }),
+      channels.includes("opencode-go")
+        ? this.readOpencode(refresh, signal)
+        : Promise.resolve(this.cachedOpencode() ?? { status: "missing-key" as const }),
     ]);
     return { deepseek, opencodeGo };
   }
 
+  private fresh<T>(cached: Cached<T> | undefined, refresh: boolean): T | undefined {
+    if (refresh || cached === undefined) return undefined;
+    if (this.deps.now() - cached.at >= this.deps.cacheMs) return undefined;
+    return cached.reading;
+  }
+
+  private cachedOpencode(): OpencodeReading | undefined {
+    const cached = this.opencodeCache;
+    if (cached === undefined || cached.url !== this.deps.usageUrl) return undefined;
+    return cached.reading;
+  }
+
+  private async readDeepseek(refresh: boolean, client: AccountClient): Promise<DeepseekReading> {
+    const cached = this.fresh(this.deepseekCache, refresh);
+    if (cached !== undefined) return cached;
+    const reading = await this.deps.readAccount(client);
+    this.deepseekCache = { at: this.deps.now(), reading };
+    return reading;
+  }
+
   private async readOpencode(refresh: boolean, signal: AbortSignal): Promise<OpencodeReading> {
-    const cached = this.cache;
+    const cached = this.opencodeCache;
     if (
-      !refresh &&
+      this.fresh(cached, refresh) !== undefined &&
       cached !== undefined &&
-      cached.url === this.deps.usageUrl &&
-      this.deps.now() - cached.at < this.deps.cacheMs
+      cached.url === this.deps.usageUrl
     ) {
       return cached.reading;
     }
+    const reading = await this.fetchOpencode(signal);
+    this.opencodeCache = { url: this.deps.usageUrl, at: this.deps.now(), reading };
+    return reading;
+  }
+
+  private async fetchOpencode(signal: AbortSignal): Promise<OpencodeReading> {
     const key = await this.deps.resolveKey();
     if (key === undefined) return { status: "missing-key" };
     let response: Response;
@@ -103,7 +143,6 @@ export class UsageReader {
     const windows = parseOpencodeUsage(body);
     if (windows === undefined) return { status: "failed" };
     const reading: ReadyOpencode = { status: "ready", windows, fetchedAt: this.deps.now() };
-    this.cache = { url: this.deps.usageUrl, at: reading.fetchedAt, reading };
     return reading;
   }
 }
