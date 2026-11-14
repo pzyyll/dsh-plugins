@@ -2,7 +2,7 @@
   "name": "dsh-my-preset",
   "version": "0.1.0",
   "private": true,
-  "description": "Agent presets M-PTC and M-Creator: shipped presets without the native web tools, with Exa MCP instead.",
+  "description": "Agent presets M-Standard, M-PTC, and M-Creator: shipped presets without the native web tools, with Exa MCP instead.",
   "repository": {
     "type": "git",
     "url": "https://github.com/pzyyll/dsh-plugins.git",
@@ -21,6 +21,7 @@
   "dsh": {
     "bundle": {
       "patch": [
+        "./presets/m-standard.patch.yml",
         "./presets/m-ptc.patch.yml",
         "./presets/m-creator.patch.yml"
       ]
