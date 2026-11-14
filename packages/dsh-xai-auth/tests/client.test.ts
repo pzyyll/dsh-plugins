@@ -377,6 +377,7 @@ function sidebar(
         return (refs[index] ??= { current: initial });
       },
       useCallback: (callback: unknown) => callback,
+      useId: () => "xai-usage",
       useSyncExternalStore: (
         subscribe: (listener: () => void) => () => void,
         getSnapshot: () => unknown,
@@ -394,7 +395,6 @@ function sidebar(
     "@deepseek-ai/dsh-client-ui-primitives": {
       Switch: "switch",
       Tooltip: "tooltip",
-      useAnchoredPosition: () => ({ left: 12, top: 24 }),
       useDismissOnOutsidePointer: (_root: unknown, open: boolean, dismiss: () => void) => {
         outsideDismiss = open ? dismiss : undefined;
       },
@@ -872,6 +872,11 @@ test("the sidebar opens account details in a portal and closes on Escape", () =>
     const meter = nodes(dialog).find((node) => node.props.role === "meter");
     assert.ok(meter);
     assert.equal(meter.props["aria-valuenow"], 88);
+    const dialogStyle = dialog.props.style as Record<string, unknown>;
+    assert.equal(dialogStyle.visibility, undefined);
+    assert.equal(dialogStyle["--dsh-xai-usage-anchor"], "--dsh-xai-usage-xai-usage");
+    assert.equal(dialog.props["data-edge"], "left");
+    assert.equal(dialog.props["data-window-drag-exclude"], "");
     const unmount = view.mountEffects();
     assert.ok(view.listeners.has("keydown"));
     view.listeners.get("keydown")!({ key: "Escape" });
@@ -968,7 +973,20 @@ test("the entry has a rectangular outline with rounded corners away from the doc
   );
   assert.match(triggerRule, /(?:^|;)--dsw-elevation-stroke-color:transparent(?:;|$)/);
   assert.match(css, /\[data-xai-usage-pill\]\{[^}]*width:50px;height:40px/);
+  assert.match(css, /\[data-xai-usage-pill\]\{[^}]*anchor-name:var\(--dsh-xai-usage-anchor\)/);
+  assert.match(
+    css,
+    /\[data-xai-usage-panel\]\{[^}]*position-anchor:var\(--dsh-xai-usage-anchor\)[^}]*position-try-fallbacks:flip-block/,
+  );
   assert.match(css, /\[data-xai-usage-panel\]\{[^}]*width:min\(264px,calc\(100vw - 24px\)\)/);
+  assert.match(
+    css,
+    /\[data-xai-usage-panel\]\[data-edge=left\]\{left:anchor\(left\);right:12px;justify-self:safe start\}/,
+  );
+  assert.match(
+    css,
+    /\[data-xai-usage-panel\]\[data-edge=right\]\{left:12px;right:anchor\(right\);justify-self:safe end\}/,
+  );
   unmount();
 });
 

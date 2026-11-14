@@ -137,7 +137,7 @@ window.__ModuleLoader__.load({
         "[data-xai-supergrok] .limitTrack{display:block;height:6px;border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 12%,transparent);overflow:hidden}",
         "[data-xai-supergrok] .limitFill{display:block;height:100%;border-radius:inherit;background:var(--dsw-alias-label-primary)}",
         "[data-xai-supergrok] .note{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary)}",
-        `[data-xai-usage-pill]{position:fixed;display:flex;width:${INDICATOR_WIDTH_PX}px;height:${INDICATOR_HEIGHT_PX}px}`,
+        `[data-xai-usage-pill]{position:fixed;display:flex;width:${INDICATOR_WIDTH_PX}px;height:${INDICATOR_HEIGHT_PX}px;anchor-name:var(--dsh-xai-usage-anchor)}`,
         `[data-xai-usage-pill] .trigger{display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:100%;height:100%;padding:0;border:${BADGE_BORDER_PX}px solid color-mix(in srgb,var(--dsw-static-blue-450) 24%,transparent);border-radius:${BADGE_CORNER_RADIUS_PX}px;corner-shape:round;background:var(--dsw-specific-menu);color:var(--dsw-alias-label-secondary);cursor:grab;touch-action:none;user-select:none;-webkit-app-region:no-drag;--dsw-elevation-stroke-color:transparent;box-shadow:var(--dsw-elevation-prominent);transition:box-shadow ${BADGE_GLOW_TRANSITION_MS}ms ease}`,
         `[data-xai-usage-pill][data-edge=left]:not([data-dragging=true]) .trigger{border-radius:0 ${BADGE_CORNER_RADIUS_PX}px ${BADGE_CORNER_RADIUS_PX}px 0;border-left-color:transparent}`,
         `[data-xai-usage-pill][data-edge=right]:not([data-dragging=true]) .trigger{border-radius:${BADGE_CORNER_RADIUS_PX}px 0 0 ${BADGE_CORNER_RADIUS_PX}px;border-right-color:transparent}`,
@@ -153,7 +153,10 @@ window.__ModuleLoader__.load({
         "[data-xai-usage-pill] .ringFill.low{stroke:var(--dsw-alias-state-error-primary)}",
         "[data-xai-usage-pill] .ringPercent{fill:var(--dsw-alias-label-primary);font:inherit;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}",
         "[data-xai-usage-pill] .ringPercent.low{fill:var(--dsw-alias-state-error-primary)}",
-        "[data-xai-usage-panel]{position:fixed;z-index:1100;box-sizing:border-box;width:min(264px,calc(100vw - 24px));padding:12px;border:0;border-radius:var(--dsw-radius-lg);background:var(--dsw-specific-menu);backdrop-filter:var(--dsw-menu-backdrop-filter);--dsw-elevation-stroke-color:var(--dsw-alias-border-l1);box-shadow:var(--dsw-elevation-prominent);font-size:12px;line-height:20px;color:var(--dsw-alias-label-secondary);cursor:default}",
+        // CSS anchors keep the detail card on the badge. JavaScript positioning hid it after useAnchoredPosition was removed.
+        `[data-xai-usage-panel]{position:fixed;position-anchor:var(--dsh-xai-usage-anchor);top:max(${POPOVER_MARGIN_PX}px,var(--dsh-frame-overlay-top,${POPOVER_MARGIN_PX}px));bottom:calc(anchor(top) + ${POPOVER_GAP_PX}px);align-self:safe end;position-try-fallbacks:flip-block;z-index:1100;box-sizing:border-box;width:min(264px,calc(100vw - 24px));height:fit-content;max-height:100%;margin:0;overflow:auto;padding:12px;border:0;border-radius:var(--dsw-radius-lg);background:var(--dsw-specific-menu);backdrop-filter:var(--dsw-menu-backdrop-filter);--dsw-elevation-stroke-color:var(--dsw-alias-border-l1);box-shadow:var(--dsw-elevation-prominent);font-size:12px;line-height:20px;color:var(--dsw-alias-label-secondary);cursor:default}`,
+        `[data-xai-usage-panel][data-edge=left]{left:anchor(left);right:${POPOVER_MARGIN_PX}px;justify-self:safe start}`,
+        `[data-xai-usage-panel][data-edge=right]{left:${POPOVER_MARGIN_PX}px;right:anchor(right);justify-self:safe end}`,
         "[data-xai-usage-panel] .header{display:flex;align-items:center;gap:6px}",
         "[data-xai-usage-panel] .headline{color:var(--dsw-alias-label-tertiary)}",
         "[data-xai-usage-panel] .headline:empty{display:none}",
@@ -688,7 +691,6 @@ window.__ModuleLoader__.load({
     const POPOVER_GAP_PX = 8;
     const POPOVER_MARGIN_PX = 12;
     const USAGE_SLOT_ORDER = 2;
-    const useAnchoredPosition = ui.useAnchoredPosition ?? (() => null);
     const useDismissOnOutsidePointer = ui.useDismissOnOutsidePointer ?? (() => {});
 
     function scaledBadgePixels(value) {
@@ -818,6 +820,9 @@ window.__ModuleLoader__.load({
         fraction: INITIAL_VERTICAL_FRACTION,
       });
       const [point, setPoint] = react.useState(null);
+      const anchorStyle = {
+        "--dsh-xai-usage-anchor": `--dsh-xai-usage-${react.useId().replaceAll(":", "")}`,
+      };
       const credits = status?.usage?.credits;
       const used = credits === undefined ? undefined : usedShare(credits.percent);
       const remaining = credits === undefined ? undefined : remainingPercent(credits.percent);
@@ -973,15 +978,6 @@ window.__ModuleLoader__.load({
         };
       }, [dock, point, bounds, interactive]);
 
-      const position = useAnchoredPosition({
-        open: open && interactive,
-        anchorRef: rootRef,
-        panelRef,
-        side: "top",
-        align: dock.edge === "right" ? "end" : "start",
-        gap: POPOVER_GAP_PX,
-        margin: POPOVER_MARGIN_PX,
-      });
       useDismissOnOutsidePointer(rootRef, open && interactive, dismiss, panelRef);
 
       react.useEffect(() => {
@@ -1033,7 +1029,8 @@ window.__ModuleLoader__.load({
             "data-xai-usage-pill": "",
             "data-xai-usage-pending": "",
             "data-edge": dock.edge,
-            style: placement,
+            "data-window-drag-exclude": "",
+            style: { ...placement, ...anchorStyle },
           },
           react.createElement(
             "span",
@@ -1095,9 +1092,11 @@ window.__ModuleLoader__.load({
                 {
                   ref: panelRef,
                   "data-xai-usage-panel": "",
+                  "data-edge": dock.edge,
+                  "data-window-drag-exclude": "",
                   role: "dialog",
                   "aria-label": label,
-                  style: position ?? { visibility: "hidden", left: 0, top: 0 },
+                  style: anchorStyle,
                 },
                 body,
               ),
@@ -1125,7 +1124,8 @@ window.__ModuleLoader__.load({
           "data-xai-usage-pill": "",
           "data-edge": dock.edge,
           "data-dragging": point !== null,
-          style: placement,
+          "data-window-drag-exclude": "",
+          style: { ...placement, ...anchorStyle },
         },
         button,
         panel,
