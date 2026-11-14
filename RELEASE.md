@@ -9,6 +9,7 @@ Ship targets:
 | `packages/dsh-xai-auth`                         | `dsh-xai-auth-vX.Y.Z`             | npm package `@balaenis/dsh-xai-auth`                            |
 | `packages/dsh-ide-selection`                    | `dsh-ide-selection-vX.Y.Z`        | npm package `@balaenis/dsh-ide-selection`                       |
 | `packages/dsh-ide-selection/ide-plugins/vscode` | `dsh-ide-selection-vscode-vX.Y.Z` | VSIX on that GitHub Release, then the Visual Studio Marketplace |
+| `packages/dsh-usages`                           | `dsh-usages-vX.Y.Z`               | npm package `@balaenis/dsh-usages`                              |
 
 `next` (npm dist-tag only) is staged when a release PR opens or updates. The VS Code extension has no `next` publish: Marketplace releases are `latest` only.
 

@@ -11,6 +11,7 @@ pnpm workspace for local dsh plugins. Dependency versions are in the root catalo
 | `dsh-xai-auth`      | `packages/dsh-xai-auth`      | xAI SuperGrok sign-in     |
 | `dsh-ide-selection` | `packages/dsh-ide-selection` | VS Code selection context |
 | `dsh-my-preset`     | `packages/dsh-my-preset`     | My presets                |
+| `dsh-usages`        | `packages/dsh-usages`        | DeepSeek and Go usage     |
 
 ## Requirements
 
@@ -44,9 +45,10 @@ dsh installs one package directory, not this repository root.
 dsh plugin --profile <profile> add ./packages/dsh-xai-auth
 dsh plugin --profile <profile> add ./packages/dsh-ide-selection
 dsh plugin --profile <profile> add ./packages/dsh-my-preset
+dsh plugin --profile <profile> add ./packages/dsh-usages
 ```
 
-Build `dsh-ide-selection` before you install it. `dsh-xai-auth` already includes `dist/index.js`, and `dsh-my-preset` ships only patch files.
+Build `dsh-ide-selection` and `dsh-usages` before you install them. `dsh-xai-auth` already includes `dist/index.js`, and `dsh-my-preset` ships only patch files.
 
 After this repository is on GitHub:
 

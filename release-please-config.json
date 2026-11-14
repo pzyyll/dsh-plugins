@@ -16,6 +16,10 @@
     "packages/dsh-ide-selection/ide-plugins/vscode": {
       "component": "dsh-ide-selection-vscode",
       "release-type": "node"
+    },
+    "packages/dsh-usages": {
+      "component": "dsh-usages",
+      "release-type": "node"
     }
   }
 }

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE description="Run lint, format, type, and test checks"
+#MISE depends=["install"]
+set -euo pipefail
+
+mise run --skip-deps lint
+mise run --skip-deps format:check
+mise run --skip-deps typecheck
+mise run --skip-deps test

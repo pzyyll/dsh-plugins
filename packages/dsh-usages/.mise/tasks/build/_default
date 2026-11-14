@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# ABOUTME: Build the usage plugin host and browser client.
+# ABOUTME: The default task is the only build this package has.
+#MISE description="Build the usage plugin and browser client"
+#MISE depends=["install"]
+set -euo pipefail
+
+node scripts/build.mjs

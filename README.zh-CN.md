@@ -11,6 +11,7 @@
 | `dsh-xai-auth`      | `packages/dsh-xai-auth`      | xAI SuperGrok 登录 |
 | `dsh-ide-selection` | `packages/dsh-ide-selection` | VS Code 选区上下文 |
 | `dsh-my-preset`     | `packages/dsh-my-preset`     | 我的预设           |
+| `dsh-usages`        | `packages/dsh-usages`        | DeepSeek 与 Go 用量 |
 
 ## 环境要求
 
@@ -44,9 +45,10 @@ dsh 安装的是单个包目录，而不是本仓库根目录。
 dsh plugin --profile <profile> add ./packages/dsh-xai-auth
 dsh plugin --profile <profile> add ./packages/dsh-ide-selection
 dsh plugin --profile <profile> add ./packages/dsh-my-preset
+dsh plugin --profile <profile> add ./packages/dsh-usages
 ```
 
-安装 `dsh-ide-selection` 之前需要先构建。`dsh-xai-auth` 已包含 `dist/index.js`，`dsh-my-preset` 只随附补丁文件。
+安装 `dsh-ide-selection` 和 `dsh-usages` 之前需要先构建。`dsh-xai-auth` 已包含 `dist/index.js`，`dsh-my-preset` 只随附补丁文件。
 
 本仓库放到 GitHub 之后：
 

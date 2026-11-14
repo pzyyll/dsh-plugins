@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE description="Type-check the project"
+#MISE depends=["install"]
+set -euo pipefail
+
+pnpm exec tsc --noEmit -p tsconfig.json

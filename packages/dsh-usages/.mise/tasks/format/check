@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE description="Check formatting"
+#MISE depends=["install"]
+set -euo pipefail
+
+pnpm exec oxfmt --check .

@@ -1,0 +1,71 @@
+{
+  "name": "@balaenis/dsh-usages",
+  "version": "0.1.0",
+  "description": "Shows the DeepSeek balance and OpenCode Go quota above the sidebar account.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pzyyll/dsh-plugins.git",
+    "directory": "packages/dsh-usages"
+  },
+  "files": [
+    "dist/index.js",
+    "dist/index.js.map",
+    "dist/client.js",
+    "dist/client.js.map",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "catalog:",
+    "@deepseek-ai/dsh-credentials": "catalog:",
+    "@deepseek-ai/dsh-typert-protocol": "catalog:",
+    "@deepseek-ai/schemastery": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "esbuild": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-credentials": "*",
+    "@deepseek-ai/dsh-typert-protocol": "*",
+    "@deepseek-ai/schemastery": "*"
+  },
+  "engines": {
+    "dsh": ">=0.2.0 <0.3.0",
+    "node": "^24.9.0",
+    "pnpm": "12.16.1"
+  },
+  "packageManager": "pnpm@12.16.1",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-api-gateway",
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
+    }
+  }
+}
