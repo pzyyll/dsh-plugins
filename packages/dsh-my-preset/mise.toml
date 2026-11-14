@@ -1,9 +1,13 @@
-# ABOUTME: Checks localized bundle metadata and published detail documents.
-# ABOUTME: Uses the workspace formatter and Node.js without adding runtime dependencies.
+# ABOUTME: Regenerates the preset patches and checks localized bundle metadata.
+# ABOUTME: Uses the workspace formatter, Node.js, and the installed DSH without runtime dependencies.
+
+[tasks.sync-presets]
+description = "Regenerate presets/*.patch.yml from the presets the installed DSH ships"
+run = "node scripts/sync-presets.ts"
 
 [tasks.check]
 description = "Check bundle metadata and detail documents"
 run = [
-  "pnpm exec oxfmt --check package.json locale docs tests",
+  "pnpm exec oxfmt --check package.json locale docs tests scripts",
   "node --test tests/package.test.mjs",
 ]

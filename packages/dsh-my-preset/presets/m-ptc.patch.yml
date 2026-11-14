@@ -1,10 +1,16 @@
-# Agent preset M-PTC: the shipped `ptc` preset with the `tool-web` row removed,
-# so an Agent that selects it gets no `web_search` / `web_fetch` tool and no
-# prompt guidance for them. Everything else is the `ptc` plugin list verbatim.
+# Agent preset M-PTC: GENERATED FILE - edit scripts/sync-presets.ts instead.
 #
-# The declaration row's `id` addresses Loader edits; `config.id` is the preset
-# identity saved by sessions, and `config.name` is what the roster shows. The
-# host `web` service and its providers stay on the host plane: a preset controls
+# Copied from the ptc preset shipped with @deepseek-ai/dsh-web-app 0.2.2-rc.3.
+#
+# Regenerate: mise run sync-presets
+#             node scripts/sync-presets.ts ptc
+#
+# Two edits on top of the shipped list: its tool-web row becomes mcp-exa, so an
+# Agent that selects this preset gets mcp__exa__* instead of the native web tools and
+# their prompt guidance. The declaration also carries this preset's own identity:
+# config.id is what sessions save and config.name is what the roster shows.
+#
+# The host web service and its providers stay on the host plane: a preset controls
 # only the tools its Agent sees.
 - insert:
     - id: preset-m-ptc
@@ -33,6 +39,9 @@
             disabled: !!js process.platform !== 'win32'
           - id: tool-fs
             name: "@deepseek-ai/dsh-tool-fs"
+            config:
+              # Set true to add the apply_patch tool beside edit.
+              applyPatch: false
           - id: tool-fs-search
             name: "@deepseek-ai/dsh-tool-fs-search"
             config:
@@ -95,6 +104,8 @@
             config:
               - id: tool-subagent-control
                 name: "@deepseek-ai/dsh-tool-subagent-control"
+                config:
+                  interrupt: false
               - id: tool-subagent
                 name: "@deepseek-ai/dsh-tool-subagent"
                 config:
@@ -136,6 +147,8 @@
             name: "@deepseek-ai/dsh-tool-executor-ptc"
           - id: present
             name: "@deepseek-ai/dsh-tool-present"
+          - id: tool-office
+            name: "@deepseek-ai/dsh-tool-office"
           - id: tool-plugin-manager
             name: "@deepseek-ai/dsh-plugin-manager/tools"
             disabled: true

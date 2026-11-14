@@ -1,11 +1,16 @@
-# Agent preset M-Standard: the shipped `standard` preset with the `tool-web`
-# row removed, so an Agent that selects it gets no `web_search` / `web_fetch`
-# tool and no prompt guidance for them. Everything else is the `standard`
-# plugin list verbatim. Copied from DSH 0.2.2-rc.3.
+# Agent preset M-Standard: GENERATED FILE - edit scripts/sync-presets.ts instead.
 #
-# The declaration row's `id` addresses Loader edits; `config.id` is the preset
-# identity saved by sessions, and `config.name` is what the roster shows. The
-# host `web` service and its providers stay on the host plane: a preset controls
+# Copied from the standard preset shipped with @deepseek-ai/dsh-web-app 0.2.2-rc.3.
+#
+# Regenerate: mise run sync-presets
+#             node scripts/sync-presets.ts standard
+#
+# Two edits on top of the shipped list: its tool-web row becomes mcp-exa, so an
+# Agent that selects this preset gets mcp__exa__* instead of the native web tools and
+# their prompt guidance. The declaration also carries this preset's own identity:
+# config.id is what sessions save and config.name is what the roster shows.
+#
+# The host web service and its providers stay on the host plane: a preset controls
 # only the tools its Agent sees.
 - insert:
     - id: preset-m-standard

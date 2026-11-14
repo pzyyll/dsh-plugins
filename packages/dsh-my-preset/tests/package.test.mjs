@@ -1,7 +1,7 @@
 // ABOUTME: Verifies exported locale metadata and independently published detail documents.
 // ABOUTME: Keeps the data-only preset bundle free of missing or README-based plugin details.
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { test } from "node:test";
 
 const PACKAGE_ROOT = new URL("../", import.meta.url);
@@ -31,4 +31,29 @@ test("each locale selects its own published detail document", async () => {
     documents.add(detail);
   }
   assert.equal(documents.size, LANGUAGES.length);
+});
+
+test("each preset replaces the native web tools with the Exa client", async () => {
+  const directory = new URL("presets/", PACKAGE_ROOT);
+  const files = (await readdir(directory)).filter((name) => name.endsWith(".patch.yml")).sort();
+  assert.deepEqual(files, ["m-creator.patch.yml", "m-ptc.patch.yml", "m-standard.patch.yml"]);
+  for (const name of files) {
+    const text = await readFile(new URL(name, directory), "utf8");
+    const id = name.replace(/\.patch\.yml$/, "");
+    assert.doesNotMatch(
+      text,
+      /^\s*- id: tool-web$/m,
+      name + " must not mount the native web tools",
+    );
+    assert.equal(
+      text.match(/^\s*- id: mcp-exa$/gm)?.length,
+      1,
+      name + " must mount the Exa client once",
+    );
+    assert.match(
+      text,
+      new RegExp("^\\s*id: " + id + "$", "m"),
+      name + " must declare the " + id + " preset id",
+    );
+  }
 });
