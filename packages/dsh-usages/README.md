@@ -6,6 +6,8 @@ Shows the DeepSeek account balance and the OpenCode Go quota in the sidebar, dir
 
 The OpenCode key stays on the host. The plugin reads `OPENCODE_GO_API_KEY` from the credential store, then from the process environment. It never sends the key to the page.
 
+Another plugin can contribute usage without importing this package. This plugin provides the Cordis service `usageSources`. `register({ id, providers, read })` returns a disposer; registering the same `id` again replaces the previous source. `read(refresh, signal)` returns `ready` (`title` and windows), `signed-out`, `failed`, or `unavailable`. A window has `id`, `label`, `usedPercent`, `remainingPercent`, and an optional `resetsAt`. When the service is absent, the contributor keeps its own usage display.
+
 ## Install
 
 Build this package, then install that directory:

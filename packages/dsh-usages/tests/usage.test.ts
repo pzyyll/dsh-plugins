@@ -12,6 +12,7 @@ import {
   type DeepseekAccountApi,
 } from "../src/host/read.js";
 import { UsageService } from "../src/host/service.js";
+import { normalizeSourceReading, UsageSourceRegistry } from "../src/host/sources.js";
 import {
   buttonFact,
   channelForProvider,
@@ -60,6 +61,7 @@ function createReader(overrides: Partial<ConstructorParameters<typeof UsageReade
       return Response.json(usageBody());
     },
     readAccount: async () => ({ status: "signed-out" as const }),
+    sources: () => [],
     ...overrides,
   };
   return { reader: new UsageReader(deps), calls };
@@ -114,9 +116,9 @@ describe("sidebar wording", () => {
       ],
     };
     expect(opencodeChips(reading, translateWith("zh"))).toEqual([
-      { id: "rolling", tag: "5h", remainingPercent: 94, level: "ok" },
-      { id: "weekly", tag: "周", remainingPercent: 2, level: "low" },
-      { id: "monthly", tag: "月", remainingPercent: 0, level: "empty" },
+      { id: "rolling", tag: "5h", name: "5 小时", remainingPercent: 94, level: "ok" },
+      { id: "weekly", tag: "周", name: "每周", remainingPercent: 2, level: "low" },
+      { id: "monthly", tag: "月", name: "每月", remainingPercent: 0, level: "empty" },
     ]);
     expect((opencodeChips(reading, translateWith("en")) ?? []).map((chip) => chip.tag)).toEqual([
       "5h",
@@ -197,6 +199,9 @@ describe("sidebar wording", () => {
     expect(channelForProvider(null)).toBe("deepseek");
     expect(channelForProvider("deepseek-account")).toBe("deepseek");
     expect(channelForProvider("opencode-go")).toBe("opencode-go");
+    expect(
+      channelForProvider("xai-supergrok", [{ id: "xai-supergrok", providers: ["xai-supergrok"] }]),
+    ).toBe("xai-supergrok");
     expect(buttonFact(snapshot, "deepseek", "zh", translateWith("zh"))?.value).toContain("12.50");
     expect(buttonFact(snapshot, "opencode-go", "zh", translateWith("zh"))?.value).toBe("5h 89%");
     expect(
@@ -289,6 +294,17 @@ describe("detail refresh guard", () => {
         bonusWallets: [],
       },
       opencodeGo: { status: "missing-key" as const },
+      sources: [
+        {
+          id: "xai-supergrok",
+          providers: ["xai-supergrok"],
+          reading: {
+            status: "ready" as const,
+            title: "SuperGrok",
+            windows: [{ id: "week", label: "week", usedPercent: 4, remainingPercent: 96 }],
+          },
+        },
+      ],
     };
     const next = {
       deepseek: { status: "unavailable" as const },
@@ -297,9 +313,19 @@ describe("detail refresh guard", () => {
         fetchedAt: 1,
         windows: [{ id: "rolling" as const, status: "ok", usedPercent: 1, remainingPercent: 99 }],
       },
+      sources: [
+        {
+          id: "xai-supergrok",
+          providers: ["xai-supergrok"],
+          reading: { status: "unavailable" as const },
+        },
+      ],
     };
     expect(mergeSnapshot(previous, next, ["opencode-go"]).deepseek).toEqual(previous.deepseek);
     expect(mergeSnapshot(previous, next, ["opencode-go"]).opencodeGo).toEqual(next.opencodeGo);
+    expect(mergeSnapshot(previous, next, ["opencode-go"]).sources?.[0]?.reading).toEqual(
+      previous.sources?.[0]?.reading,
+    );
     expect(mergeSnapshot(null, next, ["deepseek"])).toEqual(next);
   });
 });
@@ -446,6 +472,46 @@ describe("usage reader", () => {
     expect(calls).toHaveLength(1);
   });
 
+  it("keeps a contributed source on its own 15 second cache", async () => {
+    let now = 1_000;
+    let reads = 0;
+    const source = {
+      id: "xai-supergrok",
+      providers: ["xai-supergrok"],
+      read: async (refresh: boolean) => {
+        reads += 1;
+        return {
+          status: "ready" as const,
+          title: "SuperGrok",
+          windows: [
+            { id: "week", label: "week", usedPercent: refresh ? 2 : 1, remainingPercent: 98 },
+          ],
+          token: SECRET,
+        };
+      },
+    };
+    const { reader, calls } = createReader({
+      now: () => now,
+      sources: () => [source],
+    });
+    const signal = new AbortController().signal;
+    const first = await reader.snapshot(false, ["xai-supergrok"], client, signal);
+    expect(reads).toBe(1);
+    expect(calls).toHaveLength(0);
+    expect(first.deepseek).toEqual({ status: "unavailable" });
+    expect(JSON.stringify(first.sources)).not.toContain(SECRET);
+    expect(first.sources?.[0]?.reading).toMatchObject({ status: "ready", title: "SuperGrok" });
+
+    now = 5_000;
+    await reader.snapshot(false, ["deepseek"], client, signal);
+    expect(reads).toBe(1);
+
+    now = 20_000;
+    const again = await reader.snapshot(true, ["xai-supergrok"], client, signal);
+    expect(reads).toBe(2);
+    expect(again.sources?.[0]?.reading).toMatchObject({ status: "ready" });
+  });
+
   it("does not put the key in an unauthorized or thrown result", async () => {
     const unauthorized = createReader({
       fetch: async (_url, init) => {
@@ -540,6 +606,41 @@ describe("config", () => {
       apiKeyEnv: "OPENCODE_GO_API_KEY",
       timeoutMs: 1000,
     });
+  });
+});
+
+describe("usage source registry", () => {
+  it("replaces an id and ignores the previous disposer", () => {
+    const registry = new UsageSourceRegistry();
+    const first = {
+      id: "xai-supergrok",
+      providers: ["xai-supergrok"],
+      read: async () => ({ status: "failed" as const }),
+    };
+    const second = { ...first };
+    const dropFirst = registry.register(first);
+    const dropSecond = registry.register(second);
+    dropFirst();
+    expect(registry.list()).toEqual([second]);
+    dropSecond();
+    expect(registry.list()).toEqual([]);
+  });
+
+  it("drops fields that are not part of a reading", () => {
+    const reading = normalizeSourceReading({
+      status: "ready",
+      title: "SuperGrok",
+      token: SECRET,
+      windows: [
+        { id: "week", label: "week", usedPercent: 10, remainingPercent: 90, token: SECRET },
+      ],
+    });
+    expect(reading).toEqual({
+      status: "ready",
+      title: "SuperGrok",
+      windows: [{ id: "week", label: "week", usedPercent: 10, remainingPercent: 90 }],
+    });
+    expect(JSON.stringify(reading)).not.toContain(SECRET);
   });
 });
 

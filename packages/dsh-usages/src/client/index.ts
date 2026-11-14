@@ -24,6 +24,7 @@ import {
   sidebarMoney,
   isRecord,
   opencodeChips,
+  sourceChips,
   placePopover,
   providerOfMainSession,
   CHANNEL_CACHE_MS,
@@ -31,13 +32,13 @@ import {
   resetCountdown,
   snapshotFromRpc,
   translateWith,
-  type OpencodeWindow,
   type SessionUsageSource,
   type Translate,
   type UsageChannel,
   type UsageKey,
   type MoneyPart,
   type UsageSnapshot,
+  type UsageSourceReading,
   type OpencodeWindowId,
   type Wallet,
   type WindowChip,
@@ -275,8 +276,21 @@ function refreshIcon(): ReactElement {
   );
 }
 
-function channelName(channel: UsageChannel, t: Translate): string {
-  return channel === "opencode-go" ? t("opencodeGo") : t("deepseek");
+function channelName(snapshot: UsageSnapshot | null, channel: UsageChannel, t: Translate): string {
+  if (channel === "opencode-go") return t("opencodeGo");
+  if (channel === "deepseek") return t("deepseek");
+  const source = snapshot?.sources?.find((item) => item.id === channel);
+  if (source?.reading.status === "ready") return source.reading.title;
+  return source?.id ?? channel;
+}
+
+/** Built-in channels plus every registered source, so a refresh can reach all of them. */
+function trackedChannels(snapshot: UsageSnapshot | null): readonly string[] {
+  const channels = ["deepseek", "opencode-go"];
+  for (const source of snapshot?.sources ?? []) {
+    if (!channels.includes(source.id)) channels.push(source.id);
+  }
+  return channels;
 }
 
 function fact(name: string, value: string): ReactElement {
@@ -352,6 +366,85 @@ function arcPath(from: number, to: number): string {
 }
 
 /**
+ * One window is a closed ring: the track is the used side, and the remainder is the
+ * other side. Several windows stay separate arcs.
+ */
+function closedRing(
+  window: WindowChip,
+  size: number,
+  ref: { readonly current: SVGSVGElement | null },
+  hovered: string | null,
+  onHover: (window: WindowChip) => void,
+  onLeave: () => void,
+): ReactElement {
+  const remaining = Math.min(100, Math.max(0, window.remainingPercent));
+  const circle = {
+    cx: RING_CENTER,
+    cy: RING_CENTER,
+    r: RING_RADIUS,
+    "stroke-width": RING_STROKE,
+  };
+  const full = remaining <= 0 || remaining >= 100;
+  return createElement(
+    "svg",
+    {
+      ref,
+      "data-dsh-usages-ring": "",
+      "data-closed": "true",
+      "data-hovering": hovered === null ? "false" : "true",
+      viewBox: "0 0 36 36",
+      width: size,
+      height: size,
+      "aria-hidden": true,
+    },
+    createElement("rect", {
+      key: "hub",
+      "data-role": "hub",
+      x: RING_CENTER - 4.8,
+      y: RING_CENTER - 4.8,
+      width: 9.6,
+      height: 9.6,
+      rx: 2.2,
+      transform: `rotate(45 ${RING_CENTER} ${RING_CENTER})`,
+    }),
+    createElement(
+      "g",
+      {
+        "data-dsh-usages-segment": "",
+        "data-hover": hovered === window.id ? "true" : "false",
+      },
+      createElement("circle", { ...circle, key: "track", "data-role": "track" }),
+      remaining <= 0
+        ? null
+        : createElement("circle", {
+            ...circle,
+            key: "fill",
+            "data-role": "fill",
+            "data-level": window.level,
+            pathLength: 100,
+            ...(full
+              ? {}
+              : {
+                  "stroke-dasharray": `${remaining} ${100 - remaining}`,
+                  "stroke-dashoffset": remaining,
+                }),
+            transform: `rotate(-90 ${RING_CENTER} ${RING_CENTER})`,
+          }),
+    ),
+    createElement("circle", {
+      ...circle,
+      key: "hit",
+      "data-role": "hit",
+      "stroke-width": 10,
+      onPointerEnter: () => {
+        onHover(window);
+      },
+      onPointerLeave: onLeave,
+    }),
+  );
+}
+
+/**
  * One arc per window; each arc fills clockwise from empty to that window's remainder.
  * The visible arcs sit in a group that scales on hover, while the hit stroke stays put
  * so a grown segment cannot push the pointer out of its own target.
@@ -364,6 +457,8 @@ function windowRing(
   onHover: (window: WindowChip) => void,
   onLeave: () => void,
 ): ReactElement {
+  const only = windows.length === 1 ? windows[0] : undefined;
+  if (only !== undefined) return closedRing(only, size, ref, hovered, onHover, onLeave);
   const even = 360 / windows.length;
   return createElement(
     "svg",
@@ -387,7 +482,11 @@ function windowRing(
       transform: `rotate(45 ${RING_CENTER} ${RING_CENTER})`,
     }),
     windows.flatMap((window, index) => {
-      const span = RING_SPANS[window.id] ?? { from: index * even, to: (index + 1) * even };
+      const known =
+        window.id === "rolling" || window.id === "weekly" || window.id === "monthly"
+          ? RING_SPANS[window.id]
+          : undefined;
+      const span = known ?? { from: index * even, to: (index + 1) * even };
       const from = span.from + RING_GAP / 2;
       const to = span.to - RING_GAP / 2;
       const fraction = Math.min(1, Math.max(0, window.remainingPercent / 100));
@@ -445,13 +544,20 @@ function UsageRow(props: {
   const { locale, t } = useTranslate(props.ctx);
   const useSessions = props.useSessions ?? emptySessions;
   const provider = useSessions(providerOfMainSession, (left, right) => left === right);
-  const channel = channelForProvider(provider);
+  const channel = channelForProvider(provider, usage.snapshot?.sources ?? []);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const shown = usage.snapshot === null ? null : buttonFact(usage.snapshot, channel, locale, t);
   const chips =
-    usage.snapshot === null || channel !== "opencode-go"
+    usage.snapshot === null
       ? null
-      : opencodeChips(usage.snapshot.opencodeGo, t);
+      : channel === "opencode-go"
+        ? opencodeChips(usage.snapshot.opencodeGo, t)
+        : titledSourceChips(
+            usage.snapshot.sources?.find((source) => source.id === channel)?.reading ?? {
+              status: "unavailable",
+            },
+            t,
+          );
   const money =
     usage.snapshot === null || channel !== "deepseek"
       ? []
@@ -480,7 +586,7 @@ function UsageRow(props: {
             const rect = ringRef.current?.getBoundingClientRect();
             if (rect === undefined) return;
             setTip({
-              text: `${t(`window.${window.id}` as UsageKey)} · ${t("remainingPercent", {
+              text: `${window.name} · ${t("remainingPercent", {
                 percent: formatPercent(window.remainingPercent),
               })}`,
               left: rect.left + rect.width / 2,
@@ -570,14 +676,14 @@ function UsageRow(props: {
                   bottom: rect.bottom,
                 },
           );
-          requestUsage(false, ["deepseek", "opencode-go"]);
+          requestUsage(false, trackedChannels(usageState().snapshot));
         },
       },
       wide ? (ring ?? (money.length > 0 ? moneyLead(money) : mark())) : null,
       wide
         ? shown === null
           ? loading
-            ? fact(channelName(channel, t), t("loading"))
+            ? fact(channelName(usage.snapshot, channel, t), t("loading"))
             : null
           : ring === null
             ? money.length > 0
@@ -658,7 +764,36 @@ function balanceCell(label: string, wallets: readonly Wallet[], locale: string):
   );
 }
 
-function windowBlock(window: OpencodeWindow, t: Translate, now: number): ReactElement {
+const WINDOW_TITLES = new Set(["rolling", "weekly", "monthly", "week", "month", "day", "credits"]);
+
+function windowTitle(id: string, fallback: string, t: Translate): string {
+  if (!WINDOW_TITLES.has(id)) return fallback;
+  return t(`window.${id}` as UsageKey);
+}
+
+function titledSourceChips(
+  reading: UsageSourceReading,
+  t: Translate,
+): ReturnType<typeof sourceChips> {
+  const chips = sourceChips(reading);
+  if (chips === null) return null;
+  return chips.map((chip) => {
+    const name = windowTitle(chip.id, chip.name, t);
+    return { ...chip, tag: name, name };
+  });
+}
+
+function windowBlock(
+  window: {
+    readonly id: string;
+    readonly label: string;
+    readonly usedPercent: number;
+    readonly remainingPercent: number;
+    readonly resetsAt?: string;
+  },
+  t: Translate,
+  now: number,
+): ReactElement {
   const empty = window.remainingPercent <= 0;
   const low = window.remainingPercent < 20;
   const reset = window.resetsAt === undefined ? "" : resetCountdown(window.resetsAt, now, t);
@@ -668,7 +803,7 @@ function windowBlock(window: OpencodeWindow, t: Translate, now: number): ReactEl
     createElement(
       "div",
       { "data-dsh-usages-row": "" },
-      createElement("span", { "data-dsh-usages-quota": "" }, t(`window.${window.id}` as UsageKey)),
+      createElement("span", { "data-dsh-usages-quota": "" }, window.label),
       createElement(
         "span",
         { "data-dsh-usages-remain": "" },
@@ -773,12 +908,33 @@ function opencodeSection(snapshot: UsageSnapshot, t: Translate, now: number): Re
   return createElement(
     "div",
     { "data-dsh-usages-windows": "" },
-    reading.windows.map((window) => windowBlock(window, t, now)),
+    reading.windows.map((window) =>
+      windowBlock({ ...window, label: t(`window.${window.id}` as UsageKey) }, t, now),
+    ),
     createElement(
       "p",
       { "data-dsh-usages-updated": "" },
       createElement("span", { "data-dsh-usages-dot": "", "aria-hidden": true }),
       t("lastQuery", { time: formatAgo(reading.fetchedAt, now, t) }),
+    ),
+  );
+}
+
+function sourceSection(
+  snapshot: UsageSnapshot,
+  channel: string,
+  t: Translate,
+  now: number,
+): ReactNode {
+  const source = snapshot.sources?.find((item) => item.id === channel);
+  if (source === undefined || source.reading.status !== "ready") {
+    return createElement("p", { "data-dsh-usages-note": "" }, t("quotaFailed"));
+  }
+  return createElement(
+    "div",
+    { "data-dsh-usages-windows": "" },
+    source.reading.windows.map((window) =>
+      windowBlock({ ...window, label: windowTitle(window.id, window.label, t) }, t, now),
     ),
   );
 }
@@ -888,12 +1044,14 @@ function UsagePanel(props: { readonly ctx: ClientContext }): ReactElement | null
             createElement(
               "div",
               { "data-dsh-usages-section-head": "" },
-              createElement("h3", null, channelName(channel, t)),
+              createElement("h3", null, channelName(snapshot, channel, t)),
               channel === "deepseek" ? deepseekActions(snapshot, t) : null,
             ),
             channel === "deepseek"
               ? deepseekSection(snapshot, t, locale)
-              : opencodeSection(snapshot, t, now),
+              : channel === "opencode-go"
+                ? opencodeSection(snapshot, t, now)
+                : sourceSection(snapshot, channel, t, now),
           ),
         ),
     usage.error === null
@@ -911,7 +1069,7 @@ function UsagePanel(props: { readonly ctx: ClientContext }): ReactElement | null
           "aria-busy": usage.pending,
           disabled: usage.pending,
           onClick: () => {
-            requestUsage(true, ["deepseek", "opencode-go"]);
+            requestUsage(true, trackedChannels(usage.snapshot));
           },
         },
         refreshIcon(),

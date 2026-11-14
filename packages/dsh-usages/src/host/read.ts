@@ -6,10 +6,13 @@ import {
   parseOpencodeUsage,
   type DeepseekReading,
   type OpencodeReading,
-  type UsageChannel,
+  type SourceChannel,
   type UsageSnapshot,
+  type UsageSource,
+  type UsageSourceReading,
   type Wallet,
 } from "../shared/model.js";
+import { normalizeSourceReading } from "./sources.js";
 
 export const CACHE_MS = CHANNEL_CACHE_MS;
 export const MAX_BODY_BYTES = 65_536;
@@ -44,6 +47,7 @@ export interface UsageDeps {
   resolveKey(): Promise<string | undefined>;
   fetch(url: string, init: RequestInit): Promise<Response>;
   readAccount(client: AccountClient): Promise<DeepseekReading>;
+  sources(): readonly UsageSource[];
 }
 
 type ReadyOpencode = Extract<OpencodeReading, { status: "ready" }>;
@@ -56,6 +60,7 @@ interface Cached<T> {
 export class UsageReader {
   private deepseekCache: Cached<DeepseekReading> | undefined;
   private opencodeCache: (Cached<OpencodeReading> & { readonly url: string }) | undefined;
+  private readonly sourceCache = new Map<string, Cached<UsageSourceReading>>();
 
   constructor(private readonly deps: UsageDeps) {}
 
@@ -65,19 +70,50 @@ export class UsageReader {
    */
   async snapshot(
     refresh: boolean,
-    channels: readonly UsageChannel[],
+    channels: readonly string[],
     client: AccountClient,
     signal: AbortSignal,
   ): Promise<UsageSnapshot> {
-    const [deepseek, opencodeGo] = await Promise.all([
+    const registered = this.deps.sources();
+    const [deepseek, opencodeGo, sources] = await Promise.all([
       channels.includes("deepseek")
         ? this.readDeepseek(refresh, client)
         : Promise.resolve(this.deepseekCache?.reading ?? { status: "unavailable" as const }),
       channels.includes("opencode-go")
         ? this.readOpencode(refresh, signal)
         : Promise.resolve(this.cachedOpencode() ?? { status: "missing-key" as const }),
+      Promise.all(registered.map((source) => this.readSource(source, refresh, channels, signal))),
     ]);
-    return { deepseek, opencodeGo };
+    return { deepseek, opencodeGo, sources };
+  }
+
+  private async readSource(
+    source: UsageSource,
+    refresh: boolean,
+    channels: readonly string[],
+    signal: AbortSignal,
+  ): Promise<SourceChannel> {
+    const cached = this.sourceCache.get(source.id);
+    if (!channels.includes(source.id)) {
+      return {
+        id: source.id,
+        providers: source.providers,
+        reading: cached?.reading ?? { status: "unavailable" },
+      };
+    }
+    const fresh = this.fresh(cached, refresh);
+    if (fresh !== undefined) {
+      return { id: source.id, providers: source.providers, reading: fresh };
+    }
+    let reading: UsageSourceReading;
+    try {
+      reading = normalizeSourceReading(await source.read(refresh, signal));
+    } catch (error) {
+      if (signal.aborted) throw error;
+      reading = { status: "failed" };
+    }
+    this.sourceCache.set(source.id, { at: this.deps.now(), reading });
+    return { id: source.id, providers: source.providers, reading };
   }
 
   private fresh<T>(cached: Cached<T> | undefined, refresh: boolean): T | undefined {

@@ -7,6 +7,7 @@ import { TypertRemoteService } from "@deepseek-ai/dsh-typert-protocol";
 import { PLUGIN_NAME, PROVIDER_ID, PROVIDER_LABEL } from "./constants.ts";
 import { SuperGrokRuntime } from "./runtime.ts";
 import { Config } from "./config.ts";
+import { attachUsageSource, type UsageAttachment, type UsageSourceHub } from "./usage-source.ts";
 
 const REMOTE_METHODS = "@deepseek-ai/dsh-typert-protocol/remote-methods";
 
@@ -35,11 +36,16 @@ export class SuperGrokAuthService extends TypertRemoteService {
 
   readonly runtime: SuperGrokRuntime;
   private readonly config: Config;
+  private attachment: UsageAttachment = { delegated: false, release: undefined, hub: undefined };
 
   constructor(ctx: Context, config: Config = Config()) {
     super(ctx, "xaiSupergrok");
     this.config = config;
     this.runtime = new SuperGrokRuntime(ctx);
+    ctx.effect(() => () => {
+      this.attachment.release?.();
+      this.attachment = { delegated: false, release: undefined, hub: undefined };
+    });
     ctx.llm.registerAdapter([PROVIDER_ID], this.runtime.adapter);
     ctx.llm.registerConfigurableProviders([
       {
@@ -61,12 +67,29 @@ export class SuperGrokAuthService extends TypertRemoteService {
   status(): ReturnType<SuperGrokRuntime["accountStatus"]> & {
     showSidebarUsage: boolean;
     onlyShowUsageForGrok: boolean;
+    usageDelegated: boolean;
   } {
+    this.syncUsageSource();
     return {
       ...this.runtime.accountStatus(),
       showSidebarUsage: this.config.showSidebarUsage.get(),
       onlyShowUsageForGrok: this.config.onlyShowUsageForGrok.get(),
+      usageDelegated: this.attachment.delegated,
     };
+  }
+
+  /** Attach when usageSources is up, and drop the registration when it goes away. */
+  private syncUsageSource(): void {
+    const hub = optionalService<UsageSourceHub>(this.ctx, "usageSources");
+    this.attachment = attachUsageSource(
+      this.attachment,
+      hub !== undefined && typeof hub.register === "function" ? hub : undefined,
+      {
+        id: PROVIDER_ID,
+        providers: [PROVIDER_ID],
+        read: (refresh, signal) => this.runtime.readUsageSource(refresh, signal),
+      },
+    );
   }
 
   start(): Promise<{ url: string; code: string }> {
@@ -93,3 +116,11 @@ exposeRemoteMethod(SuperGrokAuthService.prototype, "start");
 exposeRemoteMethod(SuperGrokAuthService.prototype, "cancel");
 exposeRemoteMethod(SuperGrokAuthService.prototype, "signOut");
 exposeRemoteMethod(SuperGrokAuthService.prototype, "refreshModels");
+
+function optionalService<T>(ctx: Context, name: string): T | undefined {
+  try {
+    return ctx.get(name) as T | undefined;
+  } catch {
+    return undefined;
+  }
+}

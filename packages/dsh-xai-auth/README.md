@@ -54,6 +54,8 @@ Enable **Show only in conversations using Grok** to show the badge only on the c
 
 Drag the badge to move it. During a drag, all four corners are rounded and all borders are visible. Release it to snap to the nearest left or right edge with a short squash-and-rebound animation. Reduced motion skips the animation. It follows content-area size changes and stays visible when the left sidebar collapses. Position resets on reload. The indicator uses the `shell.overlay` slot. The existing `showSidebarUsage` configuration key still controls visibility.
 
+When `dsh-usages` is also enabled, this plugin registers SuperGrok usage on its `usageSources` service. The sidebar and detail there show the reading, and this floating badge hides. Credentials and billing requests stay in this plugin. With this plugin alone, the badge stays. Disabling `dsh-usages` brings the badge back on the next status refresh.
+
 ## Notes
 
 - If you reload during sign-in approval, choose **Sign in** again.

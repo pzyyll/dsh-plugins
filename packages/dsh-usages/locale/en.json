@@ -41,6 +41,10 @@
   "window.rolling": "5-hour",
   "window.weekly": "Weekly",
   "window.monthly": "Monthly",
+  "window.week": "Weekly",
+  "window.month": "Monthly",
+  "window.day": "Daily",
+  "window.credits": "Credits",
   "short.rolling": "5h",
   "short.weekly": "W",
   "short.monthly": "M"

@@ -1019,6 +1019,7 @@ window.__ModuleLoader__.load({
         };
       }, [open]);
 
+      if (status?.usageDelegated === true) return null;
       if (!showSidebarUsage || !signedIn || !modelVisible) return null;
       if (!available) {
         if (status.usagePending !== true) return null;

@@ -44,26 +44,66 @@ export type OpencodeReading =
       readonly fetchedAt: number;
     };
 
+/** One window contributed by another plugin. The label is already display text. */
+export interface UsageSourceWindow {
+  readonly id: string;
+  readonly label: string;
+  readonly usedPercent: number;
+  readonly remainingPercent: number;
+  readonly resetsAt?: string;
+}
+
+/** A contributed channel. `ready` and `failed` are shown; the other two stay hidden. */
+export type UsageSourceReading =
+  | { readonly status: "unavailable" }
+  | { readonly status: "signed-out" }
+  | { readonly status: "failed" }
+  | {
+      readonly status: "ready";
+      readonly title: string;
+      readonly windows: readonly UsageSourceWindow[];
+    };
+
+/** A plugin-owned usage channel. `dsh-usages` renders it and never calls the plugin's API. */
+export interface UsageSource {
+  readonly id: string;
+  readonly providers: readonly string[];
+  read(refresh: boolean, signal: AbortSignal): Promise<UsageSourceReading>;
+}
+
+/** Host service name. Contributors look it up; they do not import this package. */
+export const USAGE_SOURCES = "usageSources";
+
+export interface UsageSources {
+  register(source: UsageSource): () => void;
+}
+
+/** One registered source as the sidebar and detail receive it. */
+export interface SourceChannel {
+  readonly id: string;
+  readonly providers: readonly string[];
+  readonly reading: UsageSourceReading;
+}
+
 export interface UsageSnapshot {
   readonly deepseek: DeepseekReading;
   readonly opencodeGo: OpencodeReading;
+  readonly sources?: readonly SourceChannel[];
 }
 
 /** Each channel keeps its own host cache for this long. The sidebar polls the visible one at the same pace. */
 export const CHANNEL_CACHE_MS = 15_000;
 
-const USAGE_CHANNELS = ["deepseek", "opencode-go"] as const satisfies readonly UsageChannel[];
+const BUILTIN_CHANNELS = ["deepseek", "opencode-go"] as const;
 
-/** Channels a snapshot call should touch. An empty or unknown list means both. */
-export function usageChannels(value: unknown): readonly UsageChannel[] {
-  if (!Array.isArray(value)) return USAGE_CHANNELS;
-  const channels: UsageChannel[] = [];
+/** Channels a snapshot call should touch. An empty list means the two built-in channels. */
+export function usageChannels(value: unknown): readonly string[] {
+  if (!Array.isArray(value)) return BUILTIN_CHANNELS;
+  const channels: string[] = [];
   for (const item of value) {
-    if ((item === "deepseek" || item === "opencode-go") && !channels.includes(item)) {
-      channels.push(item);
-    }
+    if (typeof item === "string" && item !== "" && !channels.includes(item)) channels.push(item);
   }
-  return channels.length === 0 ? USAGE_CHANNELS : channels;
+  return channels.length === 0 ? BUILTIN_CHANNELS : channels;
 }
 
 /**
@@ -73,12 +113,16 @@ export function usageChannels(value: unknown): readonly UsageChannel[] {
 export function mergeSnapshot(
   previous: UsageSnapshot | null,
   next: UsageSnapshot,
-  channels: readonly UsageChannel[],
+  channels: readonly string[],
 ): UsageSnapshot {
   if (previous === null) return next;
+  const kept = new Map((previous.sources ?? []).map((source) => [source.id, source]));
   return {
     deepseek: channels.includes("deepseek") ? next.deepseek : previous.deepseek,
     opencodeGo: channels.includes("opencode-go") ? next.opencodeGo : previous.opencodeGo,
+    sources: (next.sources ?? []).map((source) =>
+      channels.includes(source.id) ? source : (kept.get(source.id) ?? source),
+    ),
   };
 }
 
@@ -335,8 +379,8 @@ function walletText(wallets: readonly Wallet[], locale: string): string | undefi
   return wallets.map((wallet) => formatAmount(wallet.balance, wallet.currency, locale)).join(" · ");
 }
 
-/** Sidebar headline follows the open session's provider. Anything else stays on DeepSeek. */
-export type UsageChannel = "deepseek" | "opencode-go";
+/** Built-in channel or a contributed source id. */
+export type UsageChannel = string;
 
 /** Fields the sidebar reads from the open session list. Other projection data is ignored. */
 export interface SessionUsageSource {
@@ -362,8 +406,18 @@ export function providerOfMainSession(list: {
   return null;
 }
 
-/** Map a provider route onto a usage channel. Unknown and DeepSeek routes use the wallet. */
-export function channelForProvider(provider: string | null | undefined): UsageChannel {
+/**
+ * Map a provider route onto a usage channel. A contributed source wins when it lists
+ * that provider. Anything else stays on DeepSeek, except OpenCode Go.
+ */
+export function channelForProvider(
+  provider: string | null | undefined,
+  sources: readonly Pick<SourceChannel, "id" | "providers">[] = [],
+): UsageChannel {
+  if (typeof provider === "string" && provider !== "") {
+    const match = sources.find((source) => source.providers.includes(provider));
+    if (match !== undefined) return match.id;
+  }
   return provider === "opencode-go" ? "opencode-go" : "deepseek";
 }
 
@@ -377,11 +431,19 @@ export function opencodeConfigured(reading: OpencodeReading): boolean {
   return reading.status !== "missing-key";
 }
 
+/** A contributed reading that belongs in the detail list. */
+export function sourceConfigured(reading: UsageSourceReading): boolean {
+  return reading.status === "ready" || reading.status === "failed";
+}
+
 /** Channels that have something to show. Unconfigured sources are omitted. */
 export function configuredChannels(snapshot: UsageSnapshot): readonly UsageChannel[] {
   const channels: UsageChannel[] = [];
   if (deepseekConfigured(snapshot.deepseek)) channels.push("deepseek");
   if (opencodeConfigured(snapshot.opencodeGo)) channels.push("opencode-go");
+  for (const source of snapshot.sources ?? []) {
+    if (sourceConfigured(source.reading)) channels.push(source.id);
+  }
   return channels;
 }
 
@@ -395,6 +457,11 @@ export function buttonFact(
   if (channel === "opencode-go") {
     if (!opencodeConfigured(snapshot.opencodeGo)) return null;
     return { name: t("opencodeGo"), value: opencodeFact(snapshot.opencodeGo, t) };
+  }
+  const source = (snapshot.sources ?? []).find((item) => item.id === channel);
+  if (source !== undefined) {
+    if (!sourceConfigured(source.reading)) return null;
+    return { name: sourceTitle(source), value: sourceFact(source.reading, t) };
   }
   if (!deepseekConfigured(snapshot.deepseek)) return null;
   return { name: t("deepseek"), value: deepseekFact(snapshot.deepseek, locale, t) };
@@ -438,8 +505,9 @@ export function windowLevel(remainingPercent: number): WindowLevel {
 
 /** One window as a sidebar chip: short tag, remainder, and dot severity. */
 export interface WindowChip {
-  readonly id: OpencodeWindowId;
+  readonly id: string;
   readonly tag: string;
+  readonly name: string;
   readonly remainingPercent: number;
   readonly level: WindowLevel;
 }
@@ -453,10 +521,23 @@ export function opencodeChips(
   const chips = reading.windows.map((window) => ({
     id: window.id,
     tag: t(`short.${window.id}` as UsageKey),
+    name: t(`window.${window.id}` as UsageKey),
     remainingPercent: window.remainingPercent,
     level: windowLevel(window.remainingPercent),
   }));
   return chips.length === 0 ? null : chips;
+}
+
+/** Sidebar chips for a contributed source, or null when it has no windows. */
+export function sourceChips(reading: UsageSourceReading): readonly WindowChip[] | null {
+  if (reading.status !== "ready" || reading.windows.length === 0) return null;
+  return reading.windows.map((window) => ({
+    id: window.id,
+    tag: window.label,
+    name: window.label,
+    remainingPercent: window.remainingPercent,
+    level: windowLevel(window.remainingPercent),
+  }));
 }
 
 /** Every window on one line: "5h 6% W 2% M 1%". Also the button's accessible name. */
@@ -484,6 +565,12 @@ export function compactMark(
   if (channel === "opencode-go") {
     if (snapshot.opencodeGo.status !== "ready") return "–";
     const window = headlineWindow(snapshot.opencodeGo);
+    return window === undefined ? "–" : formatPercent(window.remainingPercent);
+  }
+  const source = (snapshot.sources ?? []).find((item) => item.id === channel);
+  if (source !== undefined) {
+    if (source.reading.status !== "ready") return "–";
+    const window = source.reading.windows[0];
     return window === undefined ? "–" : formatPercent(window.remainingPercent);
   }
   if (snapshot.deepseek.status !== "ready") return "–";
@@ -593,7 +680,7 @@ export function snapshotFrom(value: unknown): UsageSnapshot | undefined {
   const deepseek = deepseekFrom(value.deepseek);
   const opencodeGo = opencodeFrom(value.opencodeGo);
   if (deepseek === undefined || opencodeGo === undefined) return undefined;
-  return { deepseek, opencodeGo };
+  return { deepseek, opencodeGo, sources: sourcesFrom(value.sources) };
 }
 
 export function snapshotFromRpc(value: unknown): {
@@ -610,4 +697,72 @@ export function snapshotFromRpc(value: unknown): {
   }
   const snapshot = snapshotFrom(value.ok === true ? value.value : value);
   return snapshot === undefined ? { error: "request failed" } : { snapshot };
+}
+
+function sourceTitle(source: SourceChannel): string {
+  return source.reading.status === "ready" ? source.reading.title : source.id;
+}
+
+function sourceFact(reading: UsageSourceReading, t: Translate): string {
+  if (reading.status !== "ready") return t("quotaFailed");
+  const parts = reading.windows.map(
+    (window) => `${window.label} ${formatPercent(window.remainingPercent)}`,
+  );
+  return parts.length === 0 ? t("quotaFailed") : parts.join(" ");
+}
+
+const SOURCE_STATUSES = new Set(["unavailable", "signed-out", "failed", "ready"]);
+
+function sourceWindowFrom(value: unknown): UsageSourceWindow | undefined {
+  if (!isRecord(value) || typeof value.id !== "string" || value.id === "") return undefined;
+  if (typeof value.label !== "string" || value.label === "") return undefined;
+  const used = percentOf(value.usedPercent);
+  const remaining = percentOf(value.remainingPercent);
+  if (used === undefined || remaining === undefined) return undefined;
+  const resetsAt =
+    typeof value.resetsAt === "string" && value.resetsAt !== "" ? value.resetsAt : undefined;
+  return {
+    id: value.id,
+    label: value.label,
+    usedPercent: used,
+    remainingPercent: remaining,
+    ...(resetsAt === undefined ? {} : { resetsAt }),
+  };
+}
+
+function sourceReadingFrom(value: unknown): UsageSourceReading | undefined {
+  if (!isRecord(value) || typeof value.status !== "string" || !SOURCE_STATUSES.has(value.status)) {
+    return undefined;
+  }
+  if (value.status !== "ready") {
+    return { status: value.status as "unavailable" | "signed-out" | "failed" };
+  }
+  if (
+    typeof value.title !== "string" ||
+    value.title.trim() === "" ||
+    !Array.isArray(value.windows)
+  ) {
+    return undefined;
+  }
+  const windows = value.windows.flatMap((item) => {
+    const window = sourceWindowFrom(item);
+    return window === undefined ? [] : [window];
+  });
+  if (windows.length === 0) return undefined;
+  return { status: "ready", title: value.title.trim(), windows };
+}
+
+function sourcesFrom(value: unknown): readonly SourceChannel[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!isRecord(item) || typeof item.id !== "string" || item.id === "") return [];
+    const reading = sourceReadingFrom(item.reading);
+    if (reading === undefined) return [];
+    const providers = Array.isArray(item.providers)
+      ? item.providers.filter(
+          (provider): provider is string => typeof provider === "string" && provider !== "",
+        )
+      : [];
+    return [{ id: item.id, providers, reading }];
+  });
 }

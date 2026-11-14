@@ -148,6 +148,10 @@ export const USAGE_CSS = `
     stroke var(--ds-transition-duration-fast) var(--ds-ease-in-out),
     opacity var(--ds-transition-duration-fast) var(--ds-ease-in-out);
 }
+/* A single window is one closed ring. Butt caps let the remainder meet the other side. */
+[data-dsh-usages-ring][data-closed="true"] [data-role="fill"] {
+  stroke-linecap: butt;
+}
 /* While one segment is focused, the others fall back to their plain 100% track. */
 [data-dsh-usages-ring][data-hovering="true"]
   [data-dsh-usages-segment][data-hover="false"]

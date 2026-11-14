@@ -41,6 +41,10 @@
   "window.rolling": "5 小时",
   "window.weekly": "每周",
   "window.monthly": "每月",
+  "window.week": "每周",
+  "window.month": "每月",
+  "window.day": "每天",
+  "window.credits": "额度",
   "short.rolling": "5h",
   "short.weekly": "周",
   "short.monthly": "月"

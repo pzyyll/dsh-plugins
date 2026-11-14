@@ -13,6 +13,7 @@ import {
   CACHE_MS,
   type DeepseekAccountApi,
 } from "./read.js";
+import { UsageSourceRegistry } from "./sources.js";
 
 const REMOTE_METHODS = "@deepseek-ai/dsh-typert-protocol/remote-methods";
 
@@ -43,10 +44,12 @@ function exposeRemoteMethod(prototype: object, method: string): void {
 /** Host Remote `dshUsages/snapshot` for the sidebar. */
 export class UsageService extends TypertRemoteService {
   private readonly reader: UsageReader;
+  private readonly sources = new UsageSourceRegistry();
 
   constructor(ctx: Context, config: Config) {
     super(ctx, "dshUsages");
     const resolved = usageConfig(config);
+    ctx.provide("usageSources", this.sources);
     this.reader = new UsageReader({
       usageUrl: resolved.usageUrl,
       timeoutMs: resolved.timeoutMs,
@@ -61,6 +64,7 @@ export class UsageService extends TypertRemoteService {
       fetch: (url, init) => fetch(url, init),
       readAccount: (client) =>
         readDeepseek(optionalService<DeepseekAccountApi>(ctx, "deepseekAccount"), client),
+      sources: () => this.sources.list(),
     });
   }
 

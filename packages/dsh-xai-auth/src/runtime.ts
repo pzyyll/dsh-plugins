@@ -44,6 +44,7 @@ import {
   requestDeviceCode,
 } from "./oauth.ts";
 import { fetchGrokUsage, type GrokUsageView } from "./grok-usage.ts";
+import { usageSourceReading, type ContributedReading } from "./usage-source.ts";
 import { catalogHeaders, catalogToModel, createSuperGrokProvider } from "./wire.ts";
 
 export const CREDENTIAL_KEY = credentialKey(PLUGIN_NAME, PROVIDER_ID);
@@ -284,14 +285,18 @@ export class SuperGrokRuntime {
     return credentialsFromRecord(await credentials.readRecord(CREDENTIAL_KEY));
   }
 
-  /** Read the subscription meter. A fresh result is reused until the cache expires. */
-  async planUsage(): Promise<{ usage?: GrokUsageView; error?: string }> {
+  /**
+   * Read the subscription meter. A fresh result is reused until the cache expires.
+   * `refresh` skips that cache so a contributed channel can follow the sidebar interval.
+   */
+  async planUsage(refresh = false): Promise<{ usage?: GrokUsageView; error?: string }> {
     const ready = await this.storedCredentials();
     if (ready === undefined) return {};
     this.latest = ready;
     const cached = this.usageCache;
-    if (cached !== undefined && Date.now() - cached.at < USAGE_CACHE_TTL_MS)
+    if (!refresh && cached !== undefined && Date.now() - cached.at < USAGE_CACHE_TTL_MS) {
       return { usage: cached.view };
+    }
     try {
       const access = await this.resolveAccessToken();
       const view = await fetchGrokUsage({
@@ -303,10 +308,30 @@ export class SuperGrokRuntime {
           ...(cached === undefined ? {} : { usage: cached.view }),
           error: "xAI returned no SuperGrok usage.",
         };
+      this.usageCache = { at: Date.now(), view };
       return { usage: view };
     } catch (error) {
       const message = error instanceof Error ? error.message : "xAI usage request failed";
       return { ...(cached === undefined ? {} : { usage: cached.view }), error: message };
+    }
+  }
+
+  /** Reading for a usage hub. The access token stays in this runtime. */
+  async readUsageSource(refresh: boolean, signal: AbortSignal): Promise<ContributedReading> {
+    if (signal.aborted) throw signal.reason ?? new DOMException("aborted", "AbortError");
+    const ready = await this.storedCredentials();
+    if (ready === undefined) return { status: "signed-out" };
+    try {
+      const result = await this.planUsage(refresh);
+      if (signal.aborted) throw signal.reason ?? new DOMException("aborted", "AbortError");
+      return usageSourceReading({
+        signedIn: true,
+        ...(result.usage === undefined ? {} : { usage: result.usage }),
+        ...(result.error === undefined ? {} : { error: result.error }),
+      });
+    } catch (error) {
+      if (signal.aborted) throw error;
+      return { status: "failed" };
     }
   }
 
