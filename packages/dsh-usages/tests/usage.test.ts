@@ -13,6 +13,7 @@ import {
 } from "../src/host/read.js";
 import { UsageService } from "../src/host/service.js";
 import { normalizeSourceReading, UsageSourceRegistry } from "../src/host/sources.js";
+import { setUsageError, setUsageSnapshot, usageState } from "../src/client/store.js";
 import {
   buttonFact,
   channelForProvider,
@@ -26,7 +27,8 @@ import {
   parseOpencodeUsage,
   windowLevel,
   placePopover,
-  providerOfMainSession,
+  mainSessionRow,
+  sameMainSessionRow,
   formatCountdown,
   resetCountdown,
   mergeSnapshot,
@@ -219,7 +221,7 @@ describe("sidebar wording", () => {
       }),
     ).toEqual(["opencode-go"]);
     expect(
-      providerOfMainSession({
+      mainSessionRow({
         byId: {
           other: {
             retainedBy: { mainView: 0 },
@@ -238,7 +240,23 @@ describe("sidebar wording", () => {
           },
         },
       }),
-    ).toBe("opencode-go");
+    ).toEqual({ id: "open", provider: "opencode-go" });
+    expect(
+      mainSessionRow({
+        byId: {
+          blank: {
+            retainedBy: { mainView: 1 },
+            projectionValues: { modelSelection: { next: null, lastUsed: null } },
+          },
+        },
+      }),
+    ).toEqual({ id: "blank", provider: null });
+    expect(mainSessionRow({ byId: {} })).toBeNull();
+    expect(sameMainSessionRow({ id: "a", provider: null }, { id: "a", provider: null })).toBe(true);
+    expect(
+      sameMainSessionRow({ id: "a", provider: null }, { id: "a", provider: "opencode-go" }),
+    ).toBe(false);
+    expect(sameMainSessionRow(null, null)).toBe(true);
   });
 });
 
@@ -327,6 +345,29 @@ describe("detail refresh guard", () => {
       previous.sources?.[0]?.reading,
     );
     expect(mergeSnapshot(null, next, ["deepseek"])).toEqual(next);
+  });
+});
+
+describe("loading a channel", () => {
+  it("counts only the requested channels as answered", () => {
+    const snapshot = {
+      deepseek: { status: "signed-out" as const },
+      opencodeGo: { status: "missing-key" as const },
+    };
+    expect(usageState().answered.has("deepseek")).toBe(false);
+    setUsageSnapshot(snapshot, ["deepseek"]);
+    expect(usageState().answered.has("deepseek")).toBe(true);
+    expect(usageState().answered.has("opencode-go")).toBe(false);
+
+    /* A response that leaves a channel alone must not clear its loading state. */
+    const answered = usageState().answered;
+    setUsageSnapshot(snapshot, ["deepseek"]);
+    expect(usageState().answered).toBe(answered);
+
+    setUsageError("request failed", ["opencode-go"]);
+    expect(usageState().answered.has("opencode-go")).toBe(true);
+    expect(usageState().error).toBe("request failed");
+    expect(usageState().pending).toBe(false);
   });
 });
 

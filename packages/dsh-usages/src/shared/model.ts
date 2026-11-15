@@ -393,17 +393,35 @@ export interface SessionUsageSource {
   };
 }
 
-/** Provider id of the session retained by the main conversation, if one is open. */
-export function providerOfMainSession(list: {
+/** The session retained by the main conversation, with the route its row records. */
+export interface MainSessionRow {
+  readonly id: string;
+  /** Route recorded by the session; absent on a blank session that never chose a model. */
+  readonly provider: string | null;
+}
+
+/** The main conversation's session row, or null when no session is retained there. */
+export function mainSessionRow(list: {
   readonly byId: Readonly<Record<string, SessionUsageSource>>;
-}): string | null {
-  for (const session of Object.values(list.byId)) {
+}): MainSessionRow | null {
+  for (const [id, session] of Object.entries(list.byId)) {
     if ((session.retainedBy?.mainView ?? 0) <= 0) continue;
     const selection = session.projectionValues?.modelSelection;
     const provider = selection?.next?.provider ?? selection?.lastUsed?.provider;
-    return typeof provider === "string" && provider !== "" ? provider : null;
+    return {
+      id,
+      provider: typeof provider === "string" && provider !== "" ? provider : null,
+    };
   }
   return null;
+}
+
+/** Compare two row selections so the sidebar re-renders only on a real change. */
+export function sameMainSessionRow(
+  left: MainSessionRow | null,
+  right: MainSessionRow | null,
+): boolean {
+  return left?.id === right?.id && left?.provider === right?.provider;
 }
 
 /**

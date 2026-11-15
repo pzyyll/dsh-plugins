@@ -83,8 +83,21 @@ export const USAGE_CSS = `
 /* The name and the ring share one centre line; baseline alignment would push the
    text above a ring that is taller than its line box. */
 [data-dsh-usages-fact][data-ring="true"],
-[data-dsh-usages-fact][data-pill="true"] {
+[data-dsh-usages-fact][data-pill="true"],
+[data-dsh-usages-fact][data-spin="true"] {
   align-items: center;
+}
+/* Querying state: same 16px slot the gauge mark and the ring occupy. */
+[data-dsh-usages-spinner] {
+  flex: none;
+  align-self: center;
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  border: 2px solid color-mix(in srgb, var(--dsw-alias-label-primary) 22%, transparent);
+  border-top-color: color-mix(in srgb, var(--dsw-alias-label-primary) 72%, transparent);
+  border-radius: 50%;
+  animation: dsh-usages-spin 0.8s linear infinite;
 }
 [data-dsh-usages-pill] {
   display: inline-flex;
@@ -461,7 +474,8 @@ export const USAGE_CSS = `
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-dsh-usages-refresh][aria-busy="true"] svg {
+  [data-dsh-usages-refresh][aria-busy="true"] svg,
+  [data-dsh-usages-spinner] {
     animation: none;
   }
 }

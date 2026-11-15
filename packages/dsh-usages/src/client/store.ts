@@ -9,6 +9,8 @@ export interface UsageState {
   readonly snapshot: UsageSnapshot | null;
   readonly pending: boolean;
   readonly error: string | null;
+  /** Channels that answered at least once. The rest are still being queried. */
+  readonly answered: ReadonlySet<string>;
 }
 
 const listeners = new Set<() => void>();
@@ -19,6 +21,7 @@ let state: UsageState = {
   snapshot: null,
   pending: true,
   error: null,
+  answered: new Set<string>(),
 };
 
 function commit(next: UsageState): void {
@@ -27,11 +30,21 @@ function commit(next: UsageState): void {
     next.anchor === state.anchor &&
     next.snapshot === state.snapshot &&
     next.pending === state.pending &&
-    next.error === state.error
+    next.error === state.error &&
+    next.answered === state.answered
   )
     return;
   state = next;
   for (const listener of listeners) listener();
+}
+
+/** Keep the identity stable when every requested channel has already answered. */
+function answeredWith(
+  current: ReadonlySet<string>,
+  channels: readonly string[],
+): ReadonlySet<string> {
+  const missing = channels.filter((channel) => !current.has(channel));
+  return missing.length === 0 ? current : new Set([...current, ...missing]);
 }
 
 export function usageState(): UsageState {
@@ -49,12 +62,28 @@ export function setUsagePending(pending: boolean): void {
   commit({ ...state, pending });
 }
 
-export function setUsageSnapshot(snapshot: UsageSnapshot): void {
-  commit({ ...state, snapshot, error: null, pending: false });
+/**
+ * `channels` are the ones this response actually queried; an unrequested channel keeps
+ * whatever the host had cached, so it must not count as answered.
+ */
+export function setUsageSnapshot(snapshot: UsageSnapshot, channels: readonly string[] = []): void {
+  commit({
+    ...state,
+    snapshot,
+    answered: answeredWith(state.answered, channels),
+    error: null,
+    pending: false,
+  });
 }
 
-export function setUsageError(error: string): void {
-  commit({ ...state, error, pending: false });
+/** A failed request settles the channel too, so its row cannot spin forever. */
+export function setUsageError(error: string, channels: readonly string[] = []): void {
+  commit({
+    ...state,
+    error,
+    answered: answeredWith(state.answered, channels),
+    pending: false,
+  });
 }
 
 export function setUsageOpen(open: boolean, anchor: Anchor | null): void {

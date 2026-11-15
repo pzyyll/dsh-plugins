@@ -23,10 +23,11 @@ import {
   formatPercent,
   sidebarMoney,
   isRecord,
+  mainSessionRow,
   opencodeChips,
+  sameMainSessionRow,
   sourceChips,
   placePopover,
-  providerOfMainSession,
   CHANNEL_CACHE_MS,
   mergeSnapshot,
   resetCountdown,
@@ -97,6 +98,18 @@ interface ClientContext {
     ): () => void;
   };
   effect(effect: () => void | (() => void)): () => void;
+  get?(name: string): unknown;
+}
+
+/** The observable the model-selection entries render from. */
+interface ModelRouteStore {
+  getSnapshot(): unknown;
+  subscribe(listener: () => void): () => void;
+}
+
+/** The model-selection plugin's per-session directory service (`ctx.modelDirectories`). */
+interface ModelDirectories {
+  directoryFor(sessionId: string): { readonly store: ModelRouteStore };
 }
 
 let clientContext: ClientContext | undefined;
@@ -154,7 +167,7 @@ async function loadUsage(
   const locale = localeId(ctx?.locale?.getSnapshot() ?? ctx?.locale?.getLocale());
   const failed = translateWith(locale)("requestFailed");
   if (ctx?.connection === undefined) {
-    setUsageError(failed);
+    setUsageError(failed, channels);
     return;
   }
   const seq = ++requestSeq;
@@ -172,16 +185,55 @@ async function loadUsage(
     if (seq !== requestSeq) return;
     const parsed = snapshotFromRpc(result);
     if (parsed.snapshot !== undefined) {
-      setUsageSnapshot(mergeSnapshot(usageState().snapshot, parsed.snapshot, channels));
-    } else setUsageError(failed);
+      setUsageSnapshot(mergeSnapshot(usageState().snapshot, parsed.snapshot, channels), channels);
+    } else setUsageError(failed, channels);
   } catch {
     if (seq !== requestSeq) return;
-    setUsageError(failed);
+    setUsageError(failed, channels);
   }
 }
 
 function requestUsage(refresh: boolean, channels: readonly UsageChannel[], quiet = false): void {
   void loadUsage(refresh, channels, quiet);
+}
+
+function noopSubscribe(): () => void {
+  return () => {};
+}
+
+function optionalClientService<T>(ctx: ClientContext, name: string): T | undefined {
+  try {
+    return (ctx.get?.(name) as T | undefined) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/*
+ * A blank session records no model selection, so its row cannot say which route it
+ * will use. The model picker resolves that to the catalog default; read the same
+ * directory instead of guessing from the row.
+ */
+function modelRoute(
+  ctx: ClientContext,
+  sessionId: string | undefined,
+): ModelRouteStore | undefined {
+  if (sessionId === undefined || sessionId === "") return undefined;
+  const directories = optionalClientService<ModelDirectories>(ctx, "modelDirectories");
+  if (directories === undefined || typeof directories.directoryFor !== "function") return undefined;
+  try {
+    return directories.directoryFor(sessionId).store;
+  } catch {
+    return undefined;
+  }
+}
+
+function routeProvider(store: ModelRouteStore | undefined): string | undefined {
+  if (store === undefined) return undefined;
+  const state = store.getSnapshot();
+  if (!isRecord(state) || !isRecord(state.current)) return undefined;
+  const provider = state.current.provider;
+  return typeof provider === "string" && provider !== "" ? provider : undefined;
 }
 
 function closeUsage(restoreFocus = false): void {
@@ -320,8 +372,13 @@ function moneyLead(parts: readonly MoneyPart[]): ReactElement {
   );
 }
 
+/** A small turning arc in the leading slot while a channel is still being queried. */
+function spinner(): ReactElement {
+  return createElement("span", { "data-dsh-usages-spinner": "", "aria-hidden": true });
+}
+
 /** Channel name alone; the leading mark carries the numbers. */
-function nameFact(name: string, lead: "ring" | "pill"): ReactElement {
+function nameFact(name: string, lead: "ring" | "pill" | "spin"): ReactElement {
   return createElement(
     "span",
     { "data-dsh-usages-fact": "", [`data-${lead}`]: "true" },
@@ -543,8 +600,15 @@ function UsageRow(props: {
   const usage = useUsage();
   const { locale, t } = useTranslate(props.ctx);
   const useSessions = props.useSessions ?? emptySessions;
-  const provider = useSessions(providerOfMainSession, (left, right) => left === right);
-  const channel = channelForProvider(provider, usage.snapshot?.sources ?? []);
+  const main = useSessions(mainSessionRow, sameMainSessionRow);
+  const route = modelRoute(props.ctx, main?.id);
+  const routed = useSyncExternalStore(route?.subscribe ?? noopSubscribe, () =>
+    routeProvider(route),
+  );
+  const channel = channelForProvider(
+    routed ?? main?.provider ?? null,
+    usage.snapshot?.sources ?? [],
+  );
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const shown = usage.snapshot === null ? null : buttonFact(usage.snapshot, channel, locale, t);
   const chips =
@@ -562,9 +626,19 @@ function UsageRow(props: {
     usage.snapshot === null || channel !== "deepseek"
       ? []
       : sidebarMoney(usage.snapshot.deepseek, locale);
-  const loading = usage.pending && usage.snapshot === null;
+  /*
+   * A channel switch asks the host for data the row has never seen, and the snapshot
+   * still holds a placeholder for it. Count that as loading instead of an empty slot;
+   * an answered channel with nothing to show stays hidden.
+   */
+  const loading = shown === null && !usage.answered.has(channel);
+  const channelLabel = channelName(usage.snapshot, channel, t);
   const label =
-    shown === null ? (loading ? t("loading") : t("details")) : `${shown.name} ${shown.value}`;
+    shown === null
+      ? loading
+        ? `${channelLabel} ${t("loading")}`
+        : t("details")
+      : `${shown.name} ${shown.value}`;
   const ringRef = useRef<SVGSVGElement | null>(null);
   const tipRef = useRef<HTMLSpanElement | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -655,7 +729,7 @@ function UsageRow(props: {
         "aria-haspopup": "dialog",
         "aria-expanded": usage.open,
         "aria-label": label,
-        "aria-busy": usage.pending,
+        "aria-busy": usage.pending || loading,
         onClick: () => {
           setHovered(null);
           setTip(null);
@@ -679,11 +753,15 @@ function UsageRow(props: {
           requestUsage(false, trackedChannels(usageState().snapshot));
         },
       },
-      wide ? (ring ?? (money.length > 0 ? moneyLead(money) : mark())) : null,
+      wide
+        ? loading
+          ? spinner()
+          : (ring ?? (money.length > 0 ? moneyLead(money) : mark()))
+        : null,
       wide
         ? shown === null
           ? loading
-            ? fact(channelName(usage.snapshot, channel, t), t("loading"))
+            ? nameFact(channelLabel, "spin")
             : null
           : ring === null
             ? money.length > 0
