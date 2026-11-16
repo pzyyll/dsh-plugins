@@ -566,28 +566,33 @@ function UsagePanel(props: { readonly ctx: ClientContext }): ReactElement | null
       createElement("span", { "data-dsh-usages-markbar": "", "aria-hidden": true }),
       createElement("h2", null, t("details")),
     ),
-    snapshot === null
-      ? createElement("p", { "data-dsh-usages-note": "" }, t("loading"))
-      : configuredChannels(snapshot).map((channel) =>
-          createElement(
-            "section",
-            { "data-dsh-usages-section": "", key: channel },
+    /* Only the channel list scrolls; the title and the refresh button stay put. */
+    createElement(
+      "div",
+      { "data-dsh-usages-body": "" },
+      snapshot === null
+        ? createElement("p", { "data-dsh-usages-note": "" }, t("loading"))
+        : configuredChannels(snapshot).map((channel) =>
             createElement(
-              "div",
-              { "data-dsh-usages-section-head": "" },
-              createElement("h3", null, channelName(snapshot, channel, t)),
-              channel === "deepseek" ? deepseekActions(snapshot, t) : null,
+              "section",
+              { "data-dsh-usages-section": "", key: channel },
+              createElement(
+                "div",
+                { "data-dsh-usages-section-head": "" },
+                createElement("h3", null, channelName(snapshot, channel, t)),
+                channel === "deepseek" ? deepseekActions(snapshot, t) : null,
+              ),
+              channel === "deepseek"
+                ? deepseekSection(snapshot, t, locale)
+                : channel === "opencode-go"
+                  ? opencodeSection(snapshot, t, now)
+                  : sourceSection(snapshot, channel, t, now),
             ),
-            channel === "deepseek"
-              ? deepseekSection(snapshot, t, locale)
-              : channel === "opencode-go"
-                ? opencodeSection(snapshot, t, now)
-                : sourceSection(snapshot, channel, t, now),
           ),
-        ),
-    usage.error === null
-      ? null
-      : createElement("p", { "data-dsh-usages-error": "", role: "alert" }, usage.error),
+      usage.error === null
+        ? null
+        : createElement("p", { "data-dsh-usages-error": "", role: "alert" }, usage.error),
+    ),
     createElement(
       "footer",
       { "data-dsh-usages-foot": "" },

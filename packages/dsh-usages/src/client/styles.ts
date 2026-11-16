@@ -208,9 +208,12 @@ export const USAGE_CSS = `
   position: fixed;
   z-index: 80;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
   width: min(360px, calc(100vw - 16px));
   max-height: min(480px, calc(100vh - 16px));
-  overflow: auto;
+  /* The panel itself never scrolls; the body between the head and the foot does. */
+  overflow: hidden;
   padding: 16px 16px 0;
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: var(--dsw-radius-lg);
@@ -229,11 +232,20 @@ export const USAGE_CSS = `
 }
 [data-dsh-usages-head] {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 8px;
-  margin: 0 -16px 12px;
+  margin: 0 -16px;
   padding: 0 16px 12px;
   border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+[data-dsh-usages-body] {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0 -16px;
+  padding: 12px 16px 4px;
 }
 [data-dsh-usages-markbar] {
   width: 3px;
@@ -330,10 +342,11 @@ export const USAGE_CSS = `
 }
 [data-dsh-usages-foot] {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  margin: 4px -16px 0;
+  margin: 0 -16px;
   padding: 8px 12px 8px 16px;
   border-top: 1px solid var(--dsw-alias-border-l1);
   background: color-mix(in srgb, var(--dsw-alias-label-primary) 4%, transparent);

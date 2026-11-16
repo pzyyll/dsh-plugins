@@ -184,6 +184,12 @@ const RING_GAP = 22;
 /** Tight on the stroke so a 42px box is the ring, not the old padded viewBox. */
 const RING_OUTER = RING_RADIUS + RING_STROKE / 2;
 const RING_VIEWBOX = `${RING_CENTER - RING_OUTER} ${RING_CENTER - RING_OUTER} ${RING_OUTER * 2} ${RING_OUTER * 2}`;
+/**
+ * Upper half is the 5-hour window; the lower half splits into a week quarter on the
+ * left and a month quarter on the right. Twelve o'clock is 0, so the top arc runs
+ * from 270 through 0 to 90. These are the spans only; the fill always starts at the
+ * end with the smaller x, which is what keeps every segment draining right to left.
+ */
 const RING_SPANS: Readonly<
   Record<OpencodeWindowId, { readonly from: number; readonly to: number }>
 > = {
@@ -200,11 +206,16 @@ function ringPoint(angle: number): { readonly x: number; readonly y: number } {
   };
 }
 
+/**
+ * The arc on the ring circle. Both flags describe the real geometry, so the renderer
+ * keeps the ring centre instead of solving for the mirrored one on a reversed span.
+ */
 function arcPath(from: number, to: number): string {
   const start = ringPoint(from);
   const end = ringPoint(to);
-  const sweep = to - from > 180 ? 1 : 0;
-  return `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} A ${RING_RADIUS} ${RING_RADIUS} 0 ${sweep} 1 ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
+  const large = Math.abs(to - from) > 180 ? 1 : 0;
+  const sweep = to > from ? 1 : 0;
+  return `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} A ${RING_RADIUS} ${RING_RADIUS} 0 ${large} ${sweep} ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
 }
 
 function closedRing(
@@ -312,8 +323,11 @@ function windowRing(
           ? RING_SPANS[window.id]
           : undefined;
       const span = known ?? { from: index * even, to: (index + 1) * even };
-      const from = span.from + RING_GAP / 2;
-      const to = span.to - RING_GAP / 2;
+      const head = span.from + RING_GAP / 2;
+      const tail = span.to - RING_GAP / 2;
+      /* Anchor every segment at its left end, so all of them drain from right to left. */
+      const from = ringPoint(head).x <= ringPoint(tail).x ? head : tail;
+      const to = from === head ? tail : head;
       const fraction = Math.min(1, Math.max(0, window.remainingPercent / 100));
       const fillTo = from + (to - from) * fraction;
       const drawn = [
