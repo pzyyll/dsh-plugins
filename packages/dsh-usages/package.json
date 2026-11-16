@@ -1,7 +1,7 @@
 {
   "name": "@balaenis/dsh-usages",
   "version": "0.1.0",
-  "description": "Shows the DeepSeek balance and OpenCode Go quota above the sidebar account.",
+  "description": "Shows one usage amount in a floating capsule: the session's channel, or DeepSeek away from a conversation.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -63,8 +63,7 @@
       "inject": [
         "@deepseek-ai/dsh-api-gateway",
         "@deepseek-ai/dsh-client-connection",
-        "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-client-ui-sidebar"
+        "@deepseek-ai/dsh-client-locale"
       ]
     }
   }

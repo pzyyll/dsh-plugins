@@ -91,7 +91,7 @@ export interface UsageSnapshot {
   readonly sources?: readonly SourceChannel[];
 }
 
-/** Each channel keeps its own host cache for this long. The sidebar polls the visible one at the same pace. */
+/** Each channel keeps its own host cache for this long. The capsule refreshes at the same pace. */
 export const CHANNEL_CACHE_MS = 15_000;
 
 const BUILTIN_CHANNELS = ["deepseek", "opencode-go"] as const;
@@ -597,6 +597,15 @@ export function compactMark(
     walletText(snapshot.deepseek.bonusWallets, locale) ??
     "–"
   );
+}
+
+/**
+ * Off the conversation: DeepSeek while that channel is configured, otherwise the first
+ * configured channel. A configured DeepSeek with no balance stays DeepSeek.
+ */
+export function defaultChannel(snapshot: UsageSnapshot): UsageChannel | null {
+  if (deepseekConfigured(snapshot.deepseek)) return "deepseek";
+  return configuredChannels(snapshot)[0] ?? null;
 }
 
 export function placePopover(

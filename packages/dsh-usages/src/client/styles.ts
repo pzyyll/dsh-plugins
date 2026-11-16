@@ -1,113 +1,93 @@
-// ABOUTME: Sidebar and detail styles for the usage row.
+// ABOUTME: Floating capsule and detail styles for usage.
 // ABOUTME: Colors come from host theme tokens so light and dark stay consistent.
 
 export const USAGE_STYLE_ID = "dsh-usages-style";
 
 export const USAGE_CSS = `
-[data-slot="sidebar.footer.action"] {
-  display: flex !important;
-  flex-direction: column;
-  align-items: stretch;
-  width: 100%;
-  min-width: 0;
-}
-[data-sidebar-collapsed="true"] [data-slot="sidebar.footer.action"] {
-  width: auto;
-  align-items: center;
-  gap: 12px;
-}
-[data-dsh-usages-root] {
+[data-dsh-usages-float] {
+  position: fixed;
+  z-index: 40;
   display: flex;
-  min-width: 0;
+  width: max-content;
+  height: 32px;
+  anchor-name: var(--dsh-usages-anchor);
 }
-[data-dsh-usages-root][data-wide="true"] {
-  width: 100%;
-}
-[data-dsh-usages-trigger] {
+[data-dsh-usages-float] [data-dsh-usages-trigger] {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  box-sizing: border-box;
   width: 100%;
-  min-width: 0;
-  min-height: 36px;
+  height: 100%;
   margin: 0;
-  padding: 4px 10px;
-  border: 0;
-  border-radius: 12px;
-  background: transparent;
+  padding: 0 12px;
+  border: 0.8px solid color-mix(in srgb, var(--dsw-static-blue-450) 24%, transparent);
+  border-radius: 12.8px;
+  background: var(--dsw-specific-menu);
   color: var(--dsw-alias-label-primary);
   font: inherit;
-  font-size: 13px;
   line-height: 18px;
-  text-align: start;
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-app-region: no-drag;
+  box-shadow: var(--dsw-elevation-prominent);
+  transition: box-shadow 160ms ease;
 }
-[data-dsh-usages-trigger]:hover,
-[data-dsh-usages-trigger][aria-expanded="true"] {
-  background: color-mix(in srgb, var(--dsw-alias-label-primary) 8%, transparent);
+[data-dsh-usages-float][data-edge="left"]:not([data-dragging="true"]) [data-dsh-usages-trigger] {
+  border-radius: 0 12.8px 12.8px 0;
+  border-left-color: transparent;
 }
-[data-dsh-usages-root][data-wide="false"] [data-dsh-usages-trigger] {
-  justify-content: center;
+[data-dsh-usages-float][data-edge="right"]:not([data-dragging="true"]) [data-dsh-usages-trigger] {
+  border-radius: 12.8px 0 0 12.8px;
+  border-right-color: transparent;
+}
+[data-dsh-usages-float][data-dragging="true"] [data-dsh-usages-trigger] {
+  cursor: grabbing;
+}
+[data-dsh-usages-float] [data-dsh-usages-trigger][aria-expanded="true"],
+[data-dsh-usages-float] button[data-dsh-usages-trigger]:hover {
+  box-shadow:
+    0 0 9.6px color-mix(in srgb, var(--dsw-static-blue-450) 28%, transparent),
+    0 0 19.2px color-mix(in srgb, var(--dsw-static-blue-300) 16%, transparent),
+    var(--dsw-elevation-prominent);
+}
+[data-dsh-usages-float] button[data-dsh-usages-trigger]:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid
+    var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: -2px;
+}
+[data-dsh-usages-float] [role="status"] {
+  cursor: default;
+}
+/* 32px ring, 4px of padding before the border. Hover growth stays inside that gap. */
+[data-dsh-usages-float][data-face="ring"] {
+  width: max-content;
+  height: max-content;
+}
+[data-dsh-usages-float][data-face="ring"] [data-dsh-usages-trigger] {
   width: auto;
-  min-width: 36px;
-  height: 36px;
-  padding: 0 6px;
-  border-radius: 999px;
+  height: auto;
+  padding: 4px;
 }
-[data-dsh-usages-mark] {
-  flex: none;
-  display: block;
-}
-/* The balance capsule takes the leading slot the gauge mark used to hold. */
 [data-dsh-usages-money] {
   flex: none;
   display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  align-items: baseline;
+  gap: 8px;
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
+  color: var(--dsw-alias-label-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
-[data-dsh-usages-facts] {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-}
-[data-dsh-usages-fact] {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  min-width: 0;
-}
-/* The name and the ring share one centre line; baseline alignment would push the
-   text above a ring that is taller than its line box. */
-[data-dsh-usages-fact][data-ring="true"],
-[data-dsh-usages-fact][data-pill="true"],
-[data-dsh-usages-fact][data-spin="true"] {
-  align-items: center;
-}
-/* Querying state: same 16px slot the gauge mark and the ring occupy. */
-[data-dsh-usages-spinner] {
-  flex: none;
-  align-self: center;
-  box-sizing: border-box;
-  width: 16px;
-  height: 16px;
-  border: 2px solid color-mix(in srgb, var(--dsw-alias-label-primary) 22%, transparent);
-  border-top-color: color-mix(in srgb, var(--dsw-alias-label-primary) 72%, transparent);
-  border-radius: 50%;
-  animation: dsh-usages-spin 0.8s linear infinite;
-}
+/* No nested capsule: the floating shell is already the container. */
 [data-dsh-usages-pill] {
   display: inline-flex;
   align-items: baseline;
   gap: 1px;
   max-width: 100%;
-  padding: 2px 10px;
-  border-radius: 999px;
-  background: var(--dsw-alias-state-success-tertiary);
-  color: var(--dsw-alias-state-success-secondary);
+  color: inherit;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -122,15 +102,36 @@ export const USAGE_CSS = `
   font-weight: 650;
   color: inherit;
 }
+[data-dsh-usages-status] {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+[data-dsh-usages-mark] {
+  flex: none;
+  display: block;
+}
+[data-dsh-usages-value] {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 [data-dsh-usages-ring] {
   flex: none;
   display: block;
-  align-self: center;
+  width: 32px;
+  height: 32px;
+  max-width: 32px;
+  max-height: 32px;
   overflow: visible;
 }
 [data-dsh-usages-ring] [data-dsh-usages-segment] {
-  transform-box: view-box;
-  transform-origin: 18px 18px;
+  transform-box: fill-box;
+  transform-origin: center;
   transition: transform var(--ds-transition-duration-fast) var(--ds-ease-in-out);
   pointer-events: none;
 }
@@ -154,18 +155,15 @@ export const USAGE_CSS = `
 }
 [data-dsh-usages-ring] [data-role="fill"] {
   fill: none;
-  /* Softer than the ink, so the remainder reads as a grey arc instead of solid black. */
   stroke: color-mix(in srgb, var(--dsw-alias-label-primary) 62%, transparent);
   stroke-linecap: round;
   transition:
     stroke var(--ds-transition-duration-fast) var(--ds-ease-in-out),
     opacity var(--ds-transition-duration-fast) var(--ds-ease-in-out);
 }
-/* A single window is one closed ring. Butt caps let the remainder meet the other side. */
 [data-dsh-usages-ring][data-closed="true"] [data-role="fill"] {
   stroke-linecap: butt;
 }
-/* While one segment is focused, the others fall back to their plain 100% track. */
 [data-dsh-usages-ring][data-hovering="true"]
   [data-dsh-usages-segment][data-hover="false"]
   [data-role="fill"] {
@@ -196,21 +194,15 @@ export const USAGE_CSS = `
   pointer-events: none;
   box-shadow: 0 6px 16px color-mix(in srgb, var(--dsw-alias-label-primary) 18%, transparent);
 }
-[data-dsh-usages-name] {
+[data-dsh-usages-spinner] {
   flex: none;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-}
-[data-dsh-usages-value] {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-[data-dsh-usages-compact] {
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  border: 2px solid color-mix(in srgb, var(--dsw-alias-label-primary) 22%, transparent);
+  border-top-color: color-mix(in srgb, var(--dsw-alias-label-primary) 72%, transparent);
+  border-radius: 50%;
+  animation: dsh-usages-spin 0.8s linear infinite;
 }
 [data-dsh-usages-panel] {
   position: fixed;
@@ -474,9 +466,11 @@ export const USAGE_CSS = `
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  [data-dsh-usages-float] [data-dsh-usages-trigger],
   [data-dsh-usages-refresh][aria-busy="true"] svg,
   [data-dsh-usages-spinner] {
     animation: none;
+    transition: none;
   }
 }
 [data-dsh-usages-windows] {

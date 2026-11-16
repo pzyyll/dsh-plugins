@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "用量",
-    "description": "在侧栏账户上方显示当前会话渠道的用量。默认是 DeepSeek 余额，切到 OpenCode Go 时显示剩余额度。点击可查看已配置渠道的详情。OpenCode 密钥只留在主机侧。"
+    "description": "在内容区边缘显示悬浮胶囊，不写渠道名。会话里跟随当前模型。离开会话时，已配置 DeepSeek 就显示其余额，否则显示第一个已配置渠道。OpenCode 密钥只留在主机侧。"
   },
   "rowLabel": "DeepSeek {deepseek}。OpenCode Go {opencode}。",
   "deepseek": "DeepSeek",

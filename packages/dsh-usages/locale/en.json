@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Usage",
-    "description": "Shows the open session's usage above the sidebar account. DeepSeek balance is the default, and OpenCode Go shows its remainder when that model is selected. Click for every configured channel. The OpenCode key stays on the host."
+    "description": "A floating capsule on the content edge, with no channel name. A conversation follows its model. Away from a conversation, a configured DeepSeek channel shows its balance; otherwise the first configured channel shows. The OpenCode key stays on the host."
   },
   "rowLabel": "DeepSeek {deepseek}. OpenCode Go {opencode}.",
   "deepseek": "DeepSeek",

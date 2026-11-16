@@ -1,5 +1,5 @@
-// ABOUTME: Show DeepSeek balance and OpenCode Go quota above the sidebar account.
-// ABOUTME: Clicking the row opens a detail panel; the OpenCode key is never requested here.
+// ABOUTME: Show one usage amount in a floating capsule on the content edge.
+// ABOUTME: Clicking it opens the detail panel; the OpenCode key is never requested here.
 
 import {
   createElement,
@@ -14,20 +14,21 @@ import {
 import {
   buttonFact,
   channelForProvider,
-  compactMark,
   configuredChannels,
+  defaultChannel,
+  deepseekConfigured,
   dictionaries,
   fill,
   formatAgo,
   formatAmount,
   formatPercent,
-  sidebarMoney,
   isRecord,
   mainSessionRow,
   opencodeChips,
-  sameMainSessionRow,
-  sourceChips,
   placePopover,
+  sameMainSessionRow,
+  sidebarMoney,
+  sourceChips,
   CHANNEL_CACHE_MS,
   mergeSnapshot,
   resetCountdown,
@@ -37,13 +38,11 @@ import {
   type Translate,
   type UsageChannel,
   type UsageKey,
-  type MoneyPart,
   type UsageSnapshot,
-  type UsageSourceReading,
-  type OpencodeWindowId,
   type Wallet,
   type WindowChip,
 } from "../shared/model.js";
+import { UsageCapsule, type CapsuleFace } from "./capsule.js";
 import {
   setUsageError,
   setUsageOpen,
@@ -66,19 +65,6 @@ interface LocaleService {
   bind(ns: string): (key: string) => string;
 }
 
-interface SessionListLike {
-  readonly byId: Readonly<Record<string, SessionUsageSource>>;
-}
-
-type UseSessions = <Selected>(
-  selector: (value: SessionListLike) => Selected,
-  equal?: (left: Selected, right: Selected) => boolean,
-) => Selected;
-
-function emptySessions<Selected>(selector: (value: SessionListLike) => Selected): Selected {
-  return selector({ byId: {} });
-}
-
 interface ClientContext {
   locale?: LocaleService;
   connection?: {
@@ -94,22 +80,11 @@ interface ClientContext {
     inject(name: string, effect: () => (() => void) | void): () => void;
     register(
       options: { name: string; id: string; order?: number },
-      component: (props: { wide?: boolean; useSessions?: UseSessions }) => ReactElement | null,
+      component: (props?: unknown) => ReactElement | null,
     ): () => void;
   };
   effect(effect: () => void | (() => void)): () => void;
   get?(name: string): unknown;
-}
-
-/** The observable the model-selection entries render from. */
-interface ModelRouteStore {
-  getSnapshot(): unknown;
-  subscribe(listener: () => void): () => void;
-}
-
-/** The model-selection plugin's per-session directory service (`ctx.modelDirectories`). */
-interface ModelDirectories {
-  directoryFor(sessionId: string): { readonly store: ModelRouteStore };
 }
 
 let clientContext: ClientContext | undefined;
@@ -197,45 +172,6 @@ function requestUsage(refresh: boolean, channels: readonly UsageChannel[], quiet
   void loadUsage(refresh, channels, quiet);
 }
 
-function noopSubscribe(): () => void {
-  return () => {};
-}
-
-function optionalClientService<T>(ctx: ClientContext, name: string): T | undefined {
-  try {
-    return (ctx.get?.(name) as T | undefined) ?? undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/*
- * A blank session records no model selection, so its row cannot say which route it
- * will use. The model picker resolves that to the catalog default; read the same
- * directory instead of guessing from the row.
- */
-function modelRoute(
-  ctx: ClientContext,
-  sessionId: string | undefined,
-): ModelRouteStore | undefined {
-  if (sessionId === undefined || sessionId === "") return undefined;
-  const directories = optionalClientService<ModelDirectories>(ctx, "modelDirectories");
-  if (directories === undefined || typeof directories.directoryFor !== "function") return undefined;
-  try {
-    return directories.directoryFor(sessionId).store;
-  } catch {
-    return undefined;
-  }
-}
-
-function routeProvider(store: ModelRouteStore | undefined): string | undefined {
-  if (store === undefined) return undefined;
-  const state = store.getSnapshot();
-  if (!isRecord(state) || !isRecord(state.current)) return undefined;
-  const provider = state.current.provider;
-  return typeof provider === "string" && provider !== "" ? provider : undefined;
-}
-
 function closeUsage(restoreFocus = false): void {
   setUsageOpen(false, null);
   if (!restoreFocus) return;
@@ -276,38 +212,6 @@ function installStyle(): () => void {
   };
 }
 
-/**
- * Gauge mark on the host's own icon grid: a 16px box with stroke-width 1 at that size,
- * which is what `regular` sidebar icons use. The drawing sits inside x 7.3–28.7 /
- * y 13.8–25.1, so the viewBox is cropped to that ink instead of a padded square.
- */
-function mark(): ReactElement {
-  return createElement(
-    "svg",
-    {
-      "data-dsh-usages-mark": "",
-      viewBox: "7.3 8.8 21.4 21.4",
-      width: 16,
-      height: 16,
-      "aria-hidden": true,
-    },
-    createElement("path", {
-      d: "M8 24.5a10 10 0 1 1 20 0",
-      fill: "none",
-      stroke: "currentColor",
-      "stroke-width": "1.4",
-      "stroke-linecap": "round",
-    }),
-    createElement("path", {
-      d: "M18 24.5 24 15",
-      fill: "none",
-      stroke: "currentColor",
-      "stroke-width": "1.3",
-      "stroke-linecap": "round",
-    }),
-  );
-}
-
 function refreshIcon(): ReactElement {
   return createElement(
     "svg",
@@ -345,448 +249,9 @@ function trackedChannels(snapshot: UsageSnapshot | null): readonly string[] {
   return channels;
 }
 
-function fact(name: string, value: string): ReactElement {
-  return createElement(
-    "span",
-    { "data-dsh-usages-fact": "" },
-    createElement("span", { "data-dsh-usages-name": "" }, name),
-    createElement("span", { "data-dsh-usages-value": "" }, value),
-  );
-}
-
-/** DeepSeek balance as a capsule: the currency mark is smaller than the figure. */
-function moneyLead(parts: readonly MoneyPart[]): ReactElement {
-  return createElement(
-    "span",
-    { "data-dsh-usages-money": "" },
-    parts.map((part, index) =>
-      createElement(
-        "span",
-        { "data-dsh-usages-pill": "", key: `${part.symbol}-${index}` },
-        part.symbol === ""
-          ? null
-          : createElement("span", { "data-dsh-usages-pill-symbol": "" }, part.symbol),
-        createElement("span", { "data-dsh-usages-pill-amount": "" }, part.amount),
-      ),
-    ),
-  );
-}
-
 /** A small turning arc in the leading slot while a channel is still being queried. */
 function spinner(): ReactElement {
   return createElement("span", { "data-dsh-usages-spinner": "", "aria-hidden": true });
-}
-
-/** Channel name alone; the leading mark carries the numbers. */
-function nameFact(name: string, lead: "ring" | "pill" | "spin"): ReactElement {
-  return createElement(
-    "span",
-    { "data-dsh-usages-fact": "", [`data-${lead}`]: "true" },
-    createElement("span", { "data-dsh-usages-name": "" }, name),
-  );
-}
-
-/** Ring geometry in the 36-unit viewBox. Angles run clockwise from twelve o'clock. */
-const RING_CENTER = 18;
-const RING_RADIUS = 13.6;
-const RING_STROKE = 2.6;
-/* Round caps add strokeWidth / 2 past each end (about 5.5° here), so the drawn gap is
-   narrower than this number; it still reads as separate arcs at the sidebar's icon size. */
-const RING_GAP = 22;
-
-/**
- * Upper half is the 5-hour window; the lower half splits into a week quarter on the
- * left and a month quarter on the right. Twelve o'clock is 0, so the top arc runs
- * from 270 through 0 to 90.
- */
-const RING_SPANS: Readonly<
-  Record<OpencodeWindowId, { readonly from: number; readonly to: number }>
-> = {
-  rolling: { from: 270, to: 450 },
-  weekly: { from: 180, to: 270 },
-  monthly: { from: 90, to: 180 },
-};
-
-function ringPoint(angle: number): { readonly x: number; readonly y: number } {
-  const radians = ((angle - 90) * Math.PI) / 180;
-  return {
-    x: RING_CENTER + RING_RADIUS * Math.cos(radians),
-    y: RING_CENTER + RING_RADIUS * Math.sin(radians),
-  };
-}
-
-function arcPath(from: number, to: number): string {
-  const start = ringPoint(from);
-  const end = ringPoint(to);
-  const sweep = to - from > 180 ? 1 : 0;
-  return `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} A ${RING_RADIUS} ${RING_RADIUS} 0 ${sweep} 1 ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
-}
-
-/**
- * One window is a closed ring: the track is the used side, and the remainder is the
- * other side. Several windows stay separate arcs.
- */
-function closedRing(
-  window: WindowChip,
-  size: number,
-  ref: { readonly current: SVGSVGElement | null },
-  hovered: string | null,
-  onHover: (window: WindowChip) => void,
-  onLeave: () => void,
-): ReactElement {
-  const remaining = Math.min(100, Math.max(0, window.remainingPercent));
-  const circle = {
-    cx: RING_CENTER,
-    cy: RING_CENTER,
-    r: RING_RADIUS,
-    "stroke-width": RING_STROKE,
-  };
-  const full = remaining <= 0 || remaining >= 100;
-  return createElement(
-    "svg",
-    {
-      ref,
-      "data-dsh-usages-ring": "",
-      "data-closed": "true",
-      "data-hovering": hovered === null ? "false" : "true",
-      viewBox: "0 0 36 36",
-      width: size,
-      height: size,
-      "aria-hidden": true,
-    },
-    createElement("rect", {
-      key: "hub",
-      "data-role": "hub",
-      x: RING_CENTER - 4.8,
-      y: RING_CENTER - 4.8,
-      width: 9.6,
-      height: 9.6,
-      rx: 2.2,
-      transform: `rotate(45 ${RING_CENTER} ${RING_CENTER})`,
-    }),
-    createElement(
-      "g",
-      {
-        "data-dsh-usages-segment": "",
-        "data-hover": hovered === window.id ? "true" : "false",
-      },
-      createElement("circle", { ...circle, key: "track", "data-role": "track" }),
-      remaining <= 0
-        ? null
-        : createElement("circle", {
-            ...circle,
-            key: "fill",
-            "data-role": "fill",
-            "data-level": window.level,
-            pathLength: 100,
-            ...(full
-              ? {}
-              : {
-                  "stroke-dasharray": `${remaining} ${100 - remaining}`,
-                  "stroke-dashoffset": remaining,
-                }),
-            transform: `rotate(-90 ${RING_CENTER} ${RING_CENTER})`,
-          }),
-    ),
-    createElement("circle", {
-      ...circle,
-      key: "hit",
-      "data-role": "hit",
-      "stroke-width": 10,
-      onPointerEnter: () => {
-        onHover(window);
-      },
-      onPointerLeave: onLeave,
-    }),
-  );
-}
-
-/**
- * One arc per window; each arc fills clockwise from empty to that window's remainder.
- * The visible arcs sit in a group that scales on hover, while the hit stroke stays put
- * so a grown segment cannot push the pointer out of its own target.
- */
-function windowRing(
-  windows: readonly WindowChip[],
-  size: number,
-  ref: { readonly current: SVGSVGElement | null },
-  hovered: string | null,
-  onHover: (window: WindowChip) => void,
-  onLeave: () => void,
-): ReactElement {
-  const only = windows.length === 1 ? windows[0] : undefined;
-  if (only !== undefined) return closedRing(only, size, ref, hovered, onHover, onLeave);
-  const even = 360 / windows.length;
-  return createElement(
-    "svg",
-    {
-      ref,
-      "data-dsh-usages-ring": "",
-      "data-hovering": hovered === null ? "false" : "true",
-      viewBox: "0 0 36 36",
-      width: size,
-      height: size,
-      "aria-hidden": true,
-    },
-    createElement("rect", {
-      key: "hub",
-      "data-role": "hub",
-      x: RING_CENTER - 4.8,
-      y: RING_CENTER - 4.8,
-      width: 9.6,
-      height: 9.6,
-      rx: 2.2,
-      transform: `rotate(45 ${RING_CENTER} ${RING_CENTER})`,
-    }),
-    windows.flatMap((window, index) => {
-      const known =
-        window.id === "rolling" || window.id === "weekly" || window.id === "monthly"
-          ? RING_SPANS[window.id]
-          : undefined;
-      const span = known ?? { from: index * even, to: (index + 1) * even };
-      const from = span.from + RING_GAP / 2;
-      const to = span.to - RING_GAP / 2;
-      const fraction = Math.min(1, Math.max(0, window.remainingPercent / 100));
-      const fillTo = from + (to - from) * fraction;
-      const drawn = [
-        createElement("path", {
-          key: `${window.id}-track`,
-          "data-role": "track",
-          d: arcPath(from, to),
-          "stroke-width": RING_STROKE,
-        }),
-      ];
-      if (fraction > 0) {
-        drawn.push(
-          createElement("path", {
-            key: `${window.id}-fill`,
-            "data-role": "fill",
-            "data-level": window.level,
-            d: arcPath(from, fillTo),
-            "stroke-width": RING_STROKE,
-          }),
-        );
-      }
-      return [
-        createElement(
-          "g",
-          {
-            key: window.id,
-            "data-dsh-usages-segment": "",
-            "data-hover": hovered === window.id ? "true" : "false",
-          },
-          drawn,
-        ),
-        createElement("path", {
-          key: `${window.id}-hit`,
-          "data-role": "hit",
-          d: arcPath(from, to),
-          onPointerEnter: () => {
-            onHover(window);
-          },
-          onPointerLeave: onLeave,
-        }),
-      ];
-    }),
-  );
-}
-
-function UsageRow(props: {
-  readonly wide: boolean | undefined;
-  readonly ctx: ClientContext;
-  readonly useSessions: UseSessions | undefined;
-}): ReactElement {
-  const wide = props.wide !== false;
-  const usage = useUsage();
-  const { locale, t } = useTranslate(props.ctx);
-  const useSessions = props.useSessions ?? emptySessions;
-  const main = useSessions(mainSessionRow, sameMainSessionRow);
-  const route = modelRoute(props.ctx, main?.id);
-  const routed = useSyncExternalStore(route?.subscribe ?? noopSubscribe, () =>
-    routeProvider(route),
-  );
-  const channel = channelForProvider(
-    routed ?? main?.provider ?? null,
-    usage.snapshot?.sources ?? [],
-  );
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const shown = usage.snapshot === null ? null : buttonFact(usage.snapshot, channel, locale, t);
-  const chips =
-    usage.snapshot === null
-      ? null
-      : channel === "opencode-go"
-        ? opencodeChips(usage.snapshot.opencodeGo, t)
-        : titledSourceChips(
-            usage.snapshot.sources?.find((source) => source.id === channel)?.reading ?? {
-              status: "unavailable",
-            },
-            t,
-          );
-  const money =
-    usage.snapshot === null || channel !== "deepseek"
-      ? []
-      : sidebarMoney(usage.snapshot.deepseek, locale);
-  /*
-   * A channel switch asks the host for data the row has never seen, and the snapshot
-   * still holds a placeholder for it. Count that as loading instead of an empty slot;
-   * an answered channel with nothing to show stays hidden.
-   */
-  const loading = shown === null && !usage.answered.has(channel);
-  const channelLabel = channelName(usage.snapshot, channel, t);
-  const label =
-    shown === null
-      ? loading
-        ? `${channelLabel} ${t("loading")}`
-        : t("details")
-      : `${shown.name} ${shown.value}`;
-  const ringRef = useRef<SVGSVGElement | null>(null);
-  const tipRef = useRef<HTMLSpanElement | null>(null);
-  const [hovered, setHovered] = useState<string | null>(null);
-  const [tip, setTip] = useState<{
-    readonly text: string;
-    readonly left: number;
-    readonly top: number;
-  } | null>(null);
-  const ring =
-    chips === null
-      ? null
-      : windowRing(
-          chips,
-          28,
-          ringRef,
-          hovered,
-          (window) => {
-            setHovered(window.id);
-            const rect = ringRef.current?.getBoundingClientRect();
-            if (rect === undefined) return;
-            setTip({
-              text: `${window.name} · ${t("remainingPercent", {
-                percent: formatPercent(window.remainingPercent),
-              })}`,
-              left: rect.left + rect.width / 2,
-              top: rect.top - 6,
-            });
-          },
-          () => {
-            setHovered(null);
-            setTip(null);
-          },
-        );
-
-  /*
-   * A fixed box is only viewport-anchored until an ancestor declares containment; the
-   * sidebar sets container-type, so `left`/`top` land in that ancestor's space. Measure
-   * where the tooltip actually rendered and shift it onto the ring, clamped to the frame.
-   */
-  useLayoutEffect(() => {
-    const node = tipRef.current;
-    if (node === null || tip === null) return;
-    const box = node.getBoundingClientRect();
-    const half = box.width / 2;
-    const margin = 8;
-    const highest = margin + half;
-    const center = Math.min(
-      Math.max(tip.left, highest),
-      Math.max(highest, window.innerWidth - margin - half),
-    );
-    const bottom = Math.max(margin + box.height, tip.top);
-    const dx = center - (box.left + half);
-    const dy = bottom - box.bottom;
-    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
-    setTip({ ...tip, left: tip.left + dx, top: tip.top + dy });
-  }, [tip]);
-
-  useEffect(() => {
-    const loadVisible = (refresh: boolean, quiet: boolean) => {
-      if (globalThis.document?.hidden) return;
-      requestUsage(refresh, [channel], quiet);
-    };
-    loadVisible(false, false);
-    const timer = setInterval(() => loadVisible(true, true), POLL_MS);
-    const onVisible = () => {
-      if (!globalThis.document?.hidden) requestUsage(false, [channel]);
-    };
-    globalThis.document?.addEventListener("visibilitychange", onVisible);
-    return () => {
-      clearInterval(timer);
-      globalThis.document?.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [channel]);
-
-  return createElement(
-    "div",
-    {
-      "data-dsh-usages-root": "",
-      "data-wide": wide ? "true" : "false",
-      "data-window-drag-exclude": "",
-    },
-    createElement(
-      "button",
-      {
-        ref: buttonRef,
-        type: "button",
-        "data-dsh-usages-trigger": "",
-        "aria-haspopup": "dialog",
-        "aria-expanded": usage.open,
-        "aria-label": label,
-        "aria-busy": usage.pending || loading,
-        onClick: () => {
-          setHovered(null);
-          setTip(null);
-          const button = buttonRef.current;
-          if (usage.open) {
-            closeUsage();
-            return;
-          }
-          const rect = button?.getBoundingClientRect();
-          setUsageOpen(
-            true,
-            rect === undefined
-              ? null
-              : {
-                  left: rect.left,
-                  top: rect.top,
-                  right: rect.right,
-                  bottom: rect.bottom,
-                },
-          );
-          requestUsage(false, trackedChannels(usageState().snapshot));
-        },
-      },
-      wide
-        ? loading
-          ? spinner()
-          : (ring ?? (money.length > 0 ? moneyLead(money) : mark()))
-        : null,
-      wide
-        ? shown === null
-          ? loading
-            ? nameFact(channelLabel, "spin")
-            : null
-          : ring === null
-            ? money.length > 0
-              ? nameFact(shown.name, "pill")
-              : fact(shown.name, shown.value)
-            : nameFact(shown.name, "ring")
-        : createElement(
-            "span",
-            { "data-dsh-usages-compact": "" },
-            loading ? "…" : compactMark(usage.snapshot, channel, locale),
-          ),
-    ),
-    tip === null
-      ? null
-      : createElement(
-          "span",
-          {
-            ref: tipRef,
-            "data-dsh-usages-tip": "",
-            role: "tooltip",
-            style: { left: tip.left, top: tip.top },
-          },
-          tip.text,
-        ),
-  );
 }
 
 function safeUrl(value: string | undefined): string | undefined {
@@ -847,18 +312,6 @@ const WINDOW_TITLES = new Set(["rolling", "weekly", "monthly", "week", "month", 
 function windowTitle(id: string, fallback: string, t: Translate): string {
   if (!WINDOW_TITLES.has(id)) return fallback;
   return t(`window.${id}` as UsageKey);
-}
-
-function titledSourceChips(
-  reading: UsageSourceReading,
-  t: Translate,
-): ReturnType<typeof sourceChips> {
-  const chips = sourceChips(reading);
-  if (chips === null) return null;
-  return chips.map((chip) => {
-    const name = windowTitle(chip.id, chip.name, t);
-    return { ...chip, tag: name, name };
-  });
 }
 
 function windowBlock(
@@ -1159,7 +612,190 @@ function UsagePanel(props: { readonly ctx: ClientContext }): ReactElement | null
 
 export const inject = ["slots", "connection", "locale"];
 
-/** Register the sidebar row above Settings and the detail panel on the frame overlay. */
+interface SessionListLike {
+  readonly byId: Readonly<Record<string, SessionUsageSource>>;
+}
+
+type UseSessions = <Selected>(
+  selector: (value: SessionListLike) => Selected,
+  equal?: (left: Selected, right: Selected) => boolean,
+) => Selected;
+
+interface PanelInfo {
+  readonly activePanelId: string | null;
+}
+
+type UsePanelInfo = <Selected>(selector: (info: PanelInfo) => Selected) => Selected;
+
+interface OverlayProps {
+  readonly useSessions?: UseSessions;
+  readonly usePanelInfo?: UsePanelInfo;
+}
+
+interface ModelRouteStore {
+  getSnapshot(): unknown;
+  subscribe(listener: () => void): () => void;
+}
+
+interface ModelDirectories {
+  directoryFor(sessionId: string): { readonly store: ModelRouteStore };
+}
+
+function emptySessions<Selected>(selector: (value: SessionListLike) => Selected): Selected {
+  return selector({ byId: {} });
+}
+
+function overlayProps(value: unknown): OverlayProps {
+  if (!isRecord(value)) return {};
+  const useSessions = typeof value.useSessions === "function" ? value.useSessions : undefined;
+  const usePanelInfo = typeof value.usePanelInfo === "function" ? value.usePanelInfo : undefined;
+  return {
+    ...(useSessions === undefined ? {} : { useSessions: useSessions as UseSessions }),
+    ...(usePanelInfo === undefined ? {} : { usePanelInfo: usePanelInfo as UsePanelInfo }),
+  };
+}
+
+function noopSubscribe(): () => void {
+  return () => {};
+}
+
+function optionalService<T>(ctx: ClientContext, name: string): T | undefined {
+  try {
+    return (ctx.get?.(name) as T | undefined) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Blank sessions record no model. The picker resolves that to the catalog default. */
+function modelRoute(
+  ctx: ClientContext,
+  sessionId: string | undefined,
+): ModelRouteStore | undefined {
+  if (sessionId === undefined || sessionId === "") return undefined;
+  const directories = optionalService<ModelDirectories>(ctx, "modelDirectories");
+  if (directories === undefined || typeof directories.directoryFor !== "function") return undefined;
+  try {
+    return directories.directoryFor(sessionId).store;
+  } catch {
+    return undefined;
+  }
+}
+
+function routeProvider(store: ModelRouteStore | undefined): string | undefined {
+  if (store === undefined) return undefined;
+  const state = store.getSnapshot();
+  if (!isRecord(state) || !isRecord(state.current)) return undefined;
+  const provider = state.current.provider;
+  return typeof provider === "string" && provider !== "" ? provider : undefined;
+}
+
+/**
+ * Off the conversation, wait until DeepSeek has answered. If it is configured, stop there.
+ * Otherwise wait for the other channels before deciding there is nothing to show.
+ */
+function offSessionPending(
+  snapshot: UsageSnapshot | null,
+  answered: ReadonlySet<string>,
+  channels: readonly string[],
+): boolean {
+  if (!answered.has("deepseek")) return true;
+  if (snapshot !== null && deepseekConfigured(snapshot.deepseek)) return false;
+  return channels.some((channel) => channel !== "deepseek" && !answered.has(channel));
+}
+
+function channelWindows(
+  snapshot: UsageSnapshot,
+  channel: UsageChannel,
+  t: Translate,
+): readonly WindowChip[] | null {
+  if (channel === "opencode-go") return opencodeChips(snapshot.opencodeGo, t);
+  if (channel === "deepseek") return null;
+  const source = snapshot.sources?.find((item) => item.id === channel);
+  if (source === undefined) return null;
+  const chips = sourceChips(source.reading);
+  if (chips === null) return null;
+  return chips.map((chip) => {
+    const name = windowTitle(chip.id, chip.name, t);
+    return { ...chip, tag: name, name };
+  });
+}
+
+/** The previous row's mark: a ring, the balance pills, or a status, and never the channel name. */
+function channelFace(
+  snapshot: UsageSnapshot,
+  channel: UsageChannel,
+  locale: string,
+  t: Translate,
+): CapsuleFace | null {
+  const windows = channelWindows(snapshot, channel, t);
+  if (windows !== null) return { kind: "ring", windows };
+  if (channel === "deepseek") {
+    const parts = sidebarMoney(snapshot.deepseek, locale);
+    if (parts.length > 0) return { kind: "money", parts };
+  }
+  const fact = buttonFact(snapshot, channel, locale, t);
+  if (fact === null) return null;
+  return { kind: "status", value: fact.value };
+}
+
+function UsageEntry(props: {
+  readonly ctx: ClientContext;
+  readonly overlay: OverlayProps;
+}): ReactElement | null {
+  const usage = useUsage();
+  const { locale, t } = useTranslate(props.ctx);
+  const useSessions = props.overlay.useSessions ?? emptySessions;
+  const usePanelInfo =
+    props.overlay.usePanelInfo ??
+    ((selector: (info: PanelInfo) => boolean) => selector({ activePanelId: null }));
+  const conversation = usePanelInfo((info) => info.activePanelId === null);
+  const main = useSessions(mainSessionRow, sameMainSessionRow);
+  const route = modelRoute(props.ctx, conversation ? main?.id : undefined);
+  const routed = useSyncExternalStore(route?.subscribe ?? noopSubscribe, () =>
+    routeProvider(route),
+  );
+  const sessionChannel =
+    conversation && main !== null
+      ? channelForProvider(routed ?? main.provider, usage.snapshot?.sources ?? [])
+      : null;
+  const channels = sessionChannel === null ? trackedChannels(usage.snapshot) : [sessionChannel];
+  const channel =
+    sessionChannel ?? (usage.snapshot === null ? null : defaultChannel(usage.snapshot));
+  const face =
+    usage.snapshot === null || channel === null
+      ? null
+      : channelFace(usage.snapshot, channel, locale, t);
+  const pending =
+    face !== null
+      ? false
+      : sessionChannel === null
+        ? offSessionPending(usage.snapshot, usage.answered, channels)
+        : !usage.answered.has(sessionChannel);
+  const fact =
+    usage.snapshot === null || channel === null
+      ? null
+      : buttonFact(usage.snapshot, channel, locale, t);
+  const label = fact === null ? t(pending ? "loading" : "details") : `${fact.name} ${fact.value}`;
+  return createElement(UsageCapsule, {
+    usage,
+    t,
+    face,
+    label,
+    pending,
+    channels,
+    requestUsage,
+    closeUsage,
+    setOpen: (anchor) => {
+      setUsageOpen(true, anchor);
+    },
+    trackedChannels,
+    spinner,
+    pollMs: POLL_MS,
+  });
+}
+
+/** Register the floating capsule and the detail panel on the frame overlay. */
 export function apply(ctx: ClientContext): void {
   clientContext = ctx;
   ctx.effect(() => installStyle());
@@ -1173,19 +809,14 @@ export function apply(ctx: ClientContext): void {
       disposeEn();
     };
   });
-  ctx.slots.inject("sidebar.footer.action", () =>
+  ctx.slots.inject("shell.overlay", () =>
     ctx.slots.register(
       {
-        name: "sidebar.footer.action",
+        name: "shell.overlay",
         id: "dsh-usages",
-        order: -10,
+        order: 2,
       },
-      (props) =>
-        createElement(UsageRow, {
-          wide: props.wide,
-          useSessions: props.useSessions,
-          ctx,
-        }),
+      (slotProps) => createElement(UsageEntry, { ctx, overlay: overlayProps(slotProps) }),
     ),
   );
   ctx.slots.inject("shell.overlay", () =>

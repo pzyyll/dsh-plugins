@@ -19,6 +19,7 @@ import {
   channelForProvider,
   compactMark,
   configuredChannels,
+  defaultChannel,
   dictionaries,
   formatAgo,
   formatAmount,
@@ -257,6 +258,50 @@ describe("sidebar wording", () => {
       sameMainSessionRow({ id: "a", provider: null }, { id: "a", provider: "opencode-go" }),
     ).toBe(false);
     expect(sameMainSessionRow(null, null)).toBe(true);
+  });
+
+  it("keeps DeepSeek off a conversation, or falls back to the first configured channel", () => {
+    const both = {
+      deepseek: {
+        status: "ready" as const,
+        wallets: [{ currency: "CNY", balance: "54.82" }],
+        bonusWallets: [],
+      },
+      opencodeGo: {
+        status: "ready" as const,
+        fetchedAt: 1_000,
+        windows: [{ id: "rolling" as const, status: "ok", usedPercent: 11, remainingPercent: 89 }],
+      },
+    };
+    expect(defaultChannel(both)).toBe("deepseek");
+    // A configured DeepSeek keeps the slot even when it has nothing to show.
+    expect(defaultChannel({ ...both, deepseek: { status: "failed" } })).toBe("deepseek");
+    expect(
+      defaultChannel({
+        deepseek: { status: "signed-out" },
+        opencodeGo: both.opencodeGo,
+      }),
+    ).toBe("opencode-go");
+    expect(
+      defaultChannel({
+        deepseek: { status: "signed-out" },
+        opencodeGo: { status: "missing-key" },
+        sources: [
+          {
+            id: "xai-supergrok",
+            providers: ["xai-supergrok"],
+            reading: {
+              status: "ready",
+              title: "SuperGrok",
+              windows: [{ id: "week", label: "Weekly", usedPercent: 90, remainingPercent: 10 }],
+            },
+          },
+        ],
+      }),
+    ).toBe("xai-supergrok");
+    expect(
+      defaultChannel({ deepseek: { status: "signed-out" }, opencodeGo: { status: "missing-key" } }),
+    ).toBeNull();
   });
 });
 

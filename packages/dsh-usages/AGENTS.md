@@ -1,6 +1,6 @@
 # dsh-usages
 
-Sidebar usage for the DeepSeek wallet and the OpenCode Go quota.
+Floating usage capsule for the DeepSeek wallet and the OpenCode Go quota.
 
 ## Check
 

@@ -1,4 +1,4 @@
-// ABOUTME: Share the latest usage snapshot between the sidebar row and its detail.
+// ABOUTME: Share the latest usage snapshot between the floating capsule and its detail.
 // ABOUTME: Both seats subscribe, so a refresh updates the open panel without another registration.
 
 import type { Anchor, UsageSnapshot } from "../shared/model.js";
