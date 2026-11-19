@@ -185,17 +185,17 @@ const RING_GAP = 22;
 const RING_OUTER = RING_RADIUS + RING_STROKE / 2;
 const RING_VIEWBOX = `${RING_CENTER - RING_OUTER} ${RING_CENTER - RING_OUTER} ${RING_OUTER * 2} ${RING_OUTER * 2}`;
 /**
- * Upper half is the 5-hour window; the lower half splits into a week quarter on the
- * left and a month quarter on the right. Twelve o'clock is 0, so the top arc runs
+ * Upper half is the month window; the lower half splits into a week quarter on the
+ * left and a 5-hour quarter on the right. Twelve o'clock is 0, so the top arc runs
  * from 270 through 0 to 90. These are the spans only; the fill always starts at the
  * end with the smaller x, which is what keeps every segment draining right to left.
  */
 const RING_SPANS: Readonly<
   Record<OpencodeWindowId, { readonly from: number; readonly to: number }>
 > = {
-  rolling: { from: 270, to: 450 },
+  monthly: { from: 270, to: 450 },
   weekly: { from: 180, to: 270 },
-  monthly: { from: 90, to: 180 },
+  rolling: { from: 90, to: 180 },
 };
 
 function ringPoint(angle: number): { readonly x: number; readonly y: number } {
