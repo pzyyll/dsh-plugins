@@ -19,7 +19,6 @@ import {
   deepseekConfigured,
   dictionaries,
   fill,
-  formatAgo,
   formatAmount,
   formatPercent,
   isRecord,
@@ -441,12 +440,6 @@ function opencodeSection(snapshot: UsageSnapshot, t: Translate, now: number): Re
     { "data-dsh-usages-windows": "" },
     reading.windows.map((window) =>
       windowBlock({ ...window, label: t(`window.${window.id}` as UsageKey) }, t, now),
-    ),
-    createElement(
-      "p",
-      { "data-dsh-usages-updated": "" },
-      createElement("span", { "data-dsh-usages-dot": "", "aria-hidden": true }),
-      t("lastQuery", { time: formatAgo(reading.fetchedAt, now, t) }),
     ),
   );
 }

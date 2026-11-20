@@ -351,21 +351,6 @@ export const USAGE_CSS = `
   border-top: 1px solid var(--dsw-alias-border-l1);
   background: color-mix(in srgb, var(--dsw-alias-label-primary) 4%, transparent);
 }
-[data-dsh-usages-updated] {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
-  line-height: 16px;
-}
-[data-dsh-usages-dot] {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--dsw-alias-state-success-primary);
-}
 [data-dsh-usages-row] {
   display: flex;
   align-items: baseline;
