@@ -151,7 +151,7 @@ export const USAGE_CSS = `
 [data-dsh-usages-ring] [data-role="track"] {
   fill: none;
   stroke: color-mix(in srgb, var(--dsw-alias-label-primary) 32%, transparent);
-  stroke-linecap: butt;
+  stroke-linecap: round;
 }
 [data-dsh-usages-ring] [data-role="fill"] {
   fill: none;
