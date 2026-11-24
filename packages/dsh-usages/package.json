@@ -1,6 +1,6 @@
 {
   "name": "@balaenis/dsh-usages",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Shows one usage amount in a floating capsule: the session's channel, or DeepSeek away from a conversation.",
   "license": "MIT",
   "repository": {
