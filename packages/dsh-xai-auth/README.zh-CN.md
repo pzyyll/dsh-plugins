@@ -64,7 +64,7 @@ dsh plugin --profile <profile> add ./packages/dsh-xai-auth
 
 ## 开发
 
-使用 Node.js `>=24.9.0`。在本包目录中，修改代码后运行：
+使用 Node.js `^24.22.3 || >=26.13.1`。在本包目录中，修改代码后运行：
 
 ```sh
 mise run format

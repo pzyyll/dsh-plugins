@@ -13,7 +13,7 @@ export type InsertSelectionReference = (
   span: InsertionSpan,
 ) => boolean;
 
-/** Structural slices of dsh 0.2.2-rc.1's public input-trigger and session-scope contracts. */
+/** Structural slices of dsh 0.2.3-alpha.2's public input-trigger and session-scope contracts. */
 export interface SelectionReferenceSource {
   trigger: "@";
   name: string;

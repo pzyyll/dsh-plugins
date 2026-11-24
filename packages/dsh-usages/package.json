@@ -48,8 +48,8 @@
     "@deepseek-ai/schemastery": "*"
   },
   "engines": {
-    "dsh": ">=0.2.0 <0.3.0",
-    "node": "^24.9.0",
+    "dsh": "^0.2.3-alpha.2",
+    "node": "^24.22.3 || >=26.13.1",
     "pnpm": "12.16.1"
   },
   "packageManager": "pnpm@12.16.1",

@@ -10,7 +10,7 @@ export const MAX_SELECTION_REFERENCE_CHARS =
   MAX_JSON_ESCAPE_CHARS * (LEGACY_MAX_CONTEXT_CHARS + MAX_MENTION_CHARS);
 const REFERENCE_VERSION = 1;
 
-/** Structural slice of dsh 0.2.2-rc.1's public ReferenceInsert contract. */
+/** Structural slice of dsh 0.2.3-alpha.2's public ReferenceInsert contract. */
 export interface SelectionReference {
   source: typeof SELECTION_REFERENCE_SOURCE;
   ref: string;

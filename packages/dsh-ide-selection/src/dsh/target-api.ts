@@ -12,6 +12,7 @@ import {
   type IdeTargetOverview,
 } from "../shared/target.js";
 import type { IdeConnections } from "./ide-connections.js";
+import { isOwnerPeer } from "./owner-gate.js";
 
 export const TARGET_OVERVIEW_PATH = "/ide-selection/targets";
 export const TARGET_SELECT_PATH = "/ide-selection/target";
@@ -20,7 +21,6 @@ const MAX_REQUEST_BYTES = 8 * 1024;
 
 /** Host operations one target request needs, injected for direct handler tests. */
 export interface TargetApiDependencies {
-  authorize: (request: IncomingMessage) => 401 | 403 | undefined;
   sessionCwd: (sessionId: string) => string | undefined;
   overview: (sessionId: string, cwd: string, signal: AbortSignal) => Promise<IdeTargetOverview>;
   select: (
@@ -45,11 +45,6 @@ export async function handleTargetOverview(
 ): Promise<void> {
   if (request.method !== "GET") {
     response.writeHead(405, { allow: "GET" }).end();
-    return;
-  }
-  const rejection = dependencies.authorize(request);
-  if (rejection) {
-    response.writeHead(rejection).end();
     return;
   }
   const sessionId = sessionOf(request);
@@ -79,11 +74,6 @@ export async function handleTargetSelect(
 ): Promise<void> {
   if (request.method !== "POST") {
     response.writeHead(405, { allow: "POST" }).end();
-    return;
-  }
-  const rejection = dependencies.authorize(request);
-  if (rejection) {
-    response.writeHead(rejection).end();
     return;
   }
   const sessionId = sessionOf(request);
@@ -129,7 +119,6 @@ export function registerTargetApi(
     const controller = new AbortController();
     const signal = AbortSignal.any([options.signal, controller.signal]);
     const dependencies: TargetApiDependencies = {
-      authorize: (request) => scope.connection.requestRejection({ headers: request.headers }),
       sessionCwd: (sessionId) => scope.sessions.get(SessionId(sessionId))?.header.cwd,
       overview: async (sessionId, cwd, requestAbort) => {
         const targets = await connections.listTargets(cwd, requestAbort);
@@ -148,12 +137,26 @@ export function registerTargetApi(
     const disposeOverview = scope.webServer.register({
       kind: "exact",
       path: TARGET_OVERVIEW_PATH,
-      handler: (request, response) => handleTargetOverview(request, response, dependencies),
+      auth: "required",
+      handler: (request, response, peer) => {
+        if (!isOwnerPeer(peer)) {
+          writeJson(response, 403, { error: "owner access required" });
+          return;
+        }
+        return handleTargetOverview(request, response, dependencies);
+      },
     });
     const disposeSelect = scope.webServer.register({
       kind: "exact",
       path: TARGET_SELECT_PATH,
-      handler: (request, response) => handleTargetSelect(request, response, dependencies),
+      auth: "required",
+      handler: (request, response, peer) => {
+        if (!isOwnerPeer(peer)) {
+          writeJson(response, 403, { error: "owner access required" });
+          return;
+        }
+        return handleTargetSelect(request, response, dependencies);
+      },
     });
     scope.effect(() => () => {
       controller.abort();

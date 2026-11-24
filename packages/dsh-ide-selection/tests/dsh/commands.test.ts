@@ -67,7 +67,7 @@ async function createHarness(
     : { cwd: "/work/one" };
   const session = ctx.sessions.create(undefined, { meta });
   const agent = { id: session.id, session } as Agent;
-  const disposeAgent = ctx.agents.enter(agent, undefined);
+  const disposeAgent = ctx.agents.enter(agent);
   const lifetime = new AbortController();
   cleanups.push(() => {
     lifetime.abort();

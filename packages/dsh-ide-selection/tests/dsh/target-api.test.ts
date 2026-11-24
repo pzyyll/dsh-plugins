@@ -1,10 +1,10 @@
-// ABOUTME: Verify the browser target routes authorize, list, and apply IDE choices over real HTTP.
+// ABOUTME: Verify the browser target routes admit the owner, list, and apply IDE choices over real HTTP.
 // ABOUTME: Drive the shipped plugin and WebServer scopes rather than stubbing the transport.
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { Context, type Plugin } from "@deepseek-ai/cordis";
+import { Context } from "@deepseek-ai/cordis";
 import { AgentRegistry } from "@deepseek-ai/dsh-agent";
 import { SessionProjectionRegistry } from "@deepseek-ai/dsh-session-projection";
 import { WebServer } from "@deepseek-ai/dsh-host-webserver";
@@ -15,6 +15,7 @@ import { IdeServer } from "../../src/shared/server.js";
 import type { IdeTargetOverview } from "../../src/shared/target.js";
 import * as selectionPlugin from "../../src/dsh/index.js";
 import { TARGET_OVERVIEW_PATH, TARGET_SELECT_PATH } from "../../src/dsh/target-api.js";
+import { admitOwner, connectionStub } from "./admission.js";
 
 const roots: string[] = [];
 const closers: Array<() => Promise<void>> = [];
@@ -54,15 +55,8 @@ async function createHarness(options: { ideWorkspace?: string } = {}): Promise<H
   await ctx.plugin(AgentRegistry);
   await ctx.plugin(WebServer, { host: "127.0.0.1", port: 0 });
   let authorized = false;
-  const authorization: Plugin = {
-    name: "target-test-authorization",
-    apply(scope: Context) {
-      scope.provide("connection", {
-        requestRejection: () => (authorized ? undefined : 401),
-      });
-    },
-  };
-  await ctx.plugin(authorization);
+  admitOwner(ctx, () => authorized);
+  await ctx.plugin(connectionStub);
   await ctx.plugin(selectionPlugin, { lockDir: dir });
   const session = ctx.sessions.create(undefined, { meta: { cwd: "/work/app" } });
   const origin = ctx.webServer.getOrigin();

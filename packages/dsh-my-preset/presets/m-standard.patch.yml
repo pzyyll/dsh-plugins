@@ -1,6 +1,6 @@
 # Agent preset M-Standard: GENERATED FILE - edit scripts/sync-presets.ts instead.
 #
-# Copied from the standard preset shipped with @deepseek-ai/dsh-web-app 0.2.2-rc.3.
+# Copied from the standard preset shipped with @deepseek-ai/dsh-web-app 0.2.3-alpha.2.
 #
 # Regenerate: mise run sync-presets
 #             node scripts/sync-presets.ts standard
@@ -144,6 +144,8 @@
               transport: streamable-http
               url: https://mcp.exa.ai/mcp
               headers: !!js 'process.env.EXA_API_KEY ? { "x-api-key": process.env.EXA_API_KEY } : {}'
+          - id: tool-cordis
+            name: "@deepseek-ai/dsh-tool-cordis"
           - id: present
             name: "@deepseek-ai/dsh-tool-present"
           - id: tool-office

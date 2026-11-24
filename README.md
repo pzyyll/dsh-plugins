@@ -15,7 +15,7 @@ pnpm workspace for local dsh plugins. Dependency versions are in the root catalo
 
 ## Requirements
 
-Node.js 24.9 or later in the 24.x series, and pnpm 12.16.1. mise installs both.
+Node.js `^24.22.3 || >=26.13.1`, and pnpm 12.16.1. mise installs both.
 
 ## Setup
 

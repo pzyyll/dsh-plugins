@@ -110,7 +110,7 @@ function clientVersion(): string {
       if (typeof value === "string" && value.trim() !== "") return value.trim().slice(0, 64);
     }
   }
-  return "0.2.2";
+  return "0.2.3";
 }
 
 function useTranslate(ctx: ClientContext): { readonly locale: string; readonly t: Translate } {

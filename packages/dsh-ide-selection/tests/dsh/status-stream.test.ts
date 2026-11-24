@@ -5,7 +5,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Context, type Plugin } from "@deepseek-ai/cordis";
+import { Context } from "@deepseek-ai/cordis";
 import { WebServer } from "@deepseek-ai/dsh-host-webserver";
 import { SessionId, SessionStore } from "@deepseek-ai/dsh-session";
 import { AgentRegistry } from "@deepseek-ai/dsh-agent";
@@ -23,6 +23,7 @@ import {
   handleSelectionStream,
   registerSelectionStatus,
 } from "../../src/dsh/status-stream.js";
+import { admitOwner, connectionStub } from "./admission.js";
 
 const TIMEOUT_MS = 1_000;
 const MAX_AGE_MS = 60_000;
@@ -63,12 +64,8 @@ describe("selection status stream", () => {
     await ctx.plugin(AgentRegistry);
     await ctx.plugin(WebServer, { host: "127.0.0.1", port: 0 });
     let authorized = false;
-    await ctx.plugin({
-      name: "status-test-authorization",
-      apply(scope: Context) {
-        scope.provide("connection", { requestRejection: () => (authorized ? undefined : 401) });
-      },
-    });
+    admitOwner(ctx, () => authorized);
+    await ctx.plugin(connectionStub);
     await ctx.plugin(selectionPlugin, { lockDir: dir });
     const session = ctx.sessions.create(undefined, { meta: { cwd: "/work/app" } });
     const endpoint = `${ctx.webServer.getOrigin()}${SELECTION_EVENTS_PATH}?session=${encodeURIComponent(session.id)}`;
@@ -112,13 +109,8 @@ describe("selection status stream", () => {
     });
     const endpoint = `${ctx.webServer.getOrigin()}${SELECTION_EVENTS_PATH}`;
     expect((await fetch(endpoint)).status).toBe(404);
-    const authorization: Plugin = {
-      name: "status-authorization-test",
-      apply(scope) {
-        scope.provide("connection", { requestRejection: () => 401 });
-      },
-    };
-    const connection = await ctx.plugin(authorization);
+    admitOwner(ctx, () => false);
+    const connection = await ctx.plugin(connectionStub);
     expect((await fetch(endpoint)).status).toBe(404);
     const sessions = await ctx.plugin(SessionStore);
     closers.push(async () => {
@@ -127,7 +119,7 @@ describe("selection status stream", () => {
     await vi.waitFor(async () => expect((await fetch(endpoint)).status).toBe(401));
     await connection.dispose();
     expect((await fetch(endpoint)).status).toBe(404);
-    const restarted = await ctx.plugin(authorization);
+    const restarted = await ctx.plugin(connectionStub);
     closers.push(async () => {
       await restarted.dispose();
     });
@@ -197,21 +189,9 @@ describe("selection status stream", () => {
     expect(JSON.stringify(first)).not.toContain("secret selection");
   });
 
-  it("rejects unauthorized and incomplete requests", async () => {
-    const server = createServer((request, response) => {
-      handleSelectionStream(request, response, {
-        authorize: () => 401,
-        subscribe: () => () => undefined,
-      });
-    });
-    closers.push(() => closeServer(server));
-    const port = await listen(server);
-    const denied = await fetch(`http://127.0.0.1:${port}${SELECTION_EVENTS_PATH}?session=one`);
-    expect(denied.status).toBe(401);
-
+  it("rejects an incomplete request", async () => {
     const open = createServer((request, response) => {
       handleSelectionStream(request, response, {
-        authorize: () => undefined,
         subscribe: () => () => undefined,
       });
     });
@@ -239,7 +219,6 @@ describe("selection status stream", () => {
     const http = createServer((request, response) => {
       request.resume();
       handleSelectionStream<IdeEvent>(request, response, {
-        authorize: () => undefined,
         subscribe: (sessionId, listener) =>
           connections.watch(SessionId(sessionId), WORKSPACE, (update) =>
             listener({ type: "status", ...statusFromUpdate(update) }),

@@ -64,7 +64,7 @@ When `dsh-usages` is also enabled, this plugin registers SuperGrok usage on its 
 
 ## Development
 
-Use Node.js `>=24.9.0`. In this package directory, after code changes, run:
+Use Node.js `^24.22.3 || >=26.13.1`. In this package directory, after code changes, run:
 
 ```sh
 mise run format

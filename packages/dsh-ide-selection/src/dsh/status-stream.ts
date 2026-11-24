@@ -11,6 +11,7 @@ import type { SelectionReference } from "../shared/selection-reference.js";
 import type { FollowUpdate } from "../shared/watch.js";
 import { diagnosticInputEvent, type DiagnosticInputEvent } from "./diagnostics-stream.js";
 import type { IdeConnections } from "./ide-connections.js";
+import { isOwnerPeer } from "./owner-gate.js";
 
 export const SELECTION_EVENTS_PATH = "/ide-selection/events";
 
@@ -41,7 +42,6 @@ export function statusFromUpdate(update: FollowUpdate): SelectionStatusEvent {
 }
 
 export interface SelectionStreamDependencies<Event = SelectionStatusEvent> {
-  authorize: (request: IncomingMessage) => 401 | 403 | undefined;
   subscribe: (sessionId: string, listener: (event: Event) => void) => () => void;
   signal?: AbortSignal;
 }
@@ -57,13 +57,17 @@ export function registerSelectionStatus(
     const dispose = scope.webServer.register({
       kind: "exact",
       path: SELECTION_EVENTS_PATH,
-      handler: (request, response) => {
+      auth: "required",
+      handler: (request, response, peer) => {
+        if (!isOwnerPeer(peer)) {
+          response.writeHead(403, { "cache-control": "no-store" }).end();
+          return;
+        }
         if (request.method !== "GET") {
           response.writeHead(405, { allow: "GET" }).end();
           return;
         }
         handleSelectionStream<IdeEvent>(request, response, {
-          authorize: (incoming) => scope.connection.requestRejection({ headers: incoming.headers }),
           subscribe: (id, listener) => {
             const sessionId = SessionId(id);
             const session = scope.sessions.get(sessionId);
@@ -120,11 +124,6 @@ export function handleSelectionStream<Event = SelectionStatusEvent>(
   response: ServerResponse,
   dependencies: SelectionStreamDependencies<Event>,
 ): void {
-  const rejection = dependencies.authorize(request);
-  if (rejection) {
-    response.writeHead(rejection).end();
-    return;
-  }
   const sessionId = new URL(request.url ?? "/", "http://127.0.0.1").searchParams.get("session");
   if (!sessionId) {
     response.writeHead(400).end();

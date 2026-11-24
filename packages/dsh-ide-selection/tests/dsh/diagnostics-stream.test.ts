@@ -18,6 +18,7 @@ import type { DiagnosticContext, EditorSelectionSnapshot } from "../../src/share
 import { IdeServer } from "../../src/shared/server.js";
 import { formatSelectionReference, formatSelectionReferences } from "../../src/shared/format.js";
 import { readSelectionContent } from "../../src/shared/selection-reference.js";
+import { admitOwner, connectionStub } from "./admission.js";
 
 const TOKEN = "d".repeat(64);
 const WAIT_MS = 2_000;
@@ -98,12 +99,8 @@ async function harness() {
   await ctx.plugin(AgentRegistry);
   await ctx.plugin(WebServer, { host: "127.0.0.1", port: 0 });
   let authorized = true;
-  await ctx.plugin({
-    name: "diagnostic-test-authorization",
-    apply(scope: Context) {
-      scope.provide("connection", { requestRejection: () => (authorized ? undefined : 401) });
-    },
-  });
+  admitOwner(ctx, () => authorized);
+  await ctx.plugin(connectionStub);
   const fiber = await ctx.plugin(plugin, { lockDir: root });
   const session = ctx.sessions.create(undefined, { meta: { cwd } });
   const origin = ctx.webServer.getOrigin();

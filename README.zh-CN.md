@@ -6,16 +6,16 @@
 
 ## 包
 
-| 包                  | 路径                         | 作用               |
-| ------------------- | ---------------------------- | ------------------ |
-| `dsh-xai-auth`      | `packages/dsh-xai-auth`      | xAI SuperGrok 登录 |
-| `dsh-ide-selection` | `packages/dsh-ide-selection` | VS Code 选区上下文 |
-| `dsh-my-preset`     | `packages/dsh-my-preset`     | 我的预设           |
+| 包                  | 路径                         | 作用                |
+| ------------------- | ---------------------------- | ------------------- |
+| `dsh-xai-auth`      | `packages/dsh-xai-auth`      | xAI SuperGrok 登录  |
+| `dsh-ide-selection` | `packages/dsh-ide-selection` | VS Code 选区上下文  |
+| `dsh-my-preset`     | `packages/dsh-my-preset`     | 我的预设            |
 | `dsh-usages`        | `packages/dsh-usages`        | DeepSeek 与 Go 用量 |
 
 ## 环境要求
 
-Node.js 24.x 系列中的 24.9 或更高版本，以及 pnpm 12.16.1。两者都由 mise 安装。
+Node.js `^24.22.3 || >=26.13.1`，以及 pnpm 12.16.1。两者都由 mise 安装。
 
 ## 初始化
 

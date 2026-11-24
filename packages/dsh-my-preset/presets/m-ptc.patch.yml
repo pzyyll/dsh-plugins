@@ -1,6 +1,6 @@
 # Agent preset M-PTC: GENERATED FILE - edit scripts/sync-presets.ts instead.
 #
-# Copied from the ptc preset shipped with @deepseek-ai/dsh-web-app 0.2.2-rc.3.
+# Copied from the ptc preset shipped with @deepseek-ai/dsh-web-app 0.2.3-alpha.2.
 #
 # Regenerate: mise run sync-presets
 #             node scripts/sync-presets.ts ptc
@@ -52,6 +52,9 @@
             name: "@deepseek-ai/dsh-tool-schedule"
           - id: skill-filesystem
             name: "@deepseek-ai/dsh-skill-filesystem"
+            config:
+              customSkillDirs:
+                - !!js process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@deepseek-ai/dsh-agent-preset/package.json')), 'skills')
           - id: tool-skill
             name: "@deepseek-ai/dsh-tool-skill"
           - id: command-goal
@@ -151,7 +154,7 @@
             name: "@deepseek-ai/dsh-tool-office"
           - id: tool-plugin-manager
             name: "@deepseek-ai/dsh-plugin-manager/tools"
-            disabled: true
+            disabled: !!js "!ctx.get('profileContext')"
           - id: tool-plugin-market
             name: "@deepseek-ai/dsh-plugin-market/tools"
             disabled: true
