@@ -28,7 +28,8 @@ const CAPSULE_MIN_WIDTH_PX = 48;
 const RING_SIZE_PX = 32;
 const CORNER_RADIUS_PX = 12.8;
 const DRAG_THRESHOLD_PX = 4;
-const INITIAL_FRACTION = 0.5;
+/** 0 is the top of the content column. Start one quarter up from the bottom. */
+const INITIAL_FRACTION = 0.75;
 const DOCK_TRAVEL_MS = 220;
 const DOCK_JELLY_MS = 480;
 const DOCK_TRAVEL_EASING = "cubic-bezier(0.22,1,0.36,1)";
