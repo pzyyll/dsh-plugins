@@ -2,5 +2,5 @@
   "packages/dsh-xai-auth": "0.4.0",
   "packages/dsh-ide-selection": "0.5.1",
   "packages/dsh-ide-selection/ide-plugins/vscode": "0.4.0",
-  "packages/dsh-usages": "0.2.0"
+  "packages/dsh-usages": "0.2.1"
 }

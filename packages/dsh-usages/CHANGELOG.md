@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/pzyyll/dsh-plugins/compare/dsh-usages-v0.2.0...dsh-usages-v0.2.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **dsh-usages:** lower the default capsule dock ([839a719](https://github.com/pzyyll/dsh-plugins/commit/839a719a5a3c8d4aa5cdea19f80636e981cf659b))
+
 ## [0.2.0](https://github.com/pzyyll/dsh-plugins/compare/dsh-usages-v0.1.0...dsh-usages-v0.2.0) (2026-11-24)
 
 
